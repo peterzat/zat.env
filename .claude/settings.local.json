@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)",
+      "Bash(lsb_release -ds)",
+      "Read(//usr/lib/**)",
+      "WebSearch",
+      "WebFetch(domain:www.hetzner.com)",
+      "WebFetch(domain:lowendtalk.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:news.ycombinator.com)",
+      "WebFetch(domain:community.hetzner.com)",
+      "WebFetch(domain:docs.hetzner.com)"
+    ]
+  }
+}
