@@ -1,6 +1,23 @@
 # zat.env
 
-Reproducible dev environment for Peter Zatloukal (peterzat). This repo captures everything needed to turn a bare Hetzner GEX44 into a fully configured, always-on agentic coding box.
+Portable agentic coding environment. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+
+The primary goal is **always-on agentic coding loops**: Claude Code sessions that run autonomously, review their own work, fix issues, and iterate with structured guardrails. This repo provides the skills, hooks, and conventions that make those loops safe and productive.
+
+This repo also includes `bootstrap-GEX44.sh` for provisioning Peter Zatloukal's (peterzat) dedicated Hetzner GEX44 as an always-on cloud dev box, but the core value is in `zat.env-install.sh`, which works anywhere.
+
+## Contents
+
+- [Quick Start](#quick-start)
+- [Agentic Skills](#agentic-skills)
+  - [`/codereview`: Adversarial Code Review](#codereview-adversarial-code-review)
+  - [`/security`: Security Review](#security-security-review)
+  - [`/architect`: Architecture Review](#architect-architecture-review)
+  - [`/tester`: Test Strategy Review](#tester-test-strategy-review)
+  - [Pre-Push Gate](#pre-push-gate)
+- [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
+- [GEX44 Machine Setup](#gex44-machine-setup)
+- [Roadmap](#roadmap)
 
 > **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
 
@@ -8,47 +25,44 @@ Reproducible dev environment for Peter Zatloukal (peterzat). This repo captures 
 
 ---
 
-## What is zat.env?
+## Quick Start
 
-`zat.env` is the single source of truth for the machine environment: configuration, conventions, tooling scripts, and setup instructions. Individual projects live in their own repos under `~/src/`; this repo handles only cross-project infrastructure.
+```bash
+git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
+~/src/zat.env/zat.env-install.sh
+# Restart Claude Code to pick up skills and hooks
+```
 
-Setup is two-phase:
-1. **`bootstrap-GEX44.sh`**: run on bare Ubuntu to install system packages, NVIDIA drivers, Docker, Tailscale, Claude Code, etc.
-2. **`zat.env-install.sh`**: run after cloning this repo to wire config into the live system (git config, symlinks, skills, hooks)
+This installs on any machine with git, jq, and Claude Code. It symlinks skills into `~/.claude/skills/`, wires the pre-push hook into `~/.claude/settings.json`, and sets up git config. Safe to re-run at any time.
 
-The install script is portable. It's safe to run on any machine where you use Claude Code, not just the GEX44.
+**Updating:**
+```bash
+cd ~/src/zat.env && git pull && ./zat.env-install.sh
+```
 
 ---
 
-## Philosophy / Goals
+## Philosophy
 
-**Always-on cloud dev box.** The GEX44 runs 24/7. State persists. Sessions survive disconnects. This is not a laptop you close; it's a server you connect to.
+**Agentic coding loops are the product.** Claude Code is the primary development tool, not a chat assistant. The environment is optimized for long autonomous coding sessions: review, fix, re-review, with quantitative signals to detect convergence and circuit breakers to prevent infinite loops.
 
-**Thin client model.** Laptop and phone are just terminals. All development happens on the GEX44 via Tailscale SSH. No local dev, no syncing, no "works on my machine."
-
-**Agentic coding first.** Claude Code is the primary development tool, not a chat assistant. The environment is optimized for long agentic coding loops: persistent sessions, GPU access, project isolation.
-
-**Autonomy spectrum.** Start supervised (Claude proposes, Peter reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints. The environment should evolve to support increasing autonomy safely without losing control.
-
-**Verification over prompting.** Inspired by Carlini's C compiler work (2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt. If the verifier is wrong, the agent solves the wrong problem.
-
-**Convergence through constraints.** Even Opus 4.6 can't one-shot complex projects. Progress comes from iterative loops with guardrails: review, fix, re-review, with quantitative signals to detect convergence and circuit breakers to prevent infinite loops. The loop is the product, not the single invocation.
+**Verification over prompting.** Inspired by Carlini's C compiler work (2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
 
 **Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
 
-**Multiple concurrent projects.** Each project gets its own venv, tmux session, and git repo. They're independently runnable. The long-term goal is multiple simultaneous agentic sessions across projects.
+**Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
 
-**GPU as a coding tool.** The RTX 4000 SFF Ada (20GB VRAM, 70W TDP) is not for production training. It's for in-loop experimentation: A/B testing local models, running inference during development, rapid iteration.
+**Reproducibility.** `bootstrap-GEX44.sh` + `zat.env-install.sh` = full recovery from bare metal. `zat.env-install.sh` alone = agentic skills on any machine.
 
-**Reproducibility over snowflakes.** bootstrap + zat.env = full recovery from bare metal. Projects are in GitHub. No hand-crafted state that can't be recreated.
-
-**Secrets discipline.** Credentials never in repos. `.env` files always gitignored. Use environment variables or a secrets manager.
-
-**Grow incrementally.** Start simple. Add complexity only when earned by real use cases. Avoid premature abstraction.
+**Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
 ---
 
-## Machine Specs
+## GEX44 Machine Setup
+
+The sections below are specific to provisioning the Hetzner GEX44 dedicated server. Skip this if you're just running `zat.env-install.sh` on a local machine.
+
+### Machine Specs
 
 | Spec       | Value                                                         |
 |------------|---------------------------------------------------------------|
@@ -72,7 +86,7 @@ The install script is portable. It's safe to run on any machine where you use Cl
 
 ---
 
-## Setup From Scratch
+### Setup From Scratch
 
 Starting from a bare Ubuntu 22.04.2 LTS install with SSH access:
 
@@ -106,15 +120,9 @@ claude
 # 8. Start a new Claude session to pick up installed skills
 ```
 
-**Updating zat.env on any machine:**
-```bash
-cd ~/src/zat.env && git pull && ./zat.env-install.sh
-# Restart Claude to pick up any skill or hook changes
-```
-
 ---
 
-## Directory Overview
+### Directory Overview
 
 Post-install layout (annotated):
 
@@ -185,15 +193,15 @@ Post-install layout (annotated):
 
 ---
 
-## Daily Workflow
+### Daily Workflow
 
-### Connecting
+#### Connecting
 ```bash
 ssh peter@<tailscale-hostname>
 # or from phone via any SSH client
 ```
 
-### Starting a project
+#### Starting a project
 ```bash
 # Clone an existing repo and open a persistent claude session
 ccproj myrepo git@github.com:peterzat/myrepo.git
@@ -202,7 +210,7 @@ ccproj myrepo git@github.com:peterzat/myrepo.git
 newproj my-new-thing
 ```
 
-### tmux and persistent sessions
+#### tmux and persistent sessions
 `~/src/` is just a directory. You can clone or create repos there however you like. `ccproj` and `newproj` are specifically for when you want a **persistent named terminal session** tied to a project.
 
 When you run `ccproj ranking ...`:
