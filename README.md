@@ -59,9 +59,31 @@ git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
 
 This installs on any machine with git, jq, and Claude Code. It symlinks skills into `~/.claude/skills/`, wires the pre-push hook into `~/.claude/settings.json`, and sets up git config. Safe to re-run at any time.
 
+### What the install script does
+
+The repo stays at `~/src/zat.env/` and remains part of the live system after install. Most configuration is symlinked rather than copied, so the repo and the active config are the same files.
+
+**Symlinked into `~/.claude/` (live — `git pull` updates them immediately):**
+- `~/.claude/CLAUDE.md` → `claude/global-claude.md`
+- `~/.claude/skills/codereview/` → `claude/skills/codereview/`
+- `~/.claude/skills/security/` → `claude/skills/security/`
+- `~/.claude/skills/architect/` → `claude/skills/architect/`
+- `~/.claude/skills/tester/` → `claude/skills/tester/`
+
+**Registered as paths into the repo (live — `git pull` updates the content, no re-install needed):**
+- `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
+- `~/.claude/settings.json` gets a pre-push hook entry with the path to `hooks/pre-push-codereview.sh`
+
+**Re-run `zat.env-install.sh` when:**
+- A new skill is added to `claude/skills/` (the symlink for the new skill won't exist yet)
+- A new hook is added to `hooks/` (it won't be registered in `settings.json` yet)
+- The repo is moved to a different path (all registered paths need updating)
+
 **Updating:**
 ```bash
-cd ~/src/zat.env && git pull && ./zat.env-install.sh
+cd ~/src/zat.env && git pull
+# Re-run install only if new skills or hooks were added:
+./zat.env-install.sh
 ```
 
 ---
