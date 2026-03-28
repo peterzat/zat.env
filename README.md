@@ -246,7 +246,7 @@ All four skills share a set of prompt design principles informed by community re
 - **No style policing.** Formatting, naming, and aesthetic preferences are not findings unless they indicate a functional or structural problem.
 - **Scoped context reads.** When reading persistent files from prior runs, skills focus on the most recent entry, unresolved BLOCKs, and the metadata footer. Historical entries older than the current branch's base commit are skipped.
 
-These principles address the most common failure mode of AI review agents: generating noise that erodes trust. Graphite's research on AI code review showed that adding a single precision-bias instruction moved developer action rates from ~25% to 52%, matching human reviewers.
+These principles address the most common failure mode of AI review agents: generating noise that erodes trust. Industry experience with AI code review tools consistently shows that precision-biased instructions (focus on logic and security, not style) dramatically improve developer action rates on AI-generated findings.
 
 ### `/codereview`: Adversarial Code Review
 
