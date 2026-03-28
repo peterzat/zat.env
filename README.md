@@ -46,7 +46,7 @@ cd ~/src/zat.env && git pull && ./zat.env-install.sh
 
 **Agentic coding loops are the product.** Claude Code is the primary development tool, not a chat assistant. The environment is optimized for long autonomous coding sessions: review, fix, re-review, with quantitative signals to detect convergence and circuit breakers to prevent infinite loops.
 
-**Verification over prompting.** Inspired by Carlini's C compiler work (2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
+**Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
 
 **Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
 
@@ -370,9 +370,9 @@ This section documents the design philosophy behind the agentic skill system and
 
 ### The Carlini Principle
 
-In February 2026, Nicholas Carlini (Anthropic) built a complete C compiler using 16 parallel Claude Opus 4.6 agents running in an infinite loop. 100,000 lines of Rust, 3,982 commits, ~$20,000 in API costs, 2 weeks. No human wrote code.
+In February 2026, Nicholas Carlini at Anthropic [built a complete C compiler](https://www.anthropic.com/engineering/building-c-compiler) using 16 parallel Claude Opus 4.6 agents running in an infinite loop. 100,000 lines of Rust, 3,982 commits, ~$20,000 in API costs, 2 weeks. No human wrote code.
 
-The key insight: **the primary skill for a 10x developer isn't their ability to solve a complex bug. It's their ability to design the automated testing rigs and feedback loops that allow sixteen parallel instances of a model to solve it.**
+The key insight: the quality ceiling of agent-built software is determined by the quality of the verification loop, not the quality of the prompt. Designing good test suites and review feedback loops matters more than crafting better instructions.
 
 Applied here: invest in verification (review skills, test suites, feedback loops) before investing in prompts. A well-designed review loop is worth more than a better system prompt.
 
