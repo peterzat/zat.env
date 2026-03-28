@@ -6,6 +6,29 @@ An isolated, always-on hardware instance is a critical ingredient for serious ag
 
 Running long agentic loops requires a minimum hardware spec: enough VRAM for local model inference, enough RAM for concurrent sessions, and enough CPU for sustained throughput. See [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44) for the current hardware choice and rationale.
 
+## Contents
+
+- [Philosophy](#philosophy)
+- [Environment Coupling and Portability](#environment-coupling-and-portability)
+- [Coding Practices](#coding-practices)
+- [Quick Start](#quick-start)
+- [Agentic Skills](#agentic-skills)
+  - [`/codereview`: Adversarial Code Review](#codereview-adversarial-code-review)
+  - [`/security`: Security Review](#security-security-review)
+  - [`/architect`: Architecture Review](#architect-architecture-review)
+  - [`/tester`: Test Strategy Review](#tester-test-strategy-review)
+  - [`/pr`: Pull Request Workflow](#pr-pull-request-workflow)
+  - [Pre-Push Gate](#pre-push-gate)
+- [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
+- [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44)
+- [Roadmap](#roadmap)
+
+> **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
+
+> **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
+
+---
+
 ## Philosophy
 
 **Claude Code as the primary development tool.** This environment is built for long autonomous coding sessions where Claude reviews its own work, fixes issues, and iterates. Skills, hooks, and conventions provide the structure: adversarial review before pushing, quantitative signals to detect convergence, and circuit breakers to cap runaway loops.
@@ -43,26 +66,6 @@ These instructions are embedded in `claude/global-claude.md` and active in every
 
 These practices are deliberately minimal. Shorter, more specific instructions outperform comprehensive ones for AI agents: as instruction volume grows, compliance with any single instruction drops (instruction dilution). Each bullet targets a specific failure mode that agents cannot reliably self-correct without explicit guidance. If a practice can be enforced by tooling (linting, hooks, tests), it belongs in tooling, not here.
 
-## Contents
-
-- [Environment Coupling and Portability](#environment-coupling-and-portability)
-- [Quick Start](#quick-start)
-- [Agentic Skills](#agentic-skills)
-  - [`/codereview`: Adversarial Code Review](#codereview-adversarial-code-review)
-  - [`/security`: Security Review](#security-security-review)
-  - [`/architect`: Architecture Review](#architect-architecture-review)
-  - [`/tester`: Test Strategy Review](#tester-test-strategy-review)
-  - [Pre-Push Gate](#pre-push-gate)
-- [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
-- [Roadmap](#roadmap)
-- [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44)
-
-> **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
-
-> **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
-
----
-
 ## Quick Start
 
 ```bash
@@ -83,6 +86,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 - `~/.claude/skills/security/` → `claude/skills/security/`
 - `~/.claude/skills/architect/` → `claude/skills/architect/`
 - `~/.claude/skills/tester/` → `claude/skills/tester/`
+- `~/.claude/skills/pr/` → `claude/skills/pr/`
 
 **Registered as paths into the repo (live — `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
@@ -112,6 +116,7 @@ Four global skills are installed by `zat.env-install.sh` and available in all Cl
 | Security | `/security` | Manual + chained from codereview | Security audit (full repo or changes-only) |
 | Architect | `/architect` | Manual only | Architecture fitness assessment |
 | Tester | `/tester` | Manual only | Test strategy assessment |
+| Pull Request | `/pr` | Manual only | Create, inspect, or merge GitHub PRs |
 
 ### Prompt Design Principles
 
@@ -194,6 +199,37 @@ These principles address the most common failure mode of AI review agents: gener
 
 **"This is fine for now"** is valid. A new prototype with a few pytest files and no CI is fine. A production API with no integration tests is not. The assessment is always proportional to the project's maturity and goals.
 
+### `/pr`: Pull Request Workflow
+
+**Trigger:** Manual only (`/pr`). Not auto-invoked.
+
+**What it does:**
+
+Five modes dispatched by argument:
+
+- `/pr` or `/pr <branch-name>` — create a PR. If on `main`, checks out a feature branch
+  first. Checks for an existing PR on the branch (idempotent; will not create duplicates).
+  Composes the title from commit messages and the body from review file metadata.
+- `/pr status` — show the current branch's PR state, CI checks, and merge readiness
+- `/pr <number>` — inspect a specific PR and summarize review comments
+- `/pr merge` — verify the codereview marker, then `gh pr merge --squash --delete-branch`
+  and return to main
+- `/pr list` — list open PRs for the repo
+
+**Auto-composed PR descriptions.** The skill reads `<!-- REVIEW_META: {...} -->` footers
+from CODEREVIEW.md, SECURITY.md, and TESTING.md to populate a review status table in the
+PR body. Zero extra work: review files written by other skills become the PR description.
+
+**Review gate on merge.** `/pr merge` performs the same diff-hash check as the pre-push
+hook. A PR cannot be merged through this skill without a passing `/codereview`.
+
+**Design intent.** PRs are opt-in. Direct-to-main remains the default solo workflow. `/pr`
+earns its keep when you want a persistent record of a change, are coordinating across
+worktrees, or are preparing work for a future collaborator or review agent.
+
+This skill is the terminal node added to the cross-skill reading DAG (like `/architect`):
+reads review metadata, produces no persistent file.
+
 ### Pre-Push Gate
 
 A Claude Code `PreToolUse` hook (configured in `~/.claude/settings.json`) intercepts every `git push` command. The push is blocked unless `/codereview` has been run and passed on the current diff.
@@ -239,9 +275,10 @@ codereview  -> reads SECURITY.md, TESTING.md
 security    -> reads CODEREVIEW.md
 tester      -> reads SECURITY.md, CODEREVIEW.md
 architect   -> reads all three (terminal node, produces no persistent file)
+pr          -> reads all three metadata footers (terminal node, produces no persistent file)
 ```
 
-Architect is the terminal node: its output informs human decisions and does not feed back into automated review. This prevents architectural recommendations from becoming automatic codereview criteria without deliberate human adoption.
+Architect and pr are terminal nodes: their output informs human decisions and does not feed back into automated review. This prevents recommendations from becoming automatic codereview criteria without deliberate human adoption.
 
 ---
 
@@ -291,50 +328,6 @@ The current system is at **Gated**. The skills and persistent files are the foun
 **Auto-fix oscillation.** Fix A breaks B, fix B reintroduces A. Countered by: escalating conservatism on iterations 2-3, one-issue-per-fix cap, 20-line-per-fix cap, stop after 3 attempts.
 
 **Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary.
-
----
-
-## Roadmap
-
-### Done (v1)
-
-- [x] Machine provisioning script (`bootstrap-GEX44.sh`)
-- [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
-- [x] Global git conventions (aliases, ignore-global)
-- [x] Machine-wide Claude conventions (`claude/global-claude.md`)
-- [x] Adversarial code review (`/codereview`) with pre-push hook gate
-- [x] Security review (`/security`) with persistent `SECURITY.md`
-- [x] Architecture review (`/architect`)
-- [x] Test strategy review (`/tester`) with persistent `TESTING.md`
-- [x] Content-addressed push gate (diff hash + project hash)
-- [x] Auto-fix with escalating conservatism and 3-iteration cap
-- [x] Cross-skill reading DAG with circular amplification prevention
-- [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
-
-### Future (v2+)
-
-**Near-term (high value, incremental):**
-- **`/verify` skill**: executes the project's test suite as ground truth; factual signal to complement opinion-based review
-- **Worktree-based A/B testing**: before applying a fix, create a worktree, run tests in isolation, compare against main branch before merging
-- **Quantitative trending**: parse structured metadata footers, track BLOCK/WARN/NOTE counts over sessions, detect convergence or regression
-
-**Medium-term (autonomous loops):**
-- **Loop orchestrator** (`/review-loop`): run codereview, fix, codereview in a loop until converging or hitting max iterations
-- **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe append-only updates for concurrent sessions
-- **Alignment checks**: periodic re-read of original task specification during long loops to detect intent drift
-- **Progressive disclosure**: reference files (`skills/<name>/references/`) for dimension details as skill prompts grow
-
-**Long-term (multi-agent):**
-- **Cross-project awareness**: architect and security read persistent files from sibling projects under `~/src/` to detect dependency-chain risks
-- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement for complex projects
-- **Multi-agent coordination**: multiple Claude sessions across projects with shared task pools and message passing
-- **Monitoring / dashboards**: visibility into running agent sessions, GPU utilization, loop progress
-
-**Infrastructure:**
-- **Project templates**: versioned starter files for Python ML projects, API services, general Python
-- **Dependency auditor** (`/deps`): dependency health, outdated packages, license risks, bloat, upgrade paths
-
----
 
 ## Current Hardware: Hetzner GEX44
 
@@ -436,7 +429,9 @@ Post-install layout (annotated):
 │       │       │   └── SKILL.md
 │       │       ├── architect/        # /architect: architecture review
 │       │       │   └── SKILL.md
-│       │       └── tester/           # /tester: test strategy review
+│       │       ├── tester/           # /tester: test strategy review
+│       │       │   └── SKILL.md
+│       │       └── pr/               # /pr: GitHub PR workflow
 │       │           └── SKILL.md
 │       ├── gitconfig/
 │       │   ├── aliases.gitconfig     # Git aliases, included via ~/.gitconfig
@@ -458,7 +453,8 @@ Post-install layout (annotated):
 │       ├── codereview -> ~/src/zat.env/claude/skills/codereview/
 │       ├── security   -> ~/src/zat.env/claude/skills/security/
 │       ├── architect  -> ~/src/zat.env/claude/skills/architect/
-│       └── tester     -> ~/src/zat.env/claude/skills/tester/
+│       ├── tester     -> ~/src/zat.env/claude/skills/tester/
+│       └── pr         -> ~/src/zat.env/claude/skills/pr/
 │
 └── .cache/
     ├── huggingface/                  # Shared HF model cache (never override HF_HOME per-project)
@@ -505,3 +501,50 @@ Come back later with:
 projattach ranking      # reattach to the ranking session
 projls                  # see all running sessions
 ```
+
+---
+
+## Roadmap
+
+### Done (v1)
+
+- [x] Machine provisioning script (`bootstrap-GEX44.sh`)
+- [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
+- [x] Global git conventions (aliases, ignore-global)
+- [x] Machine-wide Claude conventions (`claude/global-claude.md`)
+- [x] Adversarial code review (`/codereview`) with pre-push hook gate
+- [x] Security review (`/security`) with persistent `SECURITY.md`
+- [x] Architecture review (`/architect`)
+- [x] Test strategy review (`/tester`) with persistent `TESTING.md`
+- [x] Content-addressed push gate (diff hash + project hash)
+- [x] Auto-fix with escalating conservatism and 3-iteration cap
+- [x] Cross-skill reading DAG with circular amplification prevention
+- [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
+- [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
+
+### Future (v2+)
+
+**Near-term (high value, incremental):**
+- **`/verify` skill**: executes the project's test suite as ground truth; factual signal to complement opinion-based review
+- **Worktree-based A/B testing**: before applying a fix, create a worktree, run tests in isolation, compare against main branch before merging; `/pr` gains worktree awareness to handle branch/push correctly in worktree context
+- **Quantitative trending**: parse structured metadata footers, track BLOCK/WARN/NOTE counts over sessions, detect convergence or regression
+- **Branch workflow aliases**: `git feat <name>` (create feature branch), `git done` (merge + delete local-only branch)
+
+**Medium-term (autonomous loops):**
+- **Loop orchestrator** (`/review-loop`): run codereview, fix, codereview in a loop until converging or hitting max iterations; auto-create PR via `/pr` when loop converges
+- **Remote agent PR review**: `/schedule` trigger runs `claude --from-pr <url> --print` with `/codereview` against open PRs, posts results as PR comments; decouples authoring and review sessions
+- **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe append-only updates for concurrent sessions
+- **Alignment checks**: periodic re-read of original task specification during long loops to detect intent drift
+- **Progressive disclosure**: reference files (`skills/<name>/references/`) for dimension details as skill prompts grow
+
+**Long-term (multi-agent):**
+- **Agent-per-PR pattern**: each agent works in its own worktree on its own branch, opens a PR via `/pr` when done; a coordinator agent reviews and merges
+- **GitHub Actions CI**: justified at this point for independent test signal across multiple agent PRs; branch protection on main replaces local pre-push hook as the gate
+- **Cross-project awareness**: architect and security read persistent files from sibling projects under `~/src/` to detect dependency-chain risks
+- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement for complex projects
+- **Multi-agent coordination**: multiple Claude sessions across projects with shared task pools and message passing
+- **Monitoring / dashboards**: visibility into running agent sessions, GPU utilization, loop progress
+
+**Infrastructure:**
+- **Project templates**: versioned starter files for Python ML projects, API services, general Python
+- **Dependency auditor** (`/deps`): dependency health, outdated packages, license risks, bloat, upgrade paths
