@@ -39,6 +39,9 @@ These instructions are embedded in `claude/global-claude.md` and active in every
 - Run the test suite (or the relevant subset) after each functional change. Do not stack multiple untested changes.
 - When fixing a bug, change only what is necessary. Do not refactor surrounding code or improve unrelated code in the same change.
 - If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
+- Before switching tasks or when context grows large, write key decisions and current state to a file (commit message, README, or project-specific doc). Prefer restarting with a written plan over continuing with a long, stale context.
+
+These practices are deliberately minimal. Shorter, more specific instructions outperform comprehensive ones for AI agents: as instruction volume grows, compliance with any single instruction drops (instruction dilution). Each bullet targets a specific failure mode that agents cannot reliably self-correct without explicit guidance. If a practice can be enforced by tooling (linting, hooks, tests), it belongs in tooling, not here.
 
 ## Contents
 

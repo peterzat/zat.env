@@ -77,6 +77,9 @@ persistent files like CODEREVIEW.md/SECURITY.md/TESTING.md, README content):
   or improve unrelated code in the same change.
 - If a change causes previously passing tests to fail, revert it and try a different
   approach. Do not modify tests to accommodate a regression.
+- Before switching tasks or when context grows large, write key decisions and current
+  state to a file (commit message, README, or project-specific doc). Prefer restarting
+  with a written plan over continuing with a long, stale context.
 
 ## Hetzner / Networking
 
