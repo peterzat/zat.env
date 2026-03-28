@@ -71,6 +71,11 @@ attack vector — how an attacker actually reaches and exploits this issue.
    ```bash
    git log -p --follow -3 <file>
    ```
+   When reporting a secret leak, cite the file and line but **never reproduce the
+   secret value itself** in your findings or in SECURITY.md. Use a redacted form
+   such as `[REDACTED]` or the first 4 characters followed by `...` (e.g.
+   `sk-ab...`). The finding must be actionable without embedding the secret in a
+   committed file.
 
 2. **Input/output sanitization** — SQL injection, XSS, command injection, path
    traversal, SSRF. Trace data flow from external inputs to dangerous sinks. Only
@@ -112,7 +117,7 @@ Format each finding:
 ```
 [SEVERITY] file:line — description
   Attack vector: [how an attacker reaches and exploits this]
-  Evidence: [specific code observed]
+  Evidence: [specific code observed — redact any secret values; cite file:line only]
   Remediation: [concrete fix]
 ```
 
