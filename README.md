@@ -1,6 +1,6 @@
 # zat.env
 
-Portable agentic coding environment. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Autonomous coding loops with adversarial guardrails. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 The primary goal is **always-on agentic coding loops**: Claude Code sessions that run autonomously, review their own work, fix issues, and iterate with structured guardrails. This repo provides the skills, hooks, and conventions that make those loops safe and productive.
 
