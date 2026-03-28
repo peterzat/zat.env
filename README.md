@@ -6,6 +6,20 @@ The primary goal is **always-on agentic coding loops**: Claude Code sessions tha
 
 This repo also includes `bootstrap-GEX44.sh` for provisioning Peter Zatloukal's (peterzat) dedicated Hetzner GEX44 as an always-on cloud dev box, but the core value is in `zat.env-install.sh`, which works anywhere.
 
+## Philosophy
+
+**Agentic coding loops are the product.** Claude Code is the primary development tool, not a chat assistant. The environment is optimized for long autonomous coding sessions: review, fix, re-review, with quantitative signals to detect convergence and circuit breakers to prevent infinite loops.
+
+**Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
+
+**Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
+
+**Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
+
+**Reproducibility.** `bootstrap-GEX44.sh` + `zat.env-install.sh` = full recovery from bare metal. `zat.env-install.sh` alone = agentic skills on any machine.
+
+**Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
+
 ## Contents
 
 - [Quick Start](#quick-start)
@@ -39,22 +53,6 @@ This installs on any machine with git, jq, and Claude Code. It symlinks skills i
 ```bash
 cd ~/src/zat.env && git pull && ./zat.env-install.sh
 ```
-
----
-
-## Philosophy
-
-**Agentic coding loops are the product.** Claude Code is the primary development tool, not a chat assistant. The environment is optimized for long autonomous coding sessions: review, fix, re-review, with quantitative signals to detect convergence and circuit breakers to prevent infinite loops.
-
-**Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
-
-**Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
-
-**Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
-
-**Reproducibility.** `bootstrap-GEX44.sh` + `zat.env-install.sh` = full recovery from bare metal. `zat.env-install.sh` alone = agentic skills on any machine.
-
-**Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
 ---
 
