@@ -137,7 +137,7 @@ Only if all BLOCKs are resolved AND tests did not regress:
 
 ```bash
 PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
-DIFF_HASH=$(git diff HEAD | sha256sum | cut -c1-16)
+DIFF_HASH=$(git diff HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
 echo "${DIFF_HASH}" > "/tmp/.claude-codereview-${PROJ_HASH}"
 ```
 

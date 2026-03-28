@@ -37,8 +37,10 @@ PROJ_HASH=$(git rev-parse --show-toplevel 2>/dev/null | md5sum | cut -c1-8) || {
 }
 MARKER="/tmp/.claude-codereview-${PROJ_HASH}"
 
-# Compute current diff hash (staged + unstaged changes vs HEAD)
-DIFF_HASH=$(git diff HEAD 2>/dev/null | sha256sum | cut -c1-16)
+# Compute current diff hash (staged + unstaged changes vs HEAD).
+# Exclude review output files — codereview itself writes these, so including
+# them would always invalidate the marker it just created.
+DIFF_HASH=$(git diff HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' 2>/dev/null | sha256sum | cut -c1-16)
 
 # Check marker
 if [[ -f "${MARKER}" ]]; then
