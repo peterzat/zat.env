@@ -65,6 +65,19 @@ persistent files like CODEREVIEW.md/SECURITY.md/TESTING.md, README content):
 - When uncertain, say so plainly ("I'm not sure" or "this may be wrong") rather than
   hedging with weasel words.
 
+## Coding Practices
+
+- Work in small, committable increments. Get one thing working before adding the next.
+  Do not build scaffolding for features that are not needed yet.
+- When adding or changing functionality, write or update tests in the same increment.
+  If the project has no test infrastructure, add a minimal test runner first.
+- Run the test suite (or the relevant subset) after each functional change.
+  Do not stack multiple untested changes.
+- When fixing a bug, change only what is necessary. Do not refactor surrounding code
+  or improve unrelated code in the same change.
+- If a change causes previously passing tests to fail, revert it and try a different
+  approach. Do not modify tests to accommodate a regression.
+
 ## Hetzner / Networking
 
 - Networking uses a /32 point-to-point setup with `on-link: true` gateway routing — never modify netplan without understanding this or you will lose network access
