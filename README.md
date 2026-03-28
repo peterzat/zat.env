@@ -22,6 +22,14 @@ Running long agentic loops requires a minimum hardware spec: enough VRAM for loc
 
 **Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
+## Environment Coupling and Portability
+
+This setup is deliberately coupled to two choices: **Claude Code** as the agent runtime and **Ubuntu Linux** as the operating environment. Both are first-rate for this kind of work. Linux is the natural substrate for server-side agentic workloads: ubiquitous, scriptable, and what every CI system, container, and cloud instance runs. Claude Code is built from the ground up for autonomous agent loops -- hooks, skills, persistent context, and structured tool use are first-class citizens, not add-ons. The underlying model, Claude Opus 4.6, is the current best-in-breed coding model, and Anthropic's agent-first design philosophy is reflected throughout the tooling.
+
+Beyond those two couplings, the approach is portable by design. The skills are Markdown prompt files. The hooks are bash scripts. The conventions are plain text embedded in CLAUDE.md. The adversarial review pattern, verification-over-prompting principle, autonomy spectrum, and reproducible environment philosophy translate directly to any agent-capable AI coding tool, any Unix-like OS, and any model with comparable coding ability. Nothing here depends on a vendor API, a proprietary file format, or an OS primitive that isn't available elsewhere.
+
+In practice: if Claude Code gains a serious competitor or a different model pulls ahead, the work to port is swapping the skill invocation syntax and the hook registration format -- not rethinking the architecture.
+
 ## Coding Practices
 
 These instructions are embedded in `claude/global-claude.md` and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
@@ -34,6 +42,7 @@ These instructions are embedded in `claude/global-claude.md` and active in every
 
 ## Contents
 
+- [Environment Coupling and Portability](#environment-coupling-and-portability)
 - [Quick Start](#quick-start)
 - [Agentic Skills](#agentic-skills)
   - [`/codereview`: Adversarial Code Review](#codereview-adversarial-code-review)
