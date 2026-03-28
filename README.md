@@ -2,13 +2,15 @@
 
 Autonomous coding loops with adversarial guardrails. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
-The primary goal is **always-on agentic coding loops**: Claude Code sessions that run autonomously, review their own work, fix issues, and iterate with structured guardrails. This repo provides the skills, hooks, and conventions that make those loops safe and productive.
+An isolated, always-on hardware instance is a critical ingredient for serious agentic work. Long sessions need to survive SSH disconnects. Overnight autonomous jobs need to keep running without a laptop in the way. The environment needs to be deeply tuned: GPU drivers, CUDA toolchain, shared model caches, project conventions baked into every Claude session. But a hand-configured machine is a liability. `bootstrap-GEX44.sh` provisions a bare server from scratch; `zat.env-install.sh` wires the agentic layer onto any machine after that. Together they mean full recovery from bare metal is two scripts and a reboot.
 
-This repo also includes `bootstrap-GEX44.sh` for provisioning Peter Zatloukal's (peterzat) dedicated Hetzner GEX44 as an always-on cloud dev box, but the core value is in `zat.env-install.sh`, which works anywhere.
+Running long agentic loops requires a minimum hardware spec: enough VRAM for local model inference, enough RAM for concurrent sessions, and enough CPU for sustained throughput. See [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44) for the current hardware choice and rationale.
 
 ## Philosophy
 
 **Claude Code as the primary development tool.** This environment is built for long autonomous coding sessions where Claude reviews its own work, fixes issues, and iterates. Skills, hooks, and conventions provide the structure: adversarial review before pushing, quantitative signals to detect convergence, and circuit breakers to cap runaway loops.
+
+**Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `bootstrap-GEX44.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
 
 **Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
 
@@ -40,8 +42,8 @@ These instructions are embedded in `claude/global-claude.md` and active in every
   - [`/tester`: Test Strategy Review](#tester-test-strategy-review)
   - [Pre-Push Gate](#pre-push-gate)
 - [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
-- [GEX44 Machine Setup](#gex44-machine-setup)
 - [Roadmap](#roadmap)
+- [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44)
 
 > **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
 
@@ -84,174 +86,6 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 cd ~/src/zat.env && git pull
 # Re-run install only if new skills or hooks were added:
 ./zat.env-install.sh
-```
-
----
-
-## GEX44 Machine Setup
-
-The sections below are specific to provisioning the Hetzner GEX44 dedicated server. Skip this if you're just running `zat.env-install.sh` on a local machine.
-
-### Machine Specs
-
-| Spec       | Value                                                         |
-|------------|---------------------------------------------------------------|
-| CPU        | Intel Core i5-13500 (14 cores: 6P+8E, 20 threads)            |
-| GPU        | NVIDIA RTX 4000 SFF Ada (20GB ECC GDDR6, 6144 CUDA cores, 192 Tensor cores, 70W TDP) |
-| RAM        | 64 GB DDR4                                                    |
-| Storage    | 2 x 1.92 TB NVMe SSD, RAID-1 (~1.92 TB usable)              |
-| Network    | 1 Gbit/s, unlimited traffic                                   |
-| OS         | Ubuntu 22.04.2 LTS                                            |
-| Python     | 3.10 (system); projects always use per-project venvs          |
-| Provider   | Hetzner dedicated (GEX44), Falkenstein DC                     |
-
-**GPU notes:**
-- 20GB VRAM fits ~7-8B parameter models natively; ~32B quantized (IQ4_XS = 16-17 GB)
-- 70W TDP is the low-power SFF variant. Good for inference and experimentation, limited for heavy training.
-- Use `--gpus all` for Docker GPU access; always `--shm-size=8g` or `--ipc=host` for PyTorch DataLoader
-
-**Hetzner notes:**
-- Networking uses a /32 point-to-point config with `on-link: true` gateway routing. Do not modify netplan without understanding this.
-- Cryptocurrency mining is strictly prohibited (Hetzner will terminate the account)
-
----
-
-### Setup From Scratch
-
-Starting from a bare Ubuntu 22.04.2 LTS install with SSH access:
-
-```bash
-# 1. Copy bootstrap script to the machine and run it
-scp bootstrap-GEX44.sh user@<ip>:~/
-ssh user@<ip>
-bash ~/bootstrap-GEX44.sh
-
-# 2. Reboot (required after NVIDIA driver install)
-sudo reboot
-
-# 3. Re-run bootstrap to complete CUDA + NVIDIA Container Toolkit setup
-bash ~/bootstrap-GEX44.sh
-
-# 4. Authenticate Tailscale
-sudo tailscale up --ssh
-# or with an auth key:
-sudo tailscale up --ssh --authkey=tskey-xxxxx
-
-# 5. From here on, connect via Tailscale SSH
-ssh user@<tailscale-hostname>
-
-# 6. Set up SSH key for GitHub, then clone and install zat.env
-git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
-~/src/zat.env/zat.env-install.sh
-
-# 7. Authenticate Claude Code
-claude
-
-# 8. Start a new Claude session to pick up installed skills
-```
-
----
-
-### Directory Overview
-
-Post-install layout (annotated):
-
-```
-~/
-├── bin/                              # Project management helper scripts (from bootstrap)
-│   ├── ccproj                        # Clone a repo and open a tmux/claude session
-│   ├── newproj                       # Init a new project and open a tmux/claude session
-│   ├── projattach                    # Reattach to an existing project tmux session
-│   └── projls                        # List all running tmux sessions
-│
-├── data/                             # Shared large datasets and model files (not in git)
-│
-├── src/
-│   └── zat.env/                      # This repo: cross-project config and tooling
-│       ├── README.md                 # This file
-│       ├── CLAUDE.md                 # How to work on the zat.env repo itself
-│       ├── .gitignore
-│       ├── bootstrap-GEX44.sh        # Bare machine -> usable dev box
-│       ├── zat.env-install.sh        # Wire this repo's config into the live system
-│       ├── .claude/
-│       │   └── settings.local.json   # Repo-scoped Claude Code permissions
-│       ├── claude/
-│       │   ├── global-claude.md      # Machine-wide Claude conventions (symlinked below)
-│       │   └── skills/               # Global Claude Code skills (symlinked below)
-│       │       ├── codereview/       # /codereview: adversarial code review
-│       │       │   └── SKILL.md
-│       │       ├── security/         # /security: security audit
-│       │       │   └── SKILL.md
-│       │       ├── architect/        # /architect: architecture review
-│       │       │   └── SKILL.md
-│       │       └── tester/           # /tester: test strategy review
-│       │           └── SKILL.md
-│       ├── gitconfig/
-│       │   ├── aliases.gitconfig     # Git aliases, included via ~/.gitconfig
-│       │   └── ignore-global         # Global gitignore, referenced via ~/.gitconfig
-│       ├── hooks/
-│       │   ├── README.md             # Hook documentation
-│       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
-│       └── templates/
-│           └── README.md             # Future: project scaffolding templates
-│
-├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
-├── .tmux.conf                        # Mouse, scrollback, window numbering
-├── .gitconfig                        # Updated by install: user, includes, excludesfile
-│
-├── .claude/
-│   ├── CLAUDE.md -> ~/src/zat.env/claude/global-claude.md   # Symlink: machine-wide conventions
-│   ├── settings.json                 # Global Claude Code permissions + pre-push hook
-│   └── skills/                       # Symlinks to skill directories in this repo
-│       ├── codereview -> ~/src/zat.env/claude/skills/codereview/
-│       ├── security   -> ~/src/zat.env/claude/skills/security/
-│       ├── architect  -> ~/src/zat.env/claude/skills/architect/
-│       └── tester     -> ~/src/zat.env/claude/skills/tester/
-│
-└── .cache/
-    ├── huggingface/                  # Shared HF model cache (never override HF_HOME per-project)
-    └── pip/                          # Shared pip cache (don't purge casually; torch is 2GB+)
-```
-
-**Per-project review files** (written by skills into the project root, not this repo):
-```
-~/src/<project>/
-├── CODEREVIEW.md    # Written by /codereview: dated review history with metadata
-├── SECURITY.md      # Written by /security: security findings and accepted risks
-└── TESTING.md       # Written by /tester: test strategy assessment
-```
-
----
-
-### Daily Workflow
-
-#### Connecting
-```bash
-ssh peter@<tailscale-hostname>
-# or from phone via any SSH client
-```
-
-#### Starting a project
-```bash
-# Clone an existing repo and open a persistent claude session
-ccproj myrepo git@github.com:peterzat/myrepo.git
-
-# Create a new project from scratch
-newproj my-new-thing
-```
-
-#### tmux and persistent sessions
-`~/src/` is just a directory. You can clone or create repos there however you like. `ccproj` and `newproj` are specifically for when you want a **persistent named terminal session** tied to a project.
-
-When you run `ccproj ranking ...`:
-1. The repo is cloned to `~/src/ranking`
-2. A tmux session named `ranking` is created with `claude` running inside it
-3. If you disconnect (SSH drop, laptop closes), the session keeps running. Claude keeps coding.
-
-Come back later with:
-```bash
-projattach ranking      # reattach to the ranking session
-projls                  # see all running sessions
 ```
 
 ---
@@ -489,3 +323,173 @@ The current system is at **Gated**. The skills and persistent files are the foun
 - **Dependency auditor** (`/deps`): dependency health, outdated packages, license risks, bloat, upgrade paths
 
 ---
+
+## Current Hardware: Hetzner GEX44
+
+The hardware below is the current choice, not a permanent one. The agentic workflow described above runs on any Linux machine with sufficient resources and a Tailscale connection -- on-premises hardware, a homelab server, or any other dedicated box works equally well.
+
+The Hetzner GEX44 was selected for now because it combines a 14-core CPU, 64 GB RAM, and an NVIDIA RTX 4000 SFF Ada with 20 GB VRAM in a single dedicated (not shared) machine. That's enough VRAM for 7-8B parameter models natively, or ~32B quantized, which covers the majority of local inference use cases. Hetzner's pricing makes it practical to keep running 24/7, which is the main operational requirement. The GPU is the primary differentiator over cheaper CPU-only options. If needs change (larger models, more parallelism, on-prem preference), the hardware can be swapped out without changing any of the agentic tooling.
+
+The only hard networking requirement is Tailscale. All access to the machine goes through the Tailscale mesh: SSH, Claude Code remote sessions, everything. On-premises hardware behind NAT works fine as long as Tailscale is installed. The bootstrap script configures Tailscale as one of its first steps.
+
+### Machine Specs
+
+| Spec       | Value                                                         |
+|------------|---------------------------------------------------------------|
+| CPU        | Intel Core i5-13500 (14 cores: 6P+8E, 20 threads)            |
+| GPU        | NVIDIA RTX 4000 SFF Ada (20GB ECC GDDR6, 6144 CUDA cores, 192 Tensor cores, 70W TDP) |
+| RAM        | 64 GB DDR4                                                    |
+| Storage    | 2 x 1.92 TB NVMe SSD, RAID-1 (~1.92 TB usable)              |
+| Network    | 1 Gbit/s, unlimited traffic                                   |
+| OS         | Ubuntu 22.04.2 LTS                                            |
+| Python     | 3.10 (system); projects always use per-project venvs          |
+| Provider   | Hetzner dedicated (GEX44), Falkenstein DC                     |
+
+**GPU notes:**
+- 20GB VRAM fits ~7-8B parameter models natively; ~32B quantized (IQ4_XS = 16-17 GB)
+- 70W TDP is the low-power SFF variant. Good for inference and experimentation, limited for heavy training.
+- Use `--gpus all` for Docker GPU access; always `--shm-size=8g` or `--ipc=host` for PyTorch DataLoader
+
+**Hetzner notes:**
+- Networking uses a /32 point-to-point config with `on-link: true` gateway routing. Do not modify netplan without understanding this.
+- Cryptocurrency mining is strictly prohibited (Hetzner will terminate the account)
+
+---
+
+### Setup From Scratch
+
+Starting from a bare Ubuntu 22.04.2 LTS install with SSH access:
+
+```bash
+# 1. Copy bootstrap script to the machine and run it
+scp bootstrap-GEX44.sh user@<ip>:~/
+ssh user@<ip>
+bash ~/bootstrap-GEX44.sh
+
+# 2. Reboot (required after NVIDIA driver install)
+sudo reboot
+
+# 3. Re-run bootstrap to complete CUDA + NVIDIA Container Toolkit setup
+bash ~/bootstrap-GEX44.sh
+
+# 4. Authenticate Tailscale
+sudo tailscale up --ssh
+# or with an auth key:
+sudo tailscale up --ssh --authkey=tskey-xxxxx
+
+# 5. From here on, connect via Tailscale SSH
+ssh user@<tailscale-hostname>
+
+# 6. Set up SSH key for GitHub, then clone and install zat.env
+git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
+~/src/zat.env/zat.env-install.sh
+
+# 7. Authenticate Claude Code
+claude
+
+# 8. Start a new Claude session to pick up installed skills
+```
+
+---
+
+### Directory Overview
+
+Post-install layout (annotated):
+
+```
+~/
+├── bin/                              # Project management helper scripts (from bootstrap)
+│   ├── ccproj                        # Clone a repo and open a tmux/claude session
+│   ├── newproj                       # Init a new project and open a tmux/claude session
+│   ├── projattach                    # Reattach to an existing project tmux session
+│   └── projls                        # List all running tmux sessions
+│
+├── data/                             # Shared large datasets and model files (not in git)
+│
+├── src/
+│   └── zat.env/                      # This repo: cross-project config and tooling
+│       ├── README.md                 # This file
+│       ├── CLAUDE.md                 # How to work on the zat.env repo itself
+│       ├── .gitignore
+│       ├── bootstrap-GEX44.sh        # Bare machine -> usable dev box
+│       ├── zat.env-install.sh        # Wire this repo's config into the live system
+│       ├── .claude/
+│       │   └── settings.local.json   # Repo-scoped Claude Code permissions
+│       ├── claude/
+│       │   ├── global-claude.md      # Machine-wide Claude conventions (symlinked below)
+│       │   └── skills/               # Global Claude Code skills (symlinked below)
+│       │       ├── codereview/       # /codereview: adversarial code review
+│       │       │   └── SKILL.md
+│       │       ├── security/         # /security: security audit
+│       │       │   └── SKILL.md
+│       │       ├── architect/        # /architect: architecture review
+│       │       │   └── SKILL.md
+│       │       └── tester/           # /tester: test strategy review
+│       │           └── SKILL.md
+│       ├── gitconfig/
+│       │   ├── aliases.gitconfig     # Git aliases, included via ~/.gitconfig
+│       │   └── ignore-global         # Global gitignore, referenced via ~/.gitconfig
+│       ├── hooks/
+│       │   ├── README.md             # Hook documentation
+│       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
+│       └── templates/
+│           └── README.md             # Future: project scaffolding templates
+│
+├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
+├── .tmux.conf                        # Mouse, scrollback, window numbering
+├── .gitconfig                        # Updated by install: user, includes, excludesfile
+│
+├── .claude/
+│   ├── CLAUDE.md -> ~/src/zat.env/claude/global-claude.md   # Symlink: machine-wide conventions
+│   ├── settings.json                 # Global Claude Code permissions + pre-push hook
+│   └── skills/                       # Symlinks to skill directories in this repo
+│       ├── codereview -> ~/src/zat.env/claude/skills/codereview/
+│       ├── security   -> ~/src/zat.env/claude/skills/security/
+│       ├── architect  -> ~/src/zat.env/claude/skills/architect/
+│       └── tester     -> ~/src/zat.env/claude/skills/tester/
+│
+└── .cache/
+    ├── huggingface/                  # Shared HF model cache (never override HF_HOME per-project)
+    └── pip/                          # Shared pip cache (don't purge casually; torch is 2GB+)
+```
+
+**Per-project review files** (written by skills into the project root, not this repo):
+```
+~/src/<project>/
+├── CODEREVIEW.md    # Written by /codereview: dated review history with metadata
+├── SECURITY.md      # Written by /security: security findings and accepted risks
+└── TESTING.md       # Written by /tester: test strategy assessment
+```
+
+---
+
+### Daily Workflow
+
+#### Connecting
+```bash
+ssh peter@<tailscale-hostname>
+# or from phone via any SSH client
+```
+
+#### Starting a project
+```bash
+# Clone an existing repo and open a persistent claude session
+ccproj myrepo git@github.com:peterzat/myrepo.git
+
+# Create a new project from scratch
+newproj my-new-thing
+```
+
+#### tmux and persistent sessions
+`~/src/` is just a directory. You can clone or create repos there however you like. `ccproj` and `newproj` are specifically for when you want a **persistent named terminal session** tied to a project.
+
+When you run `ccproj ranking ...`:
+1. The repo is cloned to `~/src/ranking`
+2. A tmux session named `ranking` is created with `claude` running inside it
+3. If you disconnect (SSH drop, laptop closes), the session keeps running. Claude keeps coding.
+
+Come back later with:
+```bash
+projattach ranking      # reattach to the ranking session
+projls                  # see all running sessions
+```

@@ -23,7 +23,12 @@
       "WebFetch(domain:graphite.com)",
       "WebFetch(domain:www.braintrust.dev)",
       "WebFetch(domain:www.promptquorum.com)",
-      "WebFetch(domain:graphite.dev)"
+      "WebFetch(domain:graphite.dev)",
+      "Bash(BYPASS_CODEREVIEW=1 git push)",
+      "Bash(claude agents:*)",
+      "Bash(claude --version)",
+      "Bash(gh --version)",
+      "Bash(BYPASS_CODEREVIEW=1 git -C /home/parallels/src/zat.env push)"
     ]
   }
 }
