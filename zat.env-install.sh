@@ -22,15 +22,15 @@ echo "==> Configuring git globals"
 git config --global init.defaultBranch main
 
 GIT_NAME="${GIT_NAME:-$(git config --global user.name 2>/dev/null || true)}"
-if [[ -z "${GIT_NAME}" ]]; then
+while [[ -z "${GIT_NAME}" ]]; do
   read -rp "Git user.name: " GIT_NAME
-fi
+done
 git config --global user.name "${GIT_NAME}"
 
 GIT_EMAIL="${GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
-if [[ -z "${GIT_EMAIL}" ]]; then
+while [[ -z "${GIT_EMAIL}" ]]; do
   read -rp "Git user.email: " GIT_EMAIL
-fi
+done
 git config --global user.email "${GIT_EMAIL}"
 git config --global core.excludesfile "${REPO_DIR}/gitconfig/ignore-global"
 
