@@ -18,7 +18,12 @@
       "Bash(bash -n:*)",
       "Skill(security)",
       "Bash(find ~/.claude/plugins/marketplaces/claude-plugins-official/ -path *security* -name *.md -o -path *security* -name *.json)",
-      "Skill(codereview)"
+      "Skill(codereview)",
+      "WebFetch(domain:nicholas.carlini.com)",
+      "WebFetch(domain:graphite.com)",
+      "WebFetch(domain:www.braintrust.dev)",
+      "WebFetch(domain:www.promptquorum.com)",
+      "WebFetch(domain:graphite.dev)"
     ]
   }
 }

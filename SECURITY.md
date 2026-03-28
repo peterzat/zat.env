@@ -1,6 +1,6 @@
 ## Security Review — 2026-03-28 (scope: changes-only)
 
-**Summary:** Reviewed one uncommitted change: adding `Skill(codereview)` to the allow list in `.claude/settings.local.json`. No security issues identified.
+**Summary:** Reviewed uncommitted changes: five new domain-scoped WebFetch permissions in settings.local.json, plus review metadata updates in CODEREVIEW.md and SECURITY.md. No security issues identified.
 
 ### Findings
 
@@ -8,9 +8,9 @@ No security issues identified.
 
 ### Accepted Risks
 
-None.
+- **PII in source files** (bootstrap-GEX44.sh:275, README.md:3, and other references to `peterzat`): Inherent to a personal dotfiles repo. Reviewed and accepted. The current commit reduces PII surface by removing hardcoded email from install script and global-claude.md.
 
 ---
-*Prior review (2026-03-28, full): Full repository audit of all source files, shell scripts, skill prompts, gitconfig, and git history. No findings.*
+*Prior review (2026-03-28, changes-only): Reviewed WebFetch permission addition and review metadata updates. No issues.*
 
-<!-- SECURITY_META: {"date":"2026-03-28","commit":"e6fdd3b","scope":"changes-only","block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-03-28","commit":"e11695f","scope":"changes-only","block":0,"warn":0,"note":0} -->

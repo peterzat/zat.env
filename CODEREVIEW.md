@@ -1,6 +1,6 @@
-## Review — 2026-03-28 (commit: e6fdd3b)
+## Review — 2026-03-28 (commit: e11695f)
 
-**Summary:** Reviewed one unstaged change (adding `Skill(codereview)` permission to `.claude/settings.local.json`) and one unpushed commit adding four skills, pre-push hook, install wiring, and documentation updates. No issues found.
+**Summary:** Reviewed 1 unpushed commit (remove unverifiable Graphite citation from README) and 3 unstaged changes (4 new domain-scoped WebFetch permissions, review metadata updates in CODEREVIEW.md and SECURITY.md). All changes are documentation and configuration only. No issues found.
 
 ### Findings
 
@@ -11,6 +11,6 @@ No issues found.
 None.
 
 ---
-*Prior review (2026-03-28): Clean review of skills, hooks, install wiring, and documentation. No findings. Earlier reviews fixed accumulated debugging permissions and pre-push hook stdin parsing.*
+*Prior review (2026-03-28, commit a262d48): Light review of tiered-review commit and WebFetch/metadata changes. No findings.*
 
-<!-- REVIEW_META: {"date":"2026-03-28","commit":"e6fdd3b","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-03-28","commit":"e11695f","block":0,"warn":0,"note":0} -->
