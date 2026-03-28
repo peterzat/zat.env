@@ -37,10 +37,12 @@ Read these from the project root if they exist. Focus on: most recent entry,
 unresolved BLOCK items, and metadata footer. Skip historical entries older than
 the current branch's base commit.
 
+- `CODEREVIEW.md` — your own prior findings. If a finding from the most recent
+  entry is still present in the code (same file, same pattern) and was not auto-fixed,
+  treat it as "human reviewed and accepted." Downgrade it to NOTE and do not
+  auto-fix it. This prevents re-flagging issues the human chose to keep.
 - `SECURITY.md` — known security issues and accepted risks
 - `TESTING.md` — current test strategy assessment
-
-Do NOT read your own prior `CODEREVIEW.md` here — that will be updated at the end.
 
 ## Step 2: Gather Changes
 
@@ -137,7 +139,13 @@ Only if all BLOCKs are resolved AND tests did not regress:
 
 ```bash
 PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
-DIFF_HASH=$(git diff HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
+if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
+  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+else
+  EMPTY_TREE=$(git hash-object -t tree /dev/null)
+  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+fi
 echo "${DIFF_HASH}" > "/tmp/.claude-codereview-${PROJ_HASH}"
 ```
 
