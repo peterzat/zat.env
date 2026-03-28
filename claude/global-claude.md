@@ -15,12 +15,7 @@ This file is symlinked to `~/.claude/CLAUDE.md` and applies to all projects on t
 
 ## Git Identity
 
-All commits must be attributed solely to peterzat. Never add Co-Authored-By trailers.
-
-```
-user.name  = peterzat
-user.email = peter@zatloukal.com
-```
+All commits must be attributed solely to the configured `user.name`. Never add Co-Authored-By trailers. Identity is set by `zat.env-install.sh` (prompted on first run, reused from git config on subsequent runs).
 
 ## Python
 

@@ -4,6 +4,8 @@ Reproducible dev environment for Peter Zatloukal (peterzat). This repo captures 
 
 > **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
 
+> **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
+
 ---
 
 ## What is zat.env?

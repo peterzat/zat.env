@@ -20,8 +20,18 @@ echo "    Repo: ${REPO_DIR}"
 # --- git config ---
 echo "==> Configuring git globals"
 git config --global init.defaultBranch main
-git config --global user.name "peterzat"
-git config --global user.email "peter@zatloukal.com"
+
+GIT_NAME="${GIT_NAME:-$(git config --global user.name 2>/dev/null || true)}"
+if [[ -z "${GIT_NAME}" ]]; then
+  read -rp "Git user.name: " GIT_NAME
+fi
+git config --global user.name "${GIT_NAME}"
+
+GIT_EMAIL="${GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
+if [[ -z "${GIT_EMAIL}" ]]; then
+  read -rp "Git user.email: " GIT_EMAIL
+fi
+git config --global user.email "${GIT_EMAIL}"
 git config --global core.excludesfile "${REPO_DIR}/gitconfig/ignore-global"
 
 # include.path supports multiple values; only add if not already present
