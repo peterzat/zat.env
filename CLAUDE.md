@@ -38,6 +38,8 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 
 **README.md** — keep the directory overview section updated whenever the repo structure changes.
 
+**Coding Practices sync** — the `## Coding Practices` section in `README.md` is a verbatim copy of the bullet points in `claude/global-claude.md`. Whenever `global-claude.md`'s Coding Practices section changes, update `README.md` to match.
+
 ## What NOT to put here
 
 - Project-specific code, configs, or dependencies — those belong in each project's own repo

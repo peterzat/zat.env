@@ -20,6 +20,16 @@ This repo also includes `bootstrap-GEX44.sh` for provisioning Peter Zatloukal's 
 
 **Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
+## Coding Practices
+
+These instructions are embedded in `claude/global-claude.md` and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
+
+- Work in small, committable increments. Get one thing working before adding the next. Do not build scaffolding for features that are not needed yet.
+- When adding or changing functionality, write or update tests in the same increment. If the project has no test infrastructure, add a minimal test runner first.
+- Run the test suite (or the relevant subset) after each functional change. Do not stack multiple untested changes.
+- When fixing a bug, change only what is necessary. Do not refactor surrounding code or improve unrelated code in the same change.
+- If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
+
 ## Contents
 
 - [Quick Start](#quick-start)
