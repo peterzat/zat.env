@@ -8,7 +8,7 @@ This repo also includes `bootstrap-GEX44.sh` for provisioning Peter Zatloukal's 
 
 ## Philosophy
 
-**Agentic coding loops are the product.** Claude Code is the primary development tool, not a chat assistant. The environment is optimized for long autonomous coding sessions: review, fix, re-review, with quantitative signals to detect convergence and circuit breakers to prevent infinite loops.
+**Claude Code as the primary development tool.** This environment is built for long autonomous coding sessions where Claude reviews its own work, fixes issues, and iterates. Skills, hooks, and conventions provide the structure: adversarial review before pushing, quantitative signals to detect convergence, and circuit breakers to cap runaway loops.
 
 **Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
 
