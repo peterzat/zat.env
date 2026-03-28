@@ -38,7 +38,9 @@ Scope argument: `$ARGUMENTS`
 Read these from the project root if they exist. Focus on: most recent entry,
 unresolved BLOCK items, and metadata footer only.
 
-- `SECURITY.md` — your own prior findings and accepted risks
+- `SECURITY.md` — your own prior findings and accepted risks. Pay special attention
+  to the "Accepted Risks" section: any item listed there has been explicitly reviewed
+  and approved by the human. Do not re-flag accepted risks as findings.
 - `CODEREVIEW.md` — recent code review findings (may reveal relevant context)
 
 ## Step 2: Determine Scope
@@ -88,6 +90,12 @@ attack vector — how an attacker actually reaches and exploits this issue.
 
 7. **Data exposure** — Sensitive data in logs, error messages leaking internals,
    verbose stack traces in production configs.
+
+8. **PII in source** — Real names, email addresses, usernames, phone numbers, or
+   other personally identifying information hardcoded in source files, config, or
+   documentation. Ignore git commit metadata (author/committer). Flag as WARN on
+   first detection. If a prior SECURITY.md lists the PII as an accepted risk,
+   do not re-flag it.
 
 ## Step 4: Report
 
