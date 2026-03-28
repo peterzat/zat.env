@@ -330,6 +330,8 @@ A Claude Code `PreToolUse` hook (configured in `~/.claude/settings.json`) interc
 
 The marker is per-project (scoped by git root path hash) and single-use. Making new changes after a passing review requires a new review before the next push.
 
+**"Push now" bypass.** Say "push now" to skip codereview for a single push. Claude creates a one-time bypass marker and pushes immediately. Useful for docs-only or trivial changes where the full review pipeline is overkill.
+
 ### Severity Model
 
 All skills use a consistent three-level severity model:

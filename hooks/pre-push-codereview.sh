@@ -36,6 +36,13 @@ PROJ_HASH=$(git rev-parse --show-toplevel 2>/dev/null | md5sum | cut -c1-8) || {
   exit 0
 }
 MARKER="/tmp/.claude-codereview-${PROJ_HASH}"
+SKIP_MARKER="/tmp/.claude-codereview-skip-${PROJ_HASH}"
+
+# "push now" bypass: skip codereview for this one push
+if [[ -f "${SKIP_MARKER}" ]]; then
+  rm -f "${SKIP_MARKER}"
+  exit 0
+fi
 
 # Compute a hash of the total diff between upstream and the current working tree,
 # excluding review output files. This uses a single diff that spans both unpushed
@@ -64,11 +71,15 @@ if [[ -f "${MARKER}" ]]; then
 fi
 
 # No valid marker — block and instruct
-cat >&2 <<'EOF'
+cat >&2 <<EOF
 Pre-push gate: /codereview has not been run on the current changes.
 
 Run /codereview first. After the review passes (all BLOCK and WARN items
 resolved and tests stable), retry the push.
+
+To skip codereview for this push (e.g. docs-only changes), the user can
+say "push now". If they do, create the bypass marker and push:
+  touch ${SKIP_MARKER} && git push
 EOF
 
 exit 2
