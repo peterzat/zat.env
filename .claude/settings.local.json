@@ -11,7 +11,13 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:news.ycombinator.com)",
       "WebFetch(domain:community.hetzner.com)",
-      "WebFetch(domain:docs.hetzner.com)"
+      "WebFetch(domain:docs.hetzner.com)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(~/src/zat.env/zat.env-install.sh)",
+      "Bash(bash -n:*)",
+      "Skill(security)",
+      "Bash(find ~/.claude/plugins/marketplaces/claude-plugins-official/ -path *security* -name *.md -o -path *security* -name *.json)"
     ]
   }
 }

@@ -7,10 +7,11 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 ## What this repo contains
 
 - `bootstrap-GEX44.sh` — system provisioning script (apt packages, NVIDIA drivers, Docker, Tailscale, Claude Code)
-- `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks)
+- `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks, skills, hooks)
 - `claude/global-claude.md` — machine-wide Claude conventions
+- `claude/skills/` — global Claude Code skills: `/codereview`, `/security`, `/architect`, `/tester`
 - `gitconfig/` — versioned git aliases and global gitignore, included via `~/.gitconfig`
-- `hooks/` — future home for reusable git hooks (adversarial review, etc.)
+- `hooks/` — Claude Code hooks; `pre-push-codereview.sh` gates git push on passing `/codereview`
 - `templates/` — future home for project scaffolding templates
 
 ## Working on this repo
@@ -20,6 +21,16 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - Use `set -euo pipefail` at the top
 - Guard installs with existence checks (`command -v`, `[[ -d ... ]]`, etc.)
 - Print `==> Section name` banners so output is scannable
+
+**Skill files** (`claude/skills/<name>/SKILL.md`):
+- Each skill is a self-contained prompt; starts with YAML frontmatter then Markdown instructions
+- Skills must be self-sufficient — they start with empty context and gather their own information
+- Keep each SKILL.md under ~500 lines; use `references/` subdirectory if details grow
+
+**Hook scripts** (`hooks/*.sh`):
+- Must be idempotent and have no side effects other than blocking/allowing the action
+- Exit 0 = allow, exit 2 = block (stderr is shown to Claude)
+- Registered in `~/.claude/settings.json` by `zat.env-install.sh`
 
 **gitconfig files**:
 - `gitconfig/aliases.gitconfig` uses `[alias]` block — plain git alias syntax

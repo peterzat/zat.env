@@ -6,6 +6,11 @@ if [[ "${EUID}" -eq 0 ]]; then
   exit 1
 fi
 
+if ! command -v jq &>/dev/null; then
+  echo "ERROR: jq is required. Install with: sudo apt install jq"
+  exit 1
+fi
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
 
@@ -35,8 +40,59 @@ elif [[ -f "${CLAUDE_DIR}/CLAUDE.md" ]]; then
 fi
 ln -s "${REPO_DIR}/claude/global-claude.md" "${CLAUDE_DIR}/CLAUDE.md"
 
+# --- ~/.claude/skills/ symlinks ---
+echo "==> Symlinking skills into ${CLAUDE_DIR}/skills/"
+mkdir -p "${CLAUDE_DIR}/skills"
+
+for skill_dir in "${REPO_DIR}/claude/skills"/*/; do
+  skill_name="$(basename "${skill_dir}")"
+  target="${CLAUDE_DIR}/skills/${skill_name}"
+
+  if [[ -L "${target}" ]]; then
+    rm "${target}"
+  elif [[ -d "${target}" ]]; then
+    echo "    WARNING: ${target} exists and is not a symlink — skipping ${skill_name}"
+    continue
+  fi
+
+  ln -s "${skill_dir}" "${target}"
+  echo "    ${skill_name} -> ${skill_dir}"
+done
+
+# --- merge pre-push hook into ~/.claude/settings.json ---
+echo "==> Merging pre-push hook into ${CLAUDE_DIR}/settings.json"
+SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
+
+if [[ ! -f "${SETTINGS_FILE}" ]]; then
+  echo '{}' > "${SETTINGS_FILE}"
+fi
+
+# Only add if no existing entry already references our hook script
+if jq -e '.hooks.PreToolUse // [] | map(select(.hooks[]?.command // "" | test("pre-push-codereview"))) | length > 0' \
+    "${SETTINGS_FILE}" > /dev/null 2>&1; then
+  echo "    Hook already present — skipping"
+else
+  HOOK_COMMAND="bash ${REPO_DIR}/hooks/pre-push-codereview.sh"
+  jq --arg cmd "${HOOK_COMMAND}" '
+    .hooks //= {} |
+    .hooks.PreToolUse //= [] |
+    .hooks.PreToolUse += [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "command": $cmd,
+        "timeout": 10
+      }]
+    }]
+  ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+  echo "    Added pre-push hook"
+fi
+
 echo "==> Done"
 echo
 echo "Verify:"
-echo "  git st                          # should work (alias from gitconfig)"
-echo "  ls -la ~/.claude/CLAUDE.md     # should be a symlink"
+echo "  git st                                    # should work (alias from gitconfig)"
+echo "  ls -la ~/.claude/CLAUDE.md               # should be a symlink"
+echo "  ls -la ~/.claude/skills/                 # should show codereview, security, architect, tester"
+echo "  cat ~/.claude/skills/codereview/SKILL.md # should resolve through symlink"
+echo "  jq .hooks ~/.claude/settings.json        # should show pre-push hook"

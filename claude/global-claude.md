@@ -49,8 +49,26 @@ user.email = peter@zatloukal.com
 
 - Global settings: `~/.claude/settings.json`
 - Repo-scoped settings: `.claude/settings.local.json` in each project (tracked in git)
-- Default: grant narrow permissions — prefer `Bash(git:*)` over `Bash(*)`
-- `Bash(git:*)` is allowed globally
+- `defaultMode: auto` — uses AI classifier instead of per-command prompts; still blocks
+  genuinely dangerous operations (curl-pipe-bash, force push to main, etc.)
+- Skills declare `allowed-tools` in frontmatter for uninterrupted execution
+- For narrow additional permissions, add `Bash(pattern:*)` to the `allow` list rather than
+  widening defaultMode further
+
+## Writing Style
+
+When writing human-readable output (commit messages, review findings, explanations,
+persistent files like CODEREVIEW.md/SECURITY.md/TESTING.md, README content):
+
+- Professional and direct. State the point, then support it.
+- Concise. Cut filler words, throat-clearing, and redundant qualifications.
+- No AI-voice patterns: avoid "It's important to note that," "It's worth mentioning,"
+  "This is not X, it's Y" reframing, "Let's," "Great question," or similar preamble.
+- No em-dashes. Use commas, periods, or parentheses instead.
+- No emoji unless explicitly requested.
+- Prefer short declarative sentences over long compound ones.
+- When uncertain, say so plainly ("I'm not sure" or "this may be wrong") rather than
+  hedging with weasel words.
 
 ## Hetzner / Networking
 
