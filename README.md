@@ -254,17 +254,20 @@ These principles address the most common failure mode of AI review agents: gener
 
 **Trigger:** Runs automatically before any `git push` (via the pre-push hook gate). Also invocable manually.
 
-**What it does:**
-1. Reads prior review state from SECURITY.md and TESTING.md (scoped reads)
+**Tiered review.** After gathering the diff, the skill classifies changes as **light** (docs/config only: `.md`, `.json`, `.yaml`, etc.) or **full** (any code files). Light review skips the test suite, security chain, auto-fix loop, and fix verification. This keeps doc-only pushes fast while maintaining the full pipeline for code changes.
+
+**Full review pipeline:**
+1. Reads prior review state from CODEREVIEW.md, SECURITY.md, and TESTING.md (scoped reads)
 2. Gathers all uncommitted/staged changes via `git diff`; reads full changed files for context
-3. Runs the project's test suite (if one exists) to capture a baseline
-4. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), and regression risk
-5. Chains to `/security changes-only` for a focused security review of the same diff
-6. Reports findings as BLOCK / WARN / NOTE with evidence citations
-7. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
-8. Re-runs tests after fixing; reverts any fix that causes test regression
-9. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
-10. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
+3. Classifies review tier (light or full)
+4. Runs the project's test suite (if one exists) to capture a baseline
+5. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), and regression risk
+6. Chains to `/security changes-only` for a focused security review of the same diff
+7. Reports findings as BLOCK / WARN / NOTE with evidence citations
+8. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
+9. Re-runs tests after fixing; reverts any fix that causes test regression
+10. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
+11. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
 
 **Key guard:** Never deletes, skips, or weakens existing tests to make them pass. Fixes the code, not the tests.
 

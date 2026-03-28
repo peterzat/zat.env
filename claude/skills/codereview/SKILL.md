@@ -44,7 +44,7 @@ the current branch's base commit.
 - `SECURITY.md` — known security issues and accepted risks
 - `TESTING.md` — current test strategy assessment
 
-## Step 2: Gather Changes
+## Step 2: Gather Changes and Classify Review Tier
 
 ```bash
 git diff              # unstaged changes
@@ -60,15 +60,31 @@ git log --oneline @{upstream}..HEAD 2>/dev/null
 
 If there is truly nothing to review, report that and stop.
 
+**Classify the review tier** based on the files changed:
+
+- **Light review**: the diff touches ONLY documentation and configuration files
+  (`.md`, `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`, `.gitignore`,
+  `.gitconfig`). No code files (`.py`, `.js`, `.ts`, `.rs`, `.go`, `.sh`, `.bash`,
+  `.sql`, `.html`, `.css`, `.jsx`, `.tsx`, etc.) are modified.
+- **Full review**: any code file is modified, or you are uncertain.
+
+If light review: skip Steps 3, 5, 7, and 8 (no test suite run, no security chain,
+no auto-fix, no fix verification). Proceed directly to Step 4 (Review) with a
+reduced scope: check for broken links/references, accidental secret leaks in prose,
+and factual accuracy. Then skip to Step 6 (Report), Step 9 (Marker), and Step 10
+(Update CODEREVIEW.md).
+
 Read the full content of every modified file (not just diff hunks) to understand
 surrounding context. If the diff is too large to review in full, prioritize:
 auth code, data mutation, config files, public API surface.
 
 ## Step 3: Run Test Suite (if available)
 
+*Skipped for light review.*
+
 Look for test infrastructure: pytest.ini, setup.cfg, pyproject.toml [tool.pytest],
 Makefile test targets, package.json scripts, jest.config, etc. If found, run the
-test suite and record the baseline pass/fail counts. Note if no tests exist — that
+test suite and record the baseline pass/fail counts. Note if no tests exist, that
 is itself a finding.
 
 ## Step 4: Review
@@ -81,11 +97,16 @@ Evaluate every change against these dimensions:
 3. **Solution approach** — Is this the right approach? Is there a simpler or more robust
    alternative? Is the fix proportional to the problem?
 4. **Spaghetti detection** — Does one change fix exactly one issue? Are unrelated changes
-   bundled? Flag mixed-concern commits hard — they should be split.
+   bundled? Flag mixed-concern commits hard, they should be split.
 5. **Regression risk** — Could this break existing functionality? Are there adequate tests
    for the changed behavior?
 
+For light review, only dimensions 1 (factual accuracy of docs) and 3 (is this the
+right change to make) apply.
+
 ## Step 5: Security Review
+
+*Skipped for light review.*
 
 Invoke `/security changes-only` to perform a focused security review of the same
 diff. Incorporate its findings into the final report.
@@ -110,6 +131,8 @@ Format each finding:
 
 ## Step 7: Auto-Fix
 
+*Skipped for light review.*
+
 Fix BLOCK and WARN items with escalating conservatism. Maximum 3 iterations.
 
 **Iteration 1:** Fix normally.
@@ -128,6 +151,8 @@ minimal targeted changes over rewrites.
 Do not attempt further fixes.
 
 ## Step 8: Verify Fixes
+
+*Skipped for light review.*
 
 If a test suite exists, re-run it. Compare pass/fail counts against the Step 3
 baseline. If tests regressed, revert the fix that caused regression and report it
