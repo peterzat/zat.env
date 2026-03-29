@@ -277,7 +277,7 @@ Architect and pr are terminal nodes: their output informs human decisions and do
 
 ## Coding Practices
 
-These instructions are embedded in `claude/global-claude.md` and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
+These instructions are embedded in [`claude/global-claude.md`](claude/global-claude.md) and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
 
 - Work in small, committable increments. Get one thing working before adding the next. Do not build scaffolding for features that are not needed yet.
 - When adding or changing functionality, write or update tests in the same increment. If the project has no test infrastructure, add a minimal test runner first.
