@@ -52,6 +52,16 @@ Read from the project root if they exist:
 - `CODEREVIEW.md` — most recent entry only (recent review context)
 - `TESTING.md` — most recent entry only (current test strategy)
 
+Also read the zat.env README for framework philosophy and practices:
+
+- `~/src/zat.env/README.md` — the zat.env framework README. This contains the
+  philosophy, coding practices, prompt design principles, anti-patterns, and
+  autonomy model that inform how work should be done. When writing SPEC.md,
+  carry relevant points from this README into the Context section. Do not copy
+  the README wholesale. Instead, extract the specific principles, practices, or
+  anti-patterns that are relevant to the unit of work being specified, so the
+  coding agent has them available without needing to read zat.env itself.
+
 List directory structure 1-2 levels deep to understand the project shape.
 
 ## Step 2: Determine Mode

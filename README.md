@@ -145,6 +145,8 @@ Three modes:
 
 `SPEC.md` uses the same rolling format as other persistent files: current entry, one-line prior summary, structured metadata footer (`<!-- SPEC_META: {...} -->`). Each entry covers one unit of work, not the entire project.
 
+**Framework-informed context.** `/spec` reads the zat.env README in addition to the project's own files. Relevant philosophy, coding practices, anti-patterns, and design principles are extracted and carried into SPEC.md's Context section, so the coding agent has them available during implementation without needing to read zat.env itself. This is selective, not wholesale: only points relevant to the specific unit of work are included.
+
 **What it does NOT do:** generate code, write tests, or run the test suite. It defines the contract. Implementation follows separately.
 
 **Typical workflow:**
