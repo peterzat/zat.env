@@ -41,6 +41,9 @@ unresolved BLOCK items, and metadata footer only.
 - `CODEREVIEW.md` — recent code review findings (may reveal structural patterns)
 - `SECURITY.md` — security posture (may reveal architectural constraints)
 - `TESTING.md` — test strategy (reflects how the system is verified)
+- `SPEC.md` — current acceptance criteria (if it exists). Read the current entry
+  only. When evaluating architecture, consider whether it serves the spec's stated
+  goals. If no SPEC.md exists, skip silently.
 
 ## Step 2: Understand the System
 
@@ -85,6 +88,9 @@ concern signal organic growth without cleanup.
 **7. Business goal alignment**
 Does the technical architecture serve the stated goals? If the README says "rapid
 experimentation," does the architecture actually support rapid experimentation?
+If SPEC.md exists, evaluate whether the architecture can support the acceptance
+criteria without structural changes. Flag architectural gaps that would prevent
+criteria from being met.
 
 ## Step 4: Report
 

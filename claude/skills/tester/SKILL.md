@@ -43,6 +43,9 @@ unresolved BLOCK items, and metadata footer only.
 - `TESTING.md` — your own prior test strategy assessment
 - `SECURITY.md` — security posture (may reveal untested attack surfaces)
 - `CODEREVIEW.md` — recent code review findings (may reveal testing gaps)
+- `SPEC.md` — current acceptance criteria (if it exists). Read the current entry
+  only. Use acceptance criteria to evaluate whether tests cover the spec. If no
+  SPEC.md exists, skip silently.
 
 ## Step 2: Discover Test Infrastructure
 
@@ -71,7 +74,8 @@ Evaluate each dimension. For each, provide a finding or state "Nothing to flag."
 **1. Test coverage strategy**
 Not line-count coverage, but: are the right things tested? Are critical paths (auth,
 data mutation, public API, error handling) covered? Are edge cases and error paths
-tested, or only happy paths?
+tested, or only happy paths? If SPEC.md exists, check whether each acceptance
+criterion has a corresponding test. Flag criteria with no test coverage as a finding.
 
 **2. Test automation maturity**
 Are tests run automatically or only manually? Is there a single command to run the

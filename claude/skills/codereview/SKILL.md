@@ -43,6 +43,9 @@ the current branch's base commit.
   auto-fix it. This prevents re-flagging issues the human chose to keep.
 - `SECURITY.md` — known security issues and accepted risks
 - `TESTING.md` — current test strategy assessment
+- `SPEC.md` — current acceptance criteria (if it exists). Read the current entry
+  only: goal and acceptance criteria. Use this to assess spec alignment in Step 4.
+  If no SPEC.md exists, skip silently — do not suggest creating one.
 
 ## Step 2: Gather Changes and Classify Review Tier
 
@@ -100,6 +103,11 @@ Evaluate every change against these dimensions:
    bundled? Flag mixed-concern commits hard, they should be split.
 5. **Regression risk** — Could this break existing functionality? Are there adequate tests
    for the changed behavior?
+6. **Spec alignment** — If SPEC.md exists: do the changes move toward the stated
+   acceptance criteria, or do they contradict or ignore the spec? This is not a
+   BLOCK/WARN source on its own (the agent may be doing preparatory or refactoring
+   work that does not directly advance a criterion). Note alignment or misalignment
+   when relevant. If no SPEC.md exists, skip this dimension silently.
 
 For light review, only dimensions 1 (factual accuracy of docs) and 3 (is this the
 right change to make) apply.
@@ -166,10 +174,10 @@ Only if all BLOCKs are resolved AND tests did not regress:
 PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
 UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
 if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
-  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
 else
   EMPTY_TREE=$(git hash-object -t tree /dev/null)
-  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
 fi
 echo "${DIFF_HASH}" > "/tmp/.claude-codereview-${PROJ_HASH}"
 ```

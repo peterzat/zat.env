@@ -52,12 +52,12 @@ fi
 # git diff <upstream> = (upstream..HEAD commits) + (uncommitted working tree changes)
 UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
 if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
-  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' 2>/dev/null | sha256sum | cut -c1-16)
+  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' 2>/dev/null | sha256sum | cut -c1-16)
 else
   # No upstream ref exists (first push of a new branch). Fall back to diffing
   # the entire working tree against an empty tree so the hash still works.
   EMPTY_TREE=$(git hash-object -t tree /dev/null)
-  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' 2>/dev/null | sha256sum | cut -c1-16)
+  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' 2>/dev/null | sha256sum | cut -c1-16)
 fi
 
 # Check marker

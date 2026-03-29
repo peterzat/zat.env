@@ -1,6 +1,6 @@
 # zat.env
 
-Reproducible framework for autonomous agentic coding with adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Reproducible framework for autonomous agentic coding with adversarial guardrails and spec-driven development. Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot.
 
@@ -9,6 +9,7 @@ Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare
 - [Quick Start](#quick-start)
 - [Daily Workflow](#daily-workflow)
 - [Agentic Skills](#agentic-skills)
+  - [`/spec`: Specification](#spec-specification)
   - [`/codereview`: Adversarial Code Review](#codereview-adversarial-code-review)
   - [`/security`: Security Review](#security-security-review)
   - [`/architect`: Architecture Review](#architect-architecture-review)
@@ -35,7 +36,7 @@ This installs on any machine with git, jq, and Claude Code. It symlinks skills i
 
 **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
 
-**Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
+**Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, `TESTING.md`, and `SPEC.md` in downstream project roots are produced by running `/codereview`, `/security`, `/tester`, and `/spec`. The skills that generate them live in `claude/skills/`. These files are working state, not documentation, and should be committed alongside the code they describe.
 
 ### What the install script does
 
@@ -43,6 +44,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 
 **Symlinked into `~/.claude/` (live, `git pull` updates them immediately):**
 - `~/.claude/CLAUDE.md` -> `claude/global-claude.md`
+- `~/.claude/skills/spec/` -> `claude/skills/spec/`
 - `~/.claude/skills/codereview/` -> `claude/skills/codereview/`
 - `~/.claude/skills/security/` -> `claude/skills/security/`
 - `~/.claude/skills/architect/` -> `claude/skills/architect/`
@@ -106,6 +108,7 @@ Global skills are installed by `zat.env-install.sh` and available in all Claude 
 
 | Skill | Command | Invocation | Purpose |
 |-------|---------|------------|---------|
+| Spec | [`/spec`](claude/skills/spec/SKILL.md) | Manual only | Define acceptance criteria before implementation |
 | Code Review | [`/codereview`](claude/skills/codereview/SKILL.md) | Auto (pre-push) + manual | Adversarial review of uncommitted changes |
 | Security | [`/security`](claude/skills/security/SKILL.md) | Manual + chained from codereview | Security audit (full repo or changes-only) |
 | Architect | [`/architect`](claude/skills/architect/SKILL.md) | Manual only | Architecture fitness assessment |
@@ -125,6 +128,27 @@ All skills share a set of prompt design principles informed by community researc
 
 These principles address the most common failure mode of AI review agents: generating noise that erodes trust. Industry experience with AI code review tools consistently shows that precision-biased instructions (focus on logic and security, not style) dramatically improve developer action rates on AI-generated findings.
 
+### [`/spec`](claude/skills/spec/SKILL.md): Specification
+
+**Persona:** Product Engineer.
+
+**Trigger:** Manual only (`/spec`). Not auto-invoked.
+
+**What it does:**
+
+Defines what done looks like before implementation begins. The output is `SPEC.md`: a verification contract with concrete acceptance criteria that an agent or human can check off. The value of a spec is the acceptance criteria. Everything else (numbered requirements, phased task lists, Given/When/Then ceremony) is optional and only added if the user asks for it.
+
+Three modes:
+- **Interview mode** (`/spec new` or first run): asks the user focused questions about goals and acceptance criteria, then writes SPEC.md
+- **Direct mode** (`/spec <description>`): reads the codebase, proposes acceptance criteria for the described feature, confirms with the user
+- **Evolve mode** (`/spec` with existing SPEC.md): assesses progress against current criteria, reports which are met, and helps define the next unit of work
+
+`SPEC.md` uses the same rolling format as other persistent files: current entry, one-line prior summary, structured metadata footer (`<!-- SPEC_META: {...} -->`). Each entry covers one unit of work, not the entire project.
+
+**What it does NOT do:** generate code, write tests, or run the test suite. It defines the contract. Implementation follows separately.
+
+**Design intent.** Agents without acceptance criteria optimize for "make tests pass" rather than "solve the problem." In autonomous loops, the spec is the artifact that answers "what should I be building?" when the agent starts a fresh session. All review skills read SPEC.md when it exists: `/codereview` checks spec alignment, `/tester` checks whether tests cover the criteria, `/architect` evaluates whether the architecture can support the criteria, `/security` uses the spec for scope awareness.
+
 ### [`/codereview`](claude/skills/codereview/SKILL.md): Adversarial Code Review
 
 **Persona:** Principal Software Engineer, adversarial stance.
@@ -134,11 +158,11 @@ These principles address the most common failure mode of AI review agents: gener
 **Tiered review.** After gathering the diff, the skill classifies changes as **light** (docs/config only: `.md`, `.json`, `.yaml`, etc.) or **full** (any code files). Light review skips the test suite, security chain, auto-fix loop, and fix verification. This keeps doc-only pushes fast while maintaining the full pipeline for code changes.
 
 **Full review pipeline:**
-1. Reads prior review state from CODEREVIEW.md, SECURITY.md, and TESTING.md (scoped reads)
+1. Reads prior review state from CODEREVIEW.md, SECURITY.md, TESTING.md, and SPEC.md (scoped reads)
 2. Gathers all uncommitted/staged changes via `git diff`; reads full changed files for context
 3. Classifies review tier (light or full)
 4. Runs the project's test suite (if one exists) to capture a baseline
-5. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), and regression risk
+5. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
 6. Chains to `/security changes-only` for a focused security review of the same diff
 7. Reports findings as BLOCK / WARN / NOTE with evidence citations
 8. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
@@ -157,9 +181,9 @@ These principles address the most common failure mode of AI review agents: gener
 **Scope:** Controlled via arguments. `/security` reviews the full repo. `/security changes-only` focuses on the current diff. `/security path/to/file` reviews a specific file.
 
 **What it does:**
-1. Reads prior security state from SECURITY.md and CODEREVIEW.md (scoped reads)
+1. Reads prior security state from SECURITY.md, CODEREVIEW.md, and SPEC.md (scoped reads)
 2. Scopes the review based on arguments
-3. Reviews across 7 dimensions: secret leaks (including git history), input/output sanitization (with data flow tracing), auth/authz, dependency supply chain, infrastructure security, AI-specific risks (prompt injection, unvalidated LLM output), and data exposure
+3. Reviews across 8 dimensions: secret leaks (including git history), input/output sanitization (with data flow tracing), auth/authz, dependency supply chain, infrastructure security, AI-specific risks (prompt injection, unvalidated LLM output), data exposure, and PII in source
 4. Reports findings with concrete attack vectors. "An attacker could theoretically..." without specifying how they reach the code path is not a finding.
 5. Updates `SECURITY.md` with dated findings, resolved/open status, and accepted risks
 
@@ -170,7 +194,7 @@ These principles address the most common failure mode of AI review agents: gener
 **Trigger:** Manual only (`/architect`). Not auto-invoked.
 
 **What it does:**
-1. Reads all three persistent files (CODEREVIEW.md, SECURITY.md, TESTING.md)
+1. Reads all four persistent files (CODEREVIEW.md, SECURITY.md, TESTING.md, SPEC.md)
 2. Explores the codebase: README, directory structure, languages, frameworks, entry points, dependency manifests
 3. Evaluates 7 dimensions: structural clarity, appropriate complexity (over-engineering is as bad as under-engineering), scale alignment, dependency health, extensibility, consistency, and business goal alignment
 4. Reports per dimension with HIGH / MEDIUM / LOW priority, or "Nothing to flag"
@@ -185,7 +209,7 @@ These principles address the most common failure mode of AI review agents: gener
 **Trigger:** Manual only (`/tester`). Not auto-invoked.
 
 **What it does:**
-1. Reads prior assessment from TESTING.md, SECURITY.md, and CODEREVIEW.md (scoped reads)
+1. Reads prior assessment from TESTING.md, SECURITY.md, CODEREVIEW.md, and SPEC.md (scoped reads)
 2. Discovers test infrastructure: test files, frameworks, CI/CD configs, coverage tools, pre-commit hooks, deployment configs
 3. Evaluates 8 dimensions: test coverage strategy (are the right things tested?), automation maturity, automatic test execution (tests that must be run manually are often not run), CI/CD integration, framework choices, fixture management, flaky test patterns, and missing test categories
 4. Reports findings as BLOCK / WARN / NOTE. Does not write or run individual tests.
@@ -210,9 +234,10 @@ Five modes dispatched by argument:
   and return to main
 - `/pr list` -- list open PRs for the repo
 
-**Auto-composed PR descriptions.** The skill reads `<!-- REVIEW_META: {...} -->` footers
-from CODEREVIEW.md, SECURITY.md, and TESTING.md to populate a review status table in the
-PR body. Review files written by other skills become the PR description with no extra work.
+**Auto-composed PR descriptions.** The skill reads metadata footers from CODEREVIEW.md,
+SECURITY.md, TESTING.md, and SPEC.md to populate a review status table and spec summary
+in the PR body. Review files written by other skills become the PR description with no
+extra work.
 
 **Review gate on merge.** `/pr merge` performs the same diff-hash check as the pre-push
 hook. A PR cannot be merged through this skill without a passing `/codereview`.
@@ -251,10 +276,11 @@ All skills use a consistent three-level severity model:
 
 ### Persistent Review Files
 
-Three skills write per-project files to the project root. These files are working state, not documentation. They serve as inter-session memory: each skill invocation reads relevant files to avoid re-reporting resolved issues and to track whether recommendations were adopted. Each file ends with a structured metadata comment (`<!-- REVIEW_META: {...} -->`) that enables future tooling for convergence detection and trending.
+Four skills write per-project files to the project root. These files are working state, not documentation. They serve as inter-session memory: each skill invocation reads relevant files to avoid re-reporting resolved issues and to track whether recommendations were adopted. Each file ends with a structured metadata comment (e.g., `<!-- REVIEW_META: {...} -->`) that enables future tooling for convergence detection and trending.
 
 | File | Written by | Contents |
 |------|-----------|----------|
+| `SPEC.md` | `/spec` | Current acceptance criteria, goal, context |
 | `CODEREVIEW.md` | `/codereview` | Dated review history, findings, fixes applied |
 | `SECURITY.md` | `/security` | Security findings, resolved issues, accepted risks |
 | `TESTING.md` | `/tester` | Test strategy assessment, recommendation status |
@@ -264,14 +290,18 @@ Three skills write per-project files to the project root. These files are workin
 Skills read each other's persistent files in a directed acyclic graph to prevent amplification loops:
 
 ```
-codereview  -> reads SECURITY.md, TESTING.md
-security    -> reads CODEREVIEW.md
-tester      -> reads SECURITY.md, CODEREVIEW.md
-architect   -> reads all three (terminal node, produces no persistent file)
-pr          -> reads all three metadata footers (terminal node, produces no persistent file)
+                    SPEC.md (upstream of all review skills)
+                       |
+                       v
+spec        -> writes SPEC.md (reads CODEREVIEW.md, TESTING.md for context)
+codereview  -> reads SPEC.md, SECURITY.md, TESTING.md
+security    -> reads SPEC.md, CODEREVIEW.md
+tester      -> reads SPEC.md, SECURITY.md, CODEREVIEW.md
+architect   -> reads all four (terminal node, produces no persistent file)
+pr          -> reads all four metadata footers (terminal node, produces no persistent file)
 ```
 
-Architect and pr are terminal nodes: their output informs human decisions and does not feed back into automated review. This prevents recommendations from becoming automatic codereview criteria without deliberate human adoption.
+SPEC.md sits upstream of all review skills as the intent declaration. Review skills read it to check alignment, coverage, and scope, but never modify it. Architect and pr are terminal nodes: their output informs human decisions and does not feed back into automated review. This prevents recommendations from becoming automatic codereview criteria without deliberate human adoption.
 
 ---
 
@@ -297,6 +327,8 @@ These practices are deliberately minimal. Shorter, more specific instructions ou
 **Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `hw-bootstrap.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
 
 **Verification over prompting.** The quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt. See [The Carlini Principle](#the-carlini-principle) for the background.
+
+**Spec is code.** For agentic coding, a spec is not documentation. It is the verification contract that defines what done looks like. Without acceptance criteria, agents optimize for passing tests rather than solving the problem. A well-written acceptance criterion is worth more than a well-written prompt, because it tells the agent (and the review loop) what to verify. SPEC.md sits upstream of all review skills: codereview checks spec alignment, tester checks criteria coverage, architect evaluates whether the architecture serves the spec's goals. In autonomous loops, the spec is what lets a fresh agent session re-orient from disk and pick up where the last session left off.
 
 **Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
 
@@ -354,6 +386,8 @@ The current system is at **Gated**. The skills and persistent files are the foun
 **Auto-fix oscillation.** Fix A breaks B, fix B reintroduces A. Countered by: escalating conservatism on iterations 2-3, one-issue-per-fix cap, 20-line-per-fix cap, stop after 3 attempts.
 
 **Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary.
+
+**Spec-less loops.** Agent loops without acceptance criteria optimize for test-passing rather than problem-solving. The agent may write code that satisfies the test suite but misses the actual goal, or drift away from the original intent over multiple iterations. Countered by: SPEC.md with concrete acceptance criteria that define what done looks like; codereview checks spec alignment; fresh agent sessions re-orient from the spec rather than relying on stale context.
 
 **Placeholder implementations.** Agent writes code that compiles and passes type checks but does not implement the actual logic (empty function bodies, hardcoded return values, `TODO` stubs). Common in self-healing loops where the agent optimizes for "make the tests pass" rather than "solve the problem." Countered by: test suites that verify behavior (not just compilation), baseline snapshot diffing to catch suspiciously small deltas, and human checkpoint intervals in loop orchestration.
 
@@ -451,6 +485,8 @@ Post-install layout (annotated):
 │       ├── claude/
 │       │   ├── global-claude.md      # Machine-wide Claude conventions (symlinked below)
 │       │   └── skills/               # Global Claude Code skills (symlinked below)
+│       │       ├── spec/             # /spec: specification and acceptance criteria
+│       │       │   └── SKILL.md
 │       │       ├── codereview/       # /codereview: adversarial code review
 │       │       │   └── SKILL.md
 │       │       ├── security/         # /security: security audit
@@ -478,6 +514,7 @@ Post-install layout (annotated):
 │   ├── CLAUDE.md -> ~/src/zat.env/claude/global-claude.md   # Symlink: machine-wide conventions
 │   ├── settings.json                 # Global Claude Code permissions + pre-push hook
 │   └── skills/                       # Symlinks to skill directories in this repo
+│       ├── spec       -> ~/src/zat.env/claude/skills/spec/
 │       ├── codereview -> ~/src/zat.env/claude/skills/codereview/
 │       ├── security   -> ~/src/zat.env/claude/skills/security/
 │       ├── architect  -> ~/src/zat.env/claude/skills/architect/
@@ -492,6 +529,7 @@ Post-install layout (annotated):
 **Per-project review files** (written by skills into the project root, not this repo):
 ```
 ~/src/<project>/
+├── SPEC.md          # Written by /spec: acceptance criteria for current unit of work
 ├── CODEREVIEW.md    # Written by /codereview: dated review history with metadata
 ├── SECURITY.md      # Written by /security: security findings and accepted risks
 └── TESTING.md       # Written by /tester: test strategy assessment
@@ -513,6 +551,7 @@ Post-install layout (annotated):
 - [x] Test strategy review (`/tester`) with persistent `TESTING.md`
 - [x] Content-addressed push gate (diff hash + project hash)
 - [x] Auto-fix with escalating conservatism and 3-iteration cap
+- [x] Spec-driven development (`/spec`) with persistent `SPEC.md` and DAG integration
 - [x] Cross-skill reading DAG with circular amplification prevention
 - [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
 - [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata

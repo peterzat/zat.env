@@ -53,7 +53,22 @@
       "WebFetch(domain:blog.heliomedeiros.com)",
       "WebFetch(domain:docs.windsurf.com)",
       "WebFetch(domain:docs.devin.ai)",
-      "WebFetch(domain:developers.openai.com)"
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:addyosmani.com)",
+      "WebFetch(domain:blog.jetbrains.com)",
+      "WebFetch(domain:kiro.dev)",
+      "WebFetch(domain:tessl.io)",
+      "WebFetch(domain:docs.tessl.io)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:buildermethods.com)",
+      "Bash(__NEW_LINE_aecef3170d13e358__ echo:*)",
+      "Bash(sed -n '44,56p' /home/parallels/src/zat.env/claude/skills/spec/SKILL.md)",
+      "Read(//home/parallels/src/zat.env/**)",
+      "Bash(sed -n '34,49p' /home/parallels/src/zat.env/claude/skills/codereview/SKILL.md)",
+      "Bash(sed -n '36,48p' /home/parallels/src/zat.env/claude/skills/security/SKILL.md)",
+      "Bash(sed -n '36,47p' /home/parallels/src/zat.env/claude/skills/architect/SKILL.md)",
+      "Bash(sed -n '38,49p' /home/parallels/src/zat.env/claude/skills/tester/SKILL.md)",
+      "Bash(sed -n '99,107p' /home/parallels/src/zat.env/claude/skills/pr/SKILL.md)"
     ]
   }
 }

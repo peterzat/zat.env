@@ -22,7 +22,7 @@ Arguments: `$ARGUMENTS`
 - **Opt-in, not automatic.** PRs are a deliberate choice. Never create a PR unless
   explicitly asked. Direct-to-main is the default workflow for solo development.
 - **Zero-overhead descriptions.** PR bodies are composed from existing review metadata
-  (CODEREVIEW.md, SECURITY.md, TESTING.md) and commit messages. No extra work from the user.
+  (CODEREVIEW.md, SECURITY.md, TESTING.md, SPEC.md) and commit messages. No extra work from the user.
 - **Idempotent operations.** Creating a PR when one already exists for the branch shows
   the existing PR. Merging a PR that is already merged reports the fact. Never duplicate.
 - **Evidence grounding.** Review verdicts included in PR descriptions come from actual
@@ -97,12 +97,13 @@ git diff --stat main...HEAD
 ```
 
 Read review metadata from persistent files (if they exist). Extract only the
-`<!-- REVIEW_META: {...} -->` line from each file:
+metadata footer line from each file:
 
 ```bash
 grep 'REVIEW_META' CODEREVIEW.md 2>/dev/null
-grep 'REVIEW_META' SECURITY.md 2>/dev/null
-grep 'REVIEW_META' TESTING.md 2>/dev/null
+grep 'SECURITY_META' SECURITY.md 2>/dev/null
+grep 'TESTING_META' TESTING.md 2>/dev/null
+grep 'SPEC_META' SPEC.md 2>/dev/null
 ```
 
 **3d. Compose PR title and body.**
@@ -115,6 +116,10 @@ grep 'REVIEW_META' TESTING.md 2>/dev/null
 ## Summary
 
 [2-5 bullet points summarizing the changes, derived from commit messages and diff stats]
+
+## Spec
+
+[If SPEC.md exists: spec title, criteria_met/criteria_total. If not: "No spec."]
 
 ## Review Status
 
@@ -178,10 +183,10 @@ PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
 MARKER_FILE="/tmp/.claude-codereview-${PROJ_HASH}"
 UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
 if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
-  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
 else
   EMPTY_TREE=$(git hash-object -t tree /dev/null)
-  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' | sha256sum | cut -c1-16)
+  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
 fi
 ```
 

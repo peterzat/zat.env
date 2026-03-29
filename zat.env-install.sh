@@ -103,6 +103,6 @@ echo
 echo "Verify:"
 echo "  git st                                    # should work (alias from gitconfig)"
 echo "  ls -la ~/.claude/CLAUDE.md               # should be a symlink"
-echo "  ls -la ~/.claude/skills/                 # should show codereview, security, architect, tester"
+echo "  ls -la ~/.claude/skills/                 # should show spec, codereview, security, architect, tester, pr"
 echo "  cat ~/.claude/skills/codereview/SKILL.md # should resolve through symlink"
 echo "  jq .hooks ~/.claude/settings.json        # should show pre-push hook"

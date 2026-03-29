@@ -42,6 +42,9 @@ unresolved BLOCK items, and metadata footer only.
   to the "Accepted Risks" section: any item listed there has been explicitly reviewed
   and approved by the human. Do not re-flag accepted risks as findings.
 - `CODEREVIEW.md` — recent code review findings (may reveal relevant context)
+- `SPEC.md` — current acceptance criteria (if it exists). Read the current entry
+  only. Use the spec to understand scope: what is being built and what attack
+  surface the changes introduce. If no SPEC.md exists, skip silently.
 
 ## Step 2: Determine Scope
 
