@@ -1,6 +1,6 @@
 # zat.env
 
-Reproducible framework for autonomous agentic coding with adversarial guardrails and spec-driven development. Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get specification, adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot.
 
@@ -146,6 +146,14 @@ Three modes:
 `SPEC.md` uses the same rolling format as other persistent files: current entry, one-line prior summary, structured metadata footer (`<!-- SPEC_META: {...} -->`). Each entry covers one unit of work, not the entire project.
 
 **What it does NOT do:** generate code, write tests, or run the test suite. It defines the contract. Implementation follows separately.
+
+**Typical workflow:**
+1. Run `/spec` (or `/spec <description>`) to define acceptance criteria before starting work
+2. Implement normally. `/codereview` checks spec alignment as part of its review.
+3. When you think you're done, run `/spec` again. It enters evolve mode: reads the codebase, assesses which criteria are met, and reports progress. Criteria are not checked off automatically; `/spec` evaluates them on demand.
+4. When all criteria are met, `/spec` summarizes completion and asks what the next unit of work is. The cycle repeats.
+
+For external or cloned projects, SPEC.md describes what you are building or changing right now, not what the project is (that's README territory).
 
 **Design intent.** Agents without acceptance criteria optimize for "make tests pass" rather than "solve the problem." In autonomous loops, the spec is the artifact that answers "what should I be building?" when the agent starts a fresh session. All review skills read SPEC.md when it exists: `/codereview` checks spec alignment, `/tester` checks whether tests cover the criteria, `/architect` evaluates whether the architecture can support the criteria, `/security` uses the spec for scope awareness.
 
@@ -478,7 +486,7 @@ Post-install layout (annotated):
 │       ├── README.md                 # This file
 │       ├── CLAUDE.md                 # How to work on the zat.env repo itself
 │       ├── .gitignore
-│       ├── hw-bootstrap.sh        # Bare machine -> usable dev box
+│       ├── hw-bootstrap.sh           # Bare machine -> usable dev box
 │       ├── zat.env-install.sh        # Wire this repo's config into the live system
 │       ├── .claude/
 │       │   └── settings.local.json   # Repo-scoped Claude Code permissions
