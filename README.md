@@ -337,6 +337,12 @@ The current system is at **Gated**. The skills and persistent files are the foun
 
 **Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary.
 
+**Placeholder implementations.** Agent writes code that compiles and passes type checks but does not implement the actual logic (empty function bodies, hardcoded return values, `TODO` stubs). Common in self-healing loops where the agent optimizes for "make the tests pass" rather than "solve the problem." Countered by: test suites that verify behavior (not just compilation), baseline snapshot diffing to catch suspiciously small deltas, and human checkpoint intervals in loop orchestration.
+
+**Context pollution in loops.** Each loop iteration accumulates file reads and tool results. By iteration 4-5, the context window is saturated with stale information from earlier attempts, degrading output quality. Countered by: fresh agent sessions per iteration (progress lives in files and git, not context), scoped reads of persistent review files (most recent entry only), and convergence-based early termination.
+
+**Regression snowballing.** In a loop without baseline snapshots, pre-existing failures get attributed to the agent's changes, triggering fix attempts for code the agent didn't break. The fixes introduce real regressions, compounding the problem. Countered by: baseline state capture before any changes, regression defined as "worse than baseline" (not "any failures"), and hard stops when test count decreases between iterations.
+
 ## Current Hardware: Hetzner GEX44
 
 The hardware below is the current choice, not a permanent one. The agentic workflow described above runs on any Linux machine with sufficient resources and a Tailscale connection -- on-premises hardware, a homelab server, or any other dedicated box works equally well.
@@ -539,7 +545,9 @@ projls                  # see all running sessions
 - **Branch workflow aliases**: `git feat <name>` (create feature branch), `git done` (merge + delete local-only branch)
 
 **Medium-term (autonomous loops):**
-- **Loop orchestrator** (`/review-loop`): run codereview, fix, codereview in a loop until converging or hitting max iterations; auto-create PR via `/pr` when loop converges
+- **Loop orchestrator** (`/review-loop`): run codereview, fix, codereview in a loop until converging or hitting max iterations; auto-create PR via `/pr` when loop converges. Community-validated by Huntley's [Ralph Wiggum technique](https://ghuntley.com/ralph/) (`while :; do cat PROMPT.md | claude-code ; done`) and Carlini's parallel agent loops. Progress must persist in files and git, not in context, so each fresh agent can re-orient from disk. Design around known failure modes (see [Anti-Patterns](#anti-patterns-we-designed-against)).
+- **Loop circuit breakers**: max-iteration cap (configurable, default ~5), regression detection (test count must not decrease between iterations), convergence detection (if BLOCK count is not decreasing, stop), and human checkpoint intervals (pause for approval every N iterations or after any BLOCK auto-fix fails). Without these, loops degrade into placeholder implementations or oscillating fixes.
+- **Baseline snapshots**: before touching code, record current build/test/lint state (exit codes, test counts, diagnostic counts). After changes, diff against baseline. Distinguishes "I broke this" from "this was already broken." Inspired by Anvil's [Forge protocol](https://github.com/burkeholland/anvil). Supports loop reliability by giving each iteration a clean regression signal.
 - **Remote agent PR review**: `/schedule` trigger runs `claude --from-pr <url> --print` with `/codereview` against open PRs, posts results as PR comments; decouples authoring and review sessions
 - **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe append-only updates for concurrent sessions
 - **Alignment checks**: periodic re-read of original task specification during long loops to detect intent drift
@@ -549,7 +557,7 @@ projls                  # see all running sessions
 - **Agent-per-PR pattern**: each agent works in its own worktree on its own branch, opens a PR via `/pr` when done; a coordinator agent reviews and merges
 - **GitHub Actions CI**: justified at this point for independent test signal across multiple agent PRs; branch protection on main replaces local pre-push hook as the gate
 - **Cross-project awareness**: architect and security read persistent files from sibling projects under `~/src/` to detect dependency-chain risks
-- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement for complex projects
+- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement for complex projects. Key design inputs from the ecosystem: Carlini used lock files for task claiming (no central orchestrator), GCC as a differential testing oracle for independent verification, and test output designed for agent consumption (sparse, pre-computed statistics, fast sampling modes). Huntley's experience shows these loops work well for tasks with automatic verification (bugfixes, migrations, coverage expansion) but fail for judgment calls or ambiguous requirements. Operator skill in designing the verification harness determines outcomes.
 - **Multi-agent coordination**: multiple Claude sessions across projects with shared task pools and message passing
 - **Monitoring / dashboards**: visibility into running agent sessions, GPU utilization, loop progress
 

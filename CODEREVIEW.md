@@ -1,16 +1,18 @@
-## Review — 2026-03-28 (commit: 204bd25)
+## Review — 2026-03-28 (commit: 2be07c3)
 
-**Summary:** Reviewed 3 uncommitted changes: `.claude/settings.local.json` adds 21 `WebFetch` domain permissions (AI tooling and blog domains); `README.md` rewrites the portability section, hyperlinks skill headings and table entries, expands the `/pr` design intent with the Carlini multi-agent pattern, and adds two roadmap items; `CODEREVIEW.md` updated. Light review applied. All SKILL.md links resolve, Carlini anchor reference is consistent, no secrets present.
+**Summary:** Reviewed uncommitted changes to `README.md`: three new anti-pattern paragraphs (placeholder implementations, context pollution in loops, regression snowballing) and expanded roadmap entries for loop orchestration, circuit breakers, baseline snapshots, and long-running loop orchestration. Light review applied (documentation only).
 
 ### Findings
 
-No issues found.
+[WARN] README.md:548 — "see below" should be "see above"
+  Evidence: The loop orchestrator bullet says "Design around known failure modes (see below)" but the "Anti-Patterns We Designed Against" section (line 328) precedes the roadmap section (line 539) in the document.
+  Suggested fix: Change "see below" to "see above."
 
 ### Fixes Applied
 
 None.
 
 ---
-*Prior review (2026-03-28, commit 069542c): No issues found. Reviewed /pr skill addition to settings, CLAUDE.md, and README.*
+*Prior review (2026-03-28, commit 204bd25): Light review of settings, README, and CODEREVIEW.md changes. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-03-28","commit":"204bd25","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-03-28","commit":"2be07c3","block":0,"warn":1,"note":0} -->
