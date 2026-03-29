@@ -78,9 +78,55 @@ reduced scope: check for broken links/references, accidental secret leaks in pro
 and factual accuracy. Then skip to Step 6 (Report), Step 9 (Marker), and Step 10
 (Update CODEREVIEW.md).
 
-Read the full content of every modified file (not just diff hunks) to understand
-surrounding context. If the diff is too large to review in full, prioritize:
-auth code, data mutation, config files, public API surface.
+**Check for prior successful review (refresh detection):**
+
+If this is a full review, determine the upstream ref and check whether
+CODEREVIEW.md has REVIEW_META with `block: 0` and a `reviewed_up_to` commit
+that is an ancestor of HEAD:
+
+```bash
+UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
+PRIOR_COMMIT=$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)
+PRIOR_BASE=$(grep -oP '"base"\s*:\s*"\K[^"]+' CODEREVIEW.md 2>/dev/null)
+PRIOR_BLOCKS=$(grep -oP '"block"\s*:\s*\K[0-9]+' CODEREVIEW.md 2>/dev/null)
+```
+
+If all of these hold, classify as **refresh review**:
+1. `PRIOR_COMMIT` is non-empty and `git merge-base --is-ancestor "${PRIOR_COMMIT}" HEAD`
+2. `PRIOR_BLOCKS` equals `0`
+3. `PRIOR_BASE` matches the current `UPSTREAM` ref
+
+If any condition fails (missing fields, prior BLOCKs, rebase changed the base,
+commit no longer exists), fall back to full review.
+
+For a refresh review, compute two file sets:
+```bash
+# Focus set: files changed since the prior review
+FOCUS=$(git diff --name-only "${PRIOR_COMMIT}"..HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md')
+# Full set: all files changed since upstream
+FULL=$(git diff --name-only "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md')
+```
+
+- **Focus set**: files in FOCUS (new or re-modified since the prior review)
+- **Already-reviewed set**: files in FULL but not in FOCUS
+
+If a file appears in both the prior review's diff and the focus set (it was
+reviewed before AND modified again since), it stays in the focus set and gets
+full-depth review.
+
+**What to read depends on the review tier:**
+
+- **Full review (no prior review, or refresh conditions not met):** Read the full
+  content of every modified file (not just diff hunks) to understand surrounding
+  context.
+- **Refresh review:** Read the full content of every file in the focus set. For
+  files in the already-reviewed set, read only the diff hunks from the full
+  unpushed diff, enough to check for interactions with the new changes. If a
+  focus-set file imports from, calls into, or is called by an already-reviewed
+  file, read the relevant functions in the already-reviewed file.
+
+If the diff is too large to review in full, prioritize: auth code, data mutation,
+config files, public API surface.
 
 ## Step 3: Run Test Suite (if available)
 
@@ -92,6 +138,12 @@ test suite and record the baseline pass/fail counts. Note if no tests exist, tha
 is itself a finding.
 
 ## Step 4: Review
+
+**Refresh review scoping:** Apply all 6 dimensions at full depth to files in the
+focus set. For files in the already-reviewed set, apply only dimension 5
+(regression risk): check whether the new changes could break or interact badly
+with the previously-reviewed code. If a file appears in both sets (reviewed before
+AND modified again since), apply all dimensions at full depth.
 
 Evaluate every change against these dimensions:
 
@@ -141,10 +193,17 @@ reveals a genuine gap. Do not add findings for the sake of completeness.
 
 *Skipped for light review.*
 
-Invoke `/security changes-only` to perform a focused security review of the same
-diff. Incorporate its findings into the final report.
+Invoke `/security changes-only` to perform a focused security review of the
+current diff. For refresh reviews where all incremental changes are already
+committed (no uncommitted/staged changes), invoke `/security <focus-set files>`
+instead so the security review covers the right files. Incorporate its findings
+into the final report.
 
 ## Step 6: Report
+
+For refresh reviews, begin the report with a scope line:
+> **Review scope:** Refresh review. Focus: N file(s) changed since prior review
+> (commit abc1234). M already-reviewed file(s) checked for interactions only.
 
 Classify every finding:
 
@@ -232,7 +291,7 @@ Format:
 ---
 *Prior review (YYYY-MM-DD): [one sentence summary of prior findings and status]*
 
-<!-- REVIEW_META: {"date":"YYYY-MM-DD","commit":"abc1234","block":N,"warn":N,"note":N} -->
+<!-- REVIEW_META: {"date":"YYYY-MM-DD","commit":"abc1234","reviewed_up_to":"<full-HEAD-sha>","base":"<upstream-ref>","tier":"full|refresh|light","block":N,"warn":N,"note":N} -->
 ```
 
 ## Output Summary

@@ -1,16 +1,16 @@
-## Review — 2026-03-28 (commit: 5577ef3)
+## Review — 2026-03-29 (commit: 3ead003)
 
-**Summary:** Light review of 2 unpushed commits: (1) adds zat.env README reading to /spec SKILL.md with corresponding README documentation, (2) adds copyright notice to README.md. Only .md files changed. No broken references, no secret leaks, no factual issues.
+**Summary:** Light review of uncommitted changes to settings.local.json (4 new Bash permission patterns) and codereview SKILL.md (refresh detection mechanism for incremental reviews). Both files are documentation/configuration only.
 
 ### Findings
 
-No issues found.
+[NOTE] .claude/settings.local.json:20-23 -- Four new Bash permission patterns (ls, grep, wc, find) appear to be development/debug leftovers from building the refresh detection feature. The codereview skill already has `allowed-tools: Bash(*)` in its frontmatter, so these repo-scoped permissions serve no purpose during skill invocation. Consider removing if no longer needed.
 
 ### Fixes Applied
 
 None.
 
 ---
-*Prior review (2026-03-28, commit d490997): Light review of metadata refresh in CODEREVIEW.md and TESTING.md. No issues found.*
+*Prior review (2026-03-28): Light review of /spec integration and copyright notice commits. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-03-28","commit":"5577ef3","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-03-29","commit":"3ead003","reviewed_up_to":"3ead00381dac579dfadb7947c1acbffba1347816","base":"origin/main","tier":"light","block":0,"warn":0,"note":1} -->
