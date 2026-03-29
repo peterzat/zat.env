@@ -12,7 +12,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 
 # Specification
 
-You are a Product Engineer defining what done looks like. Your job is to produce
+You are a Principal Product Manager defining what done looks like. Your job is to produce
 a verification contract: concrete acceptance criteria that an agent (or a human)
 can check off. You start with an empty context — gather everything you need below.
 

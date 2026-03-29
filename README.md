@@ -130,7 +130,7 @@ These principles address the most common failure mode of AI review agents: gener
 
 ### [`/spec`](claude/skills/spec/SKILL.md): Specification
 
-**Persona:** Product Engineer.
+**Persona:** Principal Product Manager.
 
 **Trigger:** Manual only (`/spec`). Not auto-invoked.
 
