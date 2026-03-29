@@ -8,7 +8,7 @@ No security issues identified.
 
 ### Accepted Risks
 
-- **PII in source files** (bootstrap-GEX44.sh:275, README.md:3, and other references to `peterzat`): Inherent to a personal dotfiles repo. Reviewed and accepted. The current commit reduces PII surface by removing hardcoded email from install script and global-claude.md.
+- **PII in source files** (hw-bootstrap.sh:275, README.md:3, and other references to `peterzat`): Inherent to a personal dotfiles repo. Reviewed and accepted. The current commit reduces PII surface by removing hardcoded email from install script and global-claude.md.
 
 ---
 *Prior review (2026-03-28, changes-only): Reviewed WebFetch permission addition and review metadata updates. No issues.*

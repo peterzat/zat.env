@@ -6,7 +6,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 
 ## What this repo contains
 
-- `bootstrap-GEX44.sh` — system provisioning script (apt packages, NVIDIA drivers, Docker, Tailscale, Claude Code)
+- `hw-bootstrap.sh` — system provisioning script (apt packages, NVIDIA drivers, Docker, Tailscale, Claude Code)
 - `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks, skills, hooks)
 - `claude/global-claude.md` — machine-wide Claude conventions
 - `claude/skills/` — global Claude Code skills: `/codereview`, `/security`, `/architect`, `/tester`, `/pr`
@@ -16,7 +16,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 
 ## Working on this repo
 
-**Shell scripts** (`bootstrap-GEX44.sh`, `zat.env-install.sh`, `bin/*`):
+**Shell scripts** (`hw-bootstrap.sh`, `zat.env-install.sh`, `bin/*`):
 - Must be idempotent — safe to run multiple times
 - Use `set -euo pipefail` at the top
 - Guard installs with existence checks (`command -v`, `[[ -d ... ]]`, etc.)

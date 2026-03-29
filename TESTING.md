@@ -7,7 +7,7 @@
 ### Findings
 
 [NOTE] automatic test execution — Shell scripts have no validation beyond `set -euo pipefail`
-  Current state: The three shell scripts (`bootstrap-GEX44.sh`, `zat.env-install.sh`, `hooks/pre-push-codereview.sh`) use `set -euo pipefail` and guard clauses, but there is no automated validation (shellcheck, dry-run mode, or integration test) that runs before push. The pre-push hook gates on `/codereview` (an LLM review), not on script correctness.
+  Current state: The three shell scripts (`hw-bootstrap.sh`, `zat.env-install.sh`, `hooks/pre-push-codereview.sh`) use `set -euo pipefail` and guard clauses, but there is no automated validation (shellcheck, dry-run mode, or integration test) that runs before push. The pre-push hook gates on `/codereview` (an LLM review), not on script correctness.
   Recommendation: When the scripts grow more complex or a second contributor appears, add `shellcheck` as a pre-commit check. For now, this is informational.
 
 [NOTE] missing test categories — No smoke test for `zat.env-install.sh` idempotency

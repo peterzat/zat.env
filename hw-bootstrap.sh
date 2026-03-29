@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bootstrap-GEX44.sh — Hetzner GEX44 machine provisioning
+# hw-bootstrap.sh — Hetzner GEX44 machine provisioning
 #
 # Turns a bare Ubuntu 22.04.2 LTS install into a usable dev box.
 # Safe to run multiple times (idempotent).

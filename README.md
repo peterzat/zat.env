@@ -2,7 +2,7 @@
 
 Framework for autonomous agentic coding including adversarial guardrails and memory-based improvement loops. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
-An isolated, always-on hardware instance is a critical ingredient for serious agentic work. Long sessions need to survive SSH disconnects. Overnight autonomous jobs need to keep running without a laptop in the way. The environment needs to be deeply tuned: GPU drivers, CUDA toolchain, shared model caches, project conventions baked into every Claude session. But a hand-configured machine is a liability. `bootstrap-GEX44.sh` provisions a bare server from scratch; `zat.env-install.sh` wires the agentic layer onto any machine after that. Together they mean full recovery from bare metal is two scripts and a reboot.
+An isolated, always-on hardware instance is a critical ingredient for serious agentic work. Long sessions need to survive SSH disconnects. Overnight autonomous jobs need to keep running without a laptop in the way. The environment needs to be deeply tuned: GPU drivers, CUDA toolchain, shared model caches, project conventions baked into every Claude session. But a hand-configured machine is a liability. `hw-bootstrap.sh` provisions a bare server from scratch; `zat.env-install.sh` wires the agentic layer onto any machine after that. Together they mean full recovery from bare metal is two scripts and a reboot.
 
 Running long agentic loops requires a minimum hardware spec: enough VRAM for local model inference, enough RAM for concurrent sessions, and enough CPU for sustained throughput. See [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44) for the current hardware choice and rationale.
 
@@ -33,7 +33,7 @@ Running long agentic loops requires a minimum hardware spec: enough VRAM for loc
 
 **Claude Code as the primary development tool.** This environment is built for long autonomous coding sessions where Claude reviews its own work, fixes issues, and iterates. Skills, hooks, and conventions provide the structure: adversarial review before pushing, quantitative signals to detect convergence, and circuit breakers to cap runaway loops.
 
-**Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `bootstrap-GEX44.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
+**Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `hw-bootstrap.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
 
 **Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
 
@@ -41,7 +41,7 @@ Running long agentic loops requires a minimum hardware spec: enough VRAM for loc
 
 **Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
 
-**Reproducibility.** `bootstrap-GEX44.sh` + `zat.env-install.sh` = full recovery from bare metal. `zat.env-install.sh` alone = agentic skills on any machine.
+**Reproducibility.** `hw-bootstrap.sh` + `zat.env-install.sh` = full recovery from bare metal. `zat.env-install.sh` alone = agentic skills on any machine.
 
 **Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
@@ -381,15 +381,15 @@ Starting from a bare Ubuntu 22.04.2 LTS install with SSH access:
 
 ```bash
 # 1. Copy bootstrap script to the machine and run it
-scp bootstrap-GEX44.sh user@<ip>:~/
+scp hw-bootstrap.sh user@<ip>:~/
 ssh user@<ip>
-bash ~/bootstrap-GEX44.sh
+bash ~/hw-bootstrap.sh
 
 # 2. Reboot (required after NVIDIA driver install)
 sudo reboot
 
 # 3. Re-run bootstrap to complete CUDA + NVIDIA Container Toolkit setup
-bash ~/bootstrap-GEX44.sh
+bash ~/hw-bootstrap.sh
 
 # 4. Authenticate Tailscale
 sudo tailscale up --ssh
@@ -430,7 +430,7 @@ Post-install layout (annotated):
 │       ├── README.md                 # This file
 │       ├── CLAUDE.md                 # How to work on the zat.env repo itself
 │       ├── .gitignore
-│       ├── bootstrap-GEX44.sh        # Bare machine -> usable dev box
+│       ├── hw-bootstrap.sh        # Bare machine -> usable dev box
 │       ├── zat.env-install.sh        # Wire this repo's config into the live system
 │       ├── .claude/
 │       │   └── settings.local.json   # Repo-scoped Claude Code permissions
@@ -522,7 +522,7 @@ projls                  # see all running sessions
 
 ### Done (v1)
 
-- [x] Machine provisioning script (`bootstrap-GEX44.sh`)
+- [x] Machine provisioning script (`hw-bootstrap.sh`)
 - [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
 - [x] Global git conventions (aliases, ignore-global)
 - [x] Machine-wide Claude conventions (`claude/global-claude.md`)
