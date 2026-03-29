@@ -5,6 +5,7 @@ description: >-
   to review code, check changes before pushing, or run a code review. Also use
   automatically before any git push.
 context: fork
+effort: high
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 ---
 
@@ -111,6 +112,30 @@ Evaluate every change against these dimensions:
 
 For light review, only dimensions 1 (factual accuracy of docs) and 3 (is this the
 right change to make) apply.
+
+## Step 4.5: Pressure Test
+
+*Skipped for light review.*
+
+Before writing findings, pressure-test your analysis. Only revise if a question
+reveals a genuine gap. Do not add findings for the sake of completeness.
+
+1. **Did I verify the bug, or just suspect it?** For each correctness finding,
+   confirm you read enough surrounding code to know the behavior is wrong, not
+   just unusual. If the finding depends on code outside the diff that you haven't
+   read, read it now or drop the finding.
+2. **Is there a simpler approach I missed?** Re-examine the solution approach
+   dimension. If the change feels over-engineered or roundabout, consider whether
+   a more direct alternative exists before reporting it.
+3. **Regression risk: did I check callers?** For changes to shared functions or
+   public APIs, verify you traced at least the primary callers. A finding about
+   regression risk without evidence of affected callers is speculation.
+4. **Am I conflating style with substance?** Review your findings for any that
+   are really naming or formatting preferences dressed up as correctness or
+   quality concerns. Remove those.
+5. **Spaghetti check: is the bundling intentional?** If you flagged mixed concerns,
+   confirm the changes are truly unrelated. Preparatory refactoring that enables
+   the main change is not spaghetti.
 
 ## Step 5: Security Review
 

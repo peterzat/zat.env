@@ -70,6 +70,16 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
   state to a file (commit message, README, or project-specific doc). Prefer restarting
   with a written plan over continuing with a long, stale context.
 
+## Specification Quality
+
+Acceptance criteria are the highest-leverage artifact in the workflow. Every review
+skill reads them. When writing or substantially revising acceptance criteria (whether
+via `/spec` or directly), pressure-test each criterion: what input breaks it, what
+assumptions are unstated, what failure behavior is unspecified. Remove criteria that
+prescribe implementation rather than verifiable behavior. The `/spec` skill sets
+`effort: high` and includes a structured pressure-test step for this analysis;
+apply the same rigor when editing criteria outside of `/spec`.
+
 ## Secrets
 
 - Never commit secrets, credentials, or API keys

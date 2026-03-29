@@ -7,6 +7,7 @@ description: >-
   Manual invocation only via /spec.
 disable-model-invocation: true
 context: fork
+effort: high
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 ---
 
@@ -107,6 +108,27 @@ based on the current codebase state (read relevant code and tests). Then:
      of work is. Write a new spec entry (current entry becomes the prior summary).
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it.
+
+## Step 3.5: Pressure Test
+
+Before writing SPEC.md, pressure-test your drafted criteria. Do not add criteria for
+the sake of completeness. Only add or revise if a question reveals a genuine gap.
+
+1. **What input or state would break this?** For each criterion, consider malformed
+   input, empty/missing data, concurrent access, and boundary values.
+2. **What did I assume but not state?** Identify implicit dependencies, preconditions,
+   or environmental assumptions that the implementing agent would need to know.
+3. **What happens on failure?** If the happy path is specified, is the failure behavior
+   obvious or does it need a criterion?
+4. **What would an adversarial code reviewer flag as untested?** The `/codereview` skill
+   will check spec alignment. Criteria that are vague or have obvious gaps will
+   generate BLOCK findings downstream.
+5. **Am I over-specifying?** Remove any criterion that prescribes implementation rather
+   than verifiable behavior. Remove any criterion that duplicates another.
+
+This step applies when writing new criteria (Steps 3a, 3b, and 3c when starting a
+new spec after completion). Skip it for evolve-mode check-offs where criteria are
+unchanged.
 
 ## Step 4: Write SPEC.md
 

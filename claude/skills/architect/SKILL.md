@@ -7,6 +7,7 @@ description: >-
   or technical direction evaluation.
 disable-model-invocation: true
 context: fork
+effort: high
 allowed-tools: Bash(*), Read, Grep, Glob
 ---
 
@@ -91,6 +92,28 @@ experimentation," does the architecture actually support rapid experimentation?
 If SPEC.md exists, evaluate whether the architecture can support the acceptance
 criteria without structural changes. Flag architectural gaps that would prevent
 criteria from being met.
+
+## Step 3.5: Pressure Test
+
+Before writing findings, pressure-test your analysis. Only revise if a question
+reveals a genuine gap. Do not manufacture concerns to justify the review.
+
+1. **Am I judging for the wrong scale?** Re-read the project's README and goals.
+   A solo prototype held to enterprise standards is a false finding. A production
+   system excused as "just a prototype" is a missed one. Recalibrate.
+2. **Is the complexity proportional?** For each finding about over-engineering or
+   under-engineering, verify you can name the concrete cost: what breaks, what
+   becomes hard to change, or what confuses a new contributor? Abstract concerns
+   about "coupling" or "separation of concerns" without concrete consequences
+   are not findings.
+3. **Did I check extensibility against likely changes, not hypothetical ones?**
+   Review your extensibility assessment. If you recommended making something
+   pluggable or configurable, confirm there is evidence (in the spec, README,
+   or commit history) that the extension is actually anticipated.
+4. **Consistency vs. evolution.** If you flagged inconsistent patterns, consider
+   whether the newer pattern is intentionally replacing the older one. Read git
+   history if unclear. Transitional inconsistency during a migration is expected,
+   not a finding.
 
 ## Step 4: Report
 
