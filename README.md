@@ -598,3 +598,7 @@ Post-install layout (annotated):
 **Infrastructure:**
 - **Project templates**: versioned starter files for Python ML projects, API services, general Python
 - **Dependency auditor** (`/deps`): dependency health, outdated packages, license risks, bloat, upgrade paths
+
+---
+
+Copyright 2026 Peter Zatloukal - All Rights Reserved
