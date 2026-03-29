@@ -88,10 +88,15 @@ writing SPEC.md.
 Read the current SPEC.md entry. Assess which acceptance criteria appear to be met
 based on the current codebase state (read relevant code and tests). Then:
 
-- If all criteria are met: summarize completion and ask the user what the next unit
-  of work is. Write a new spec entry.
-- If criteria remain unmet: report progress and ask the user whether to continue
-  with the current spec or revise it.
+1. **Update SPEC.md immediately.** Check off met criteria (`- [ ]` -> `- [x]`) and
+   update the `criteria_met` count in the `SPEC_META` footer. This must happen in
+   evolve mode regardless of whether all criteria are met or some remain.
+
+2. Then:
+   - If all criteria are met: summarize completion and ask the user what the next unit
+     of work is. Write a new spec entry (current entry becomes the prior summary).
+   - If criteria remain unmet: report progress and ask the user whether to continue
+     with the current spec or revise it.
 
 ## Step 4: Write SPEC.md
 

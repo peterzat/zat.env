@@ -150,7 +150,7 @@ Three modes:
 **Typical workflow:**
 1. Run `/spec` (or `/spec <description>`) to define acceptance criteria before starting work
 2. Implement normally. `/codereview` checks spec alignment as part of its review.
-3. When you think you're done, run `/spec` again. It enters evolve mode: reads the codebase, assesses which criteria are met, and reports progress. Criteria are not checked off automatically; `/spec` evaluates them on demand.
+3. When you think you're done, run `/spec` again. It enters evolve mode: reads the codebase, assesses which criteria are met, checks them off in SPEC.md, and updates the metadata footer.
 4. When all criteria are met, `/spec` summarizes completion and asks what the next unit of work is. The cycle repeats.
 
 For external or cloned projects, SPEC.md describes what you are building or changing right now, not what the project is (that's README territory).
