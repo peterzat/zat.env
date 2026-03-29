@@ -8,7 +8,7 @@
 - [ ] `/codereview` reads SPEC.md and reports spec alignment when reviewing changes
 - [ ] `/architect` reads SPEC.md and considers spec goals in its assessment
 - [ ] `/codereview` produces a clean review on a project without SPEC.md (no nagging)
-- [ ] README.md accurately reflects all 7 skills, the updated DAG, and persistent file descriptions
+- [ ] README.md accurately reflects all 6 skills, the updated DAG, and persistent file descriptions
 - [ ] All diff hash exclusions (codereview, pr, pre-push hook) consistently exclude SPEC.md
 - [x] `/spec` skill symlinked and available via `zat.env-install.sh`
 - [x] Cross-skill reading DAG updated: SPEC.md upstream of all review skills
