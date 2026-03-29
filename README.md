@@ -111,7 +111,7 @@ Global skills are installed by `zat.env-install.sh` and available in all Claude 
 | Spec | [`/spec`](claude/skills/spec/SKILL.md) | Manual only | Define acceptance criteria before implementation |
 | Code Review | [`/codereview`](claude/skills/codereview/SKILL.md) | Auto (pre-push) + manual | Adversarial review of uncommitted changes |
 | Security | [`/security`](claude/skills/security/SKILL.md) | Manual + chained from codereview | Security audit (full repo or changes-only) |
-| Architect | [`/architect`](claude/skills/architect/SKILL.md) | Manual only | Architecture fitness assessment |
+| Architect | [`/architect`](claude/skills/architect/SKILL.md) | Manual only | Strategic architecture review (10 dimensions, HEALTHY/WATCH/ACT) |
 | Tester | [`/tester`](claude/skills/tester/SKILL.md) | Manual only | Test strategy assessment |
 | Pull Request | [`/pr`](claude/skills/pr/SKILL.md) | Manual only | Create, inspect, or merge GitHub PRs |
 
@@ -207,20 +207,23 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 ### [`/architect`](claude/skills/architect/SKILL.md): Architecture Review
 
-**Persona:** Principal Architect.
+**Persona:** Senior Architecture Review Board.
 
-**Trigger:** Manual only (`/architect`). Not auto-invoked.
+**Trigger:** Manual only (`/architect`). Not auto-invoked. Supports focused deep-dives: `/architect deps`, `/architect ops`, `/architect <topic>`.
 
 **What it does:**
 1. Reads all four persistent files (CODEREVIEW.md, SECURITY.md, TESTING.md, SPEC.md)
-2. Explores the codebase: README, directory structure, languages, frameworks, entry points, dependency manifests
-3. Evaluates 7 dimensions: structural clarity, appropriate complexity (over-engineering is as bad as under-engineering), scale alignment, dependency health, extensibility, consistency, and business goal alignment
+2. Explores the codebase: README, directory structure, languages, frameworks, entry points, dependency manifests, CI/CD configs, onboarding docs
+3. Evaluates 10 dimensions in two groups:
+   - **Design Quality:** structural clarity, appropriate complexity, scale alignment, dependency health (includes outdated packages, license risks, bloat, upgrade paths, vendor lock-in), extensibility
+   - **Strategic Fitness:** consistency, business goal alignment, technology selection, operational fitness, developer experience
 4. Reports per dimension with HIGH / MEDIUM / LOW priority, or "Nothing to flag"
-5. Produces no persistent file (terminal node; see [Cross-Skill Reading DAG](#cross-skill-reading-dag))
+5. Produces a Strategic Summary with a board recommendation: HEALTHY / WATCH / ACT
+6. Produces no persistent file (terminal node; see [Cross-Skill Reading DAG](#cross-skill-reading-dag))
 
-**Pressure test.** Before writing findings, a structured pressure-test recalibrates assessments against the project's actual scale and goals, verifies that complexity concerns name concrete costs, checks extensibility recommendations against evidence of anticipated changes, and distinguishes transitional inconsistency from architectural drift. The skill runs at `effort: high` via frontmatter.
+**Pressure test.** Six pressure-test questions recalibrate assessments against the project's actual scale and goals, verify that complexity concerns name concrete costs, check extensibility recommendations against evidence of anticipated changes, distinguish transitional inconsistency from architectural drift, require evidence of friction before recommending technology changes, and calibrate operational expectations to the deployment model. The skill runs at `effort: high` via frontmatter.
 
-**"Nothing to add at this time"** is a valid and expected outcome. Most codebases have sound architecture.
+**"No strategic concerns at this time"** is a valid and expected outcome. Most codebases have sound architecture.
 
 ### [`/tester`](claude/skills/tester/SKILL.md): Test Strategy Review
 
@@ -608,9 +611,13 @@ Post-install layout (annotated):
 - **Evaluate agent wrappers**: benchmark alternative runtimes (Goose, Amp Code, Aider) against Claude Code on representative tasks. Skills are Markdown and hooks are bash; most of the architecture should port with changes to invocation syntax only.
 - **Agent-per-PR Carlini loop**: parallel agents on branches, PRs as synchronization boundaries, coordinator merging via `/pr`, GitHub Actions as the independent verification signal
 
+**/architect evolution:**
+- **Diff-against-prior mode**: `/architect diff` compares current assessment against a user-provided prior assessment to highlight what changed
+- **Progressive disclosure**: move detailed dimension descriptions into `references/dimensions.md` as the skill prompt approaches the 500-line limit
+- **Cross-project awareness**: read persistent files from sibling `~/src/` projects to detect dependency-chain risks and architectural inconsistencies
+
 **Infrastructure:**
 - **Project templates**: versioned starter files for Python ML projects, API services, general Python
-- **Dependency auditor** (`/deps`): dependency health, outdated packages, license risks, bloat, upgrade paths
 
 ---
 
