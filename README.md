@@ -1,6 +1,6 @@
 # zat.env
 
-Autonomous coding loops with adversarial guardrails. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Framework for autonomous agentic coding including adversarial guardrails and memory-based improvement loops. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 An isolated, always-on hardware instance is a critical ingredient for serious agentic work. Long sessions need to survive SSH disconnects. Overnight autonomous jobs need to keep running without a laptop in the way. The environment needs to be deeply tuned: GPU drivers, CUDA toolchain, shared model caches, project conventions baked into every Claude session. But a hand-configured machine is a liability. `bootstrap-GEX44.sh` provisions a bare server from scratch; `zat.env-install.sh` wires the agentic layer onto any machine after that. Together they mean full recovery from bare metal is two scripts and a reboot.
 
@@ -47,9 +47,9 @@ Running long agentic loops requires a minimum hardware spec: enough VRAM for loc
 
 ## Environment Coupling and Portability
 
-This setup is deliberately coupled to two choices: **Claude Code** as the agent runtime and **Ubuntu Linux** as the operating environment. Both are first-rate for this kind of work. Linux is the natural substrate for server-side agentic workloads: ubiquitous, scriptable, and what every CI system, container, and cloud instance runs. Claude Code is built from the ground up for autonomous agent loops -- hooks, skills, persistent context, and structured tool use are first-class citizens, not add-ons. The underlying model, Claude Opus 4.6, is the current best-in-breed coding model, and Anthropic's agent-first design philosophy is reflected throughout the tooling.
+This setup is deliberately coupled to two choices: **Claude Code** as the agent runtime and **Ubuntu Linux** as the operating environment. Both are first-rate for this kind of work. Linux is the natural substrate for server-side agentic workloads: ubiquitous, scriptable, and what the majority of CI systems, containers, and cloud instances run. Claude Code is built from the ground up for autonomous agent loops -- hooks, skills, persistent context, and structured tool use are first-class citizens, not add-ons. The underlying model, Claude Opus 4.6, is the current best-in-breed coding model, and Anthropic's agent-first design philosophy is reflected throughout the tooling.
 
-Beyond those two couplings, the approach is portable by design. The skills are Markdown prompt files. The hooks are bash scripts. The conventions are plain text embedded in CLAUDE.md. The adversarial review pattern, verification-over-prompting principle, autonomy spectrum, and reproducible environment philosophy translate directly to any agent-capable AI coding tool, any Unix-like OS, and any model with comparable coding ability. Nothing here depends on a vendor API, a proprietary file format, or an OS primitive that isn't available elsewhere.
+Beyond those two couplings, the approach is portable by design. The skills are Markdown prompt files. The hooks are bash scripts. The conventions are plain text embedded in CLAUDE.md. The adversarial review pattern, verification-over-prompting principle, autonomy spectrum, and reproducible environment philosophy translate directly to other agent runtimes (Codex CLI, Goose, Antimatter, or whatever emerges next), other operating systems (the shell scripts port to macOS and Windows with minimal effort), and any model with comparable coding ability. Nothing here depends on a vendor API, a proprietary file format, or a platform primitive that isn't available elsewhere.
 
 In practice: if Claude Code gains a serious competitor or a different model pulls ahead, the work to port is swapping the skill invocation syntax and the hook registration format -- not rethinking the architecture.
 
@@ -108,19 +108,19 @@ cd ~/src/zat.env && git pull
 
 ## Agentic Skills
 
-Four global skills are installed by `zat.env-install.sh` and available in all Claude Code sessions. Each skill runs as a forked subagent with its own context window, starts from scratch, and gathers everything it needs from the codebase. Full instructions live in `claude/skills/<name>/SKILL.md`.
+Five global skills are installed by `zat.env-install.sh` and available in all Claude Code sessions. Each skill runs as a forked subagent with its own context window, starts from scratch, and gathers everything it needs from the codebase. Full instructions live in `claude/skills/<name>/SKILL.md`.
 
 | Skill | Command | Invocation | Purpose |
 |-------|---------|------------|---------|
-| Code Review | `/codereview` | Auto (pre-push) + manual | Adversarial review of uncommitted changes |
-| Security | `/security` | Manual + chained from codereview | Security audit (full repo or changes-only) |
-| Architect | `/architect` | Manual only | Architecture fitness assessment |
-| Tester | `/tester` | Manual only | Test strategy assessment |
-| Pull Request | `/pr` | Manual only | Create, inspect, or merge GitHub PRs |
+| Code Review | [`/codereview`](claude/skills/codereview/SKILL.md) | Auto (pre-push) + manual | Adversarial review of uncommitted changes |
+| Security | [`/security`](claude/skills/security/SKILL.md) | Manual + chained from codereview | Security audit (full repo or changes-only) |
+| Architect | [`/architect`](claude/skills/architect/SKILL.md) | Manual only | Architecture fitness assessment |
+| Tester | [`/tester`](claude/skills/tester/SKILL.md) | Manual only | Test strategy assessment |
+| Pull Request | [`/pr`](claude/skills/pr/SKILL.md) | Manual only | Create, inspect, or merge GitHub PRs |
 
 ### Prompt Design Principles
 
-All four skills share a set of prompt design principles informed by community research on AI code review agents. These principles are embedded directly in each SKILL.md:
+All five skills share a set of prompt design principles informed by community research on AI code review agents. These principles are embedded directly in each SKILL.md:
 
 - **Precision over recall.** Every false positive wastes human attention. Skills only report findings they have high confidence in. Fewer than 2 issues indicates quality code.
 - **Evidence grounding.** Every finding must cite a specific file and line. If the finding depends on code outside the diff, the skill must read that code first. No speculation about unverified behavior.
@@ -131,7 +131,7 @@ All four skills share a set of prompt design principles informed by community re
 
 These principles address the most common failure mode of AI review agents: generating noise that erodes trust. Industry experience with AI code review tools consistently shows that precision-biased instructions (focus on logic and security, not style) dramatically improve developer action rates on AI-generated findings.
 
-### `/codereview`: Adversarial Code Review
+### [`/codereview`](claude/skills/codereview/SKILL.md): Adversarial Code Review
 
 **Persona:** Principal Software Engineer, adversarial stance.
 
@@ -154,7 +154,7 @@ These principles address the most common failure mode of AI review agents: gener
 
 **Key guard:** Never deletes, skips, or weakens existing tests to make them pass. Fixes the code, not the tests.
 
-### `/security`: Security Review
+### [`/security`](claude/skills/security/SKILL.md): Security Review
 
 **Persona:** Principal Security Engineer.
 
@@ -169,7 +169,7 @@ These principles address the most common failure mode of AI review agents: gener
 4. Reports findings with concrete attack vectors. "An attacker could theoretically..." without specifying how they reach the code path is not a finding.
 5. Updates `SECURITY.md` with dated findings, resolved/open status, and accepted risks
 
-### `/architect`: Architecture Review
+### [`/architect`](claude/skills/architect/SKILL.md): Architecture Review
 
 **Persona:** Principal Architect.
 
@@ -184,7 +184,7 @@ These principles address the most common failure mode of AI review agents: gener
 
 **"Nothing to add at this time"** is a valid and expected outcome. Most codebases have sound architecture.
 
-### `/tester`: Test Strategy Review
+### [`/tester`](claude/skills/tester/SKILL.md): Test Strategy Review
 
 **Persona:** Principal Software Design Engineer in Test (SDE/T).
 
@@ -199,7 +199,7 @@ These principles address the most common failure mode of AI review agents: gener
 
 **"This is fine for now"** is valid. A new prototype with a few pytest files and no CI is fine. A production API with no integration tests is not. The assessment is always proportional to the project's maturity and goals.
 
-### `/pr`: Pull Request Workflow
+### [`/pr`](claude/skills/pr/SKILL.md): Pull Request Workflow
 
 **Trigger:** Manual only (`/pr`). Not auto-invoked.
 
@@ -223,9 +223,17 @@ PR body. Zero extra work: review files written by other skills become the PR des
 **Review gate on merge.** `/pr merge` performs the same diff-hash check as the pre-push
 hook. A PR cannot be merged through this skill without a passing `/codereview`.
 
-**Design intent.** PRs are opt-in. Direct-to-main remains the default solo workflow. `/pr`
-earns its keep when you want a persistent record of a change, are coordinating across
-worktrees, or are preparing work for a future collaborator or review agent.
+**Design intent.** Right now, `/pr` is primarily a convenience: it saves the mechanical
+work of composing a PR description and running `gh pr create` by hand. Direct-to-main
+remains the default solo workflow, and PRs are opt-in.
+
+The longer-term purpose is to establish PRs as the coordination primitive for autonomous
+agent loops. When multiple agents work in parallel -- each on its own branch -- PRs become
+the natural handoff point: agent A opens a PR, agent B reviews it via `--from-pr`, a
+coordinator merges when review passes. This is one of the key techniques in the Carlini C
+compiler work, where pull requests served as the synchronization boundary between parallel
+agent sessions. See [The Carlini Principle](#the-carlini-principle) for the background.
+This coordination pattern is on the long-term roadmap; the skill is the foundation.
 
 This skill is the terminal node added to the cross-skill reading DAG (like `/architect`):
 reads review metadata, produces no persistent file.
@@ -544,6 +552,10 @@ projls                  # see all running sessions
 - **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement for complex projects
 - **Multi-agent coordination**: multiple Claude sessions across projects with shared task pools and message passing
 - **Monitoring / dashboards**: visibility into running agent sessions, GPU utilization, loop progress
+
+**Agent framework portability:**
+- **Evaluate agent wrappers**: explore framework-agnostic agent runtimes -- Goose (Block's open-source CLI agent, designed around extensions rather than vendor primitives), Amp Code, Aider, and others. The skills are Markdown prompt files and the hooks are shell scripts; most of the architecture should port with changes to invocation syntax only. Worth benchmarking against Claude Code on representative tasks to understand what, if anything, is lost. Longer-term, a portable skill format (or a thin adapter layer) would let the agentic tooling here survive model and runtime churn without a full rewrite.
+- **Agent-per-PR multi-agent Carlini loop**: full implementation of the pattern from the C compiler paper -- parallel agents on branches, PRs as synchronization boundaries, coordinator agent merging via `/pr`, with GitHub Actions providing the independent verification signal that makes the loop trustworthy at scale.
 
 **Infrastructure:**
 - **Project templates**: versioned starter files for Python ML projects, API services, general Python

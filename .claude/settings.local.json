@@ -31,7 +31,29 @@
       "Bash(claude agents:*)",
       "Bash(claude --version)",
       "Bash(gh --version)",
-      "Bash(BYPASS_CODEREVIEW=1 git -C /home/parallels/src/zat.env push)"
+      "Bash(BYPASS_CODEREVIEW=1 git -C /home/parallels/src/zat.env push)",
+      "WebFetch(domain:burkeholland.github.io)",
+      "WebFetch(domain:stevekinney.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:simonwillison.net)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:newsletter.owainlewis.com)",
+      "WebFetch(domain:drmowinckels.io)",
+      "WebFetch(domain:aider.chat)",
+      "WebFetch(domain:tacnode.io)",
+      "WebFetch(domain:www.prompthub.us)",
+      "WebFetch(domain:www.leanware.co)",
+      "WebFetch(domain:martinfowler.com)",
+      "WebFetch(domain:github.blog)",
+      "WebFetch(domain:cursor.com)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:ghuntley.com)",
+      "WebFetch(domain:manus.im)",
+      "WebFetch(domain:www.infoq.com)",
+      "WebFetch(domain:blog.heliomedeiros.com)",
+      "WebFetch(domain:docs.windsurf.com)",
+      "WebFetch(domain:docs.devin.ai)",
+      "WebFetch(domain:developers.openai.com)"
     ]
   }
 }
