@@ -1,6 +1,6 @@
 ## Test Strategy Review — 2026-03-28
 
-**Summary:** No test infrastructure exists. This remains appropriate for the project's current stage: a personal dev-environment repo containing shell scripts (~395 lines across 3 files), Markdown skill prompts, gitconfig files, and no application logic.
+**Summary:** No test infrastructure exists. This remains appropriate for the project's current stage: a personal dev-environment repo containing shell scripts (~480 lines across 3 files), Markdown skill prompts, gitconfig files, and no application logic.
 
 **Test infrastructure found:** None (no test files, frameworks, CI/CD, coverage tools, or test targets). The pre-push hook (`hooks/pre-push-codereview.sh`) gates pushes on a passing `/codereview`, which provides LLM-based review but not deterministic test execution.
 
@@ -16,9 +16,9 @@
 
 ### Status of Prior Recommendations
 
-First review was earlier today (commit d764b96). Both NOTE findings remain open and are still appropriate as informational items, not actionable at the project's current scale.
+Both NOTEs from the prior review (same day, commit 4566205) remain open and appropriate as informational items. No shell scripts changed since the prior review (only Markdown files updated in commits bdc2adc and 511ee2d), so there is nothing new to flag.
 
 ---
-*Prior review (2026-03-28): Initial assessment. No test infrastructure, two NOTEs (shellcheck, idempotency smoke test). Both appropriate as future considerations.*
+*Prior review (2026-03-28, commit 4566205): No test infrastructure, two NOTEs (shellcheck, idempotency smoke test). Both appropriate as future considerations.*
 
-<!-- TESTING_META: {"date":"2026-03-28","commit":"4566205","block":0,"warn":0,"note":2} -->
+<!-- TESTING_META: {"date":"2026-03-28","commit":"511ee2d","block":0,"warn":0,"note":2} -->
