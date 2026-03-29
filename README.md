@@ -1,17 +1,13 @@
 # zat.env
 
-Framework for autonomous agentic coding including adversarial guardrails and memory-based improvement loops. Clone this repo and run `zat.env-install.sh` on any machine to get adversarial code review, security auditing, architecture review, and test strategy review as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Reproducible framework for autonomous agentic coding with adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
-An isolated, always-on hardware instance is a critical ingredient for serious agentic work. Long sessions need to survive SSH disconnects. Overnight autonomous jobs need to keep running without a laptop in the way. The environment needs to be deeply tuned: GPU drivers, CUDA toolchain, shared model caches, project conventions baked into every Claude session. But a hand-configured machine is a liability. `hw-bootstrap.sh` provisions a bare server from scratch; `zat.env-install.sh` wires the agentic layer onto any machine after that. Together they mean full recovery from bare metal is two scripts and a reboot.
-
-Running long agentic loops requires a minimum hardware spec: enough VRAM for local model inference, enough RAM for concurrent sessions, and enough CPU for sustained throughput. See [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44) for the current hardware choice and rationale.
+Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot.
 
 ## Contents
 
-- [Philosophy](#philosophy)
-- [Environment Coupling and Portability](#environment-coupling-and-portability)
-- [Coding Practices](#coding-practices)
 - [Quick Start](#quick-start)
+- [Daily Workflow](#daily-workflow)
 - [Agentic Skills](#agentic-skills)
   - [`/codereview`: Adversarial Code Review](#codereview-adversarial-code-review)
   - [`/security`: Security Review](#security-security-review)
@@ -19,52 +15,13 @@ Running long agentic loops requires a minimum hardware spec: enough VRAM for loc
   - [`/tester`: Test Strategy Review](#tester-test-strategy-review)
   - [`/pr`: Pull Request Workflow](#pr-pull-request-workflow)
   - [Pre-Push Gate](#pre-push-gate)
+- [Coding Practices](#coding-practices)
+- [Philosophy](#philosophy)
 - [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
 - [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44)
 - [Roadmap](#roadmap)
 
-> **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
-
-> **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
-
 ---
-
-## Philosophy
-
-**Claude Code as the primary development tool.** This environment is built for long autonomous coding sessions where Claude reviews its own work, fixes issues, and iterates. Skills, hooks, and conventions provide the structure: adversarial review before pushing, quantitative signals to detect convergence, and circuit breakers to cap runaway loops.
-
-**Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `hw-bootstrap.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
-
-**Verification over prompting.** Inspired by Carlini's [C compiler work](https://www.anthropic.com/engineering/building-c-compiler) (Anthropic, 2026): the quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
-
-**Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
-
-**Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
-
-**Reproducibility.** `hw-bootstrap.sh` + `zat.env-install.sh` = full recovery from bare metal. `zat.env-install.sh` alone = agentic skills on any machine.
-
-**Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
-
-## Environment Coupling and Portability
-
-This setup is deliberately coupled to two choices: **Claude Code** as the agent runtime and **Ubuntu Linux** as the operating environment. Both are first-rate for this kind of work. Linux is the natural substrate for server-side agentic workloads: ubiquitous, scriptable, and what the majority of CI systems, containers, and cloud instances run. Claude Code is built from the ground up for autonomous agent loops -- hooks, skills, persistent context, and structured tool use are first-class citizens, not add-ons. The underlying model, Claude Opus 4.6, is the current best-in-breed coding model, and Anthropic's agent-first design philosophy is reflected throughout the tooling.
-
-Beyond those two couplings, the approach is portable by design. The skills are Markdown prompt files. The hooks are bash scripts. The conventions are plain text embedded in CLAUDE.md. The adversarial review pattern, verification-over-prompting principle, autonomy spectrum, and reproducible environment philosophy translate directly to other agent runtimes (Codex CLI, Goose, Antimatter, or whatever emerges next), other operating systems (the shell scripts port to macOS and Windows with minimal effort), and any model with comparable coding ability. Nothing here depends on a vendor API, a proprietary file format, or a platform primitive that isn't available elsewhere.
-
-In practice: if Claude Code gains a serious competitor or a different model pulls ahead, the work to port is swapping the skill invocation syntax and the hook registration format -- not rethinking the architecture.
-
-## Coding Practices
-
-These instructions are embedded in `claude/global-claude.md` and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
-
-- Work in small, committable increments. Get one thing working before adding the next. Do not build scaffolding for features that are not needed yet.
-- When adding or changing functionality, write or update tests in the same increment. If the project has no test infrastructure, add a minimal test runner first.
-- Run the test suite (or the relevant subset) after each functional change. Do not stack multiple untested changes.
-- When fixing a bug, change only what is necessary. Do not refactor surrounding code or improve unrelated code in the same change.
-- If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
-- Before switching tasks or when context grows large, write key decisions and current state to a file (commit message, README, or project-specific doc). Prefer restarting with a written plan over continuing with a long, stale context.
-
-These practices are deliberately minimal. Shorter, more specific instructions outperform comprehensive ones for AI agents: as instruction volume grows, compliance with any single instruction drops (instruction dilution). Each bullet targets a specific failure mode that agents cannot reliably self-correct without explicit guidance. If a practice can be enforced by tooling (linting, hooks, tests), it belongs in tooling, not here.
 
 ## Quick Start
 
@@ -76,19 +33,23 @@ git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
 
 This installs on any machine with git, jq, and Claude Code. It symlinks skills into `~/.claude/skills/`, wires the pre-push hook into `~/.claude/settings.json`, and sets up git config. Safe to re-run at any time.
 
+**No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
+
+**Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, and `TESTING.md` in this repo root are produced by running `/codereview`, `/security`, and `/tester` against zat.env itself. The skills that generate them live in `claude/skills/`. In downstream projects, these same files are written to the project root and should be committed alongside the code they review.
+
 ### What the install script does
 
 The repo stays at `~/src/zat.env/` and remains part of the live system after install. Most configuration is symlinked rather than copied, so the repo and the active config are the same files.
 
-**Symlinked into `~/.claude/` (live — `git pull` updates them immediately):**
-- `~/.claude/CLAUDE.md` → `claude/global-claude.md`
-- `~/.claude/skills/codereview/` → `claude/skills/codereview/`
-- `~/.claude/skills/security/` → `claude/skills/security/`
-- `~/.claude/skills/architect/` → `claude/skills/architect/`
-- `~/.claude/skills/tester/` → `claude/skills/tester/`
-- `~/.claude/skills/pr/` → `claude/skills/pr/`
+**Symlinked into `~/.claude/` (live, `git pull` updates them immediately):**
+- `~/.claude/CLAUDE.md` -> `claude/global-claude.md`
+- `~/.claude/skills/codereview/` -> `claude/skills/codereview/`
+- `~/.claude/skills/security/` -> `claude/skills/security/`
+- `~/.claude/skills/architect/` -> `claude/skills/architect/`
+- `~/.claude/skills/tester/` -> `claude/skills/tester/`
+- `~/.claude/skills/pr/` -> `claude/skills/pr/`
 
-**Registered as paths into the repo (live — `git pull` updates the content, no re-install needed):**
+**Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
 - `~/.claude/settings.json` gets a pre-push hook entry with the path to `hooks/pre-push-codereview.sh`
 
@@ -106,9 +67,42 @@ cd ~/src/zat.env && git pull
 
 ---
 
+## Daily Workflow
+
+### Connecting
+```bash
+ssh peter@<tailscale-hostname>
+# or from phone via any SSH client
+```
+
+### Starting a project
+```bash
+# Clone an existing repo and open a persistent claude session
+ccproj myrepo git@github.com:peterzat/myrepo.git
+
+# Create a new project from scratch
+newproj my-new-thing
+```
+
+### tmux and persistent sessions
+`~/src/` is just a directory. You can clone or create repos there however you like. `ccproj` and `newproj` are specifically for when you want a **persistent named terminal session** tied to a project.
+
+When you run `ccproj ranking ...`:
+1. The repo is cloned to `~/src/ranking`
+2. A tmux session named `ranking` is created with `claude` running inside it
+3. If you disconnect (SSH drop, laptop closes), the session keeps running. Claude keeps coding.
+
+Come back later with:
+```bash
+projattach ranking      # reattach to the ranking session
+projls                  # see all running sessions
+```
+
+---
+
 ## Agentic Skills
 
-Five global skills are installed by `zat.env-install.sh` and available in all Claude Code sessions. Each skill runs as a forked subagent with its own context window, starts from scratch, and gathers everything it needs from the codebase. Full instructions live in `claude/skills/<name>/SKILL.md`.
+Global skills are installed by `zat.env-install.sh` and available in all Claude Code sessions. Each skill runs as a forked subagent with its own context window, starts from scratch, and gathers everything it needs from the codebase. Full instructions live in `claude/skills/<name>/SKILL.md`.
 
 | Skill | Command | Invocation | Purpose |
 |-------|---------|------------|---------|
@@ -120,9 +114,9 @@ Five global skills are installed by `zat.env-install.sh` and available in all Cl
 
 ### Prompt Design Principles
 
-All five skills share a set of prompt design principles informed by community research on AI code review agents. These principles are embedded directly in each SKILL.md:
+All skills share a set of prompt design principles informed by community research on AI code review agents. These principles are embedded directly in each SKILL.md:
 
-- **Precision over recall.** Every false positive wastes human attention. Skills only report findings they have high confidence in. Fewer than 2 issues indicates quality code.
+- **Precision over recall.** Every false positive wastes human attention. Skills only report findings they have high confidence in.
 - **Evidence grounding.** Every finding must cite a specific file and line. If the finding depends on code outside the diff, the skill must read that code first. No speculation about unverified behavior.
 - **Halt on uncertainty.** Below 80% confidence, the skill omits the finding or flags it as uncertain. Guessing is worse than silence.
 - **Empty report is valid.** A clean report means the code is clean. Skills never manufacture findings to fill a template.
@@ -176,11 +170,11 @@ These principles address the most common failure mode of AI review agents: gener
 **Trigger:** Manual only (`/architect`). Not auto-invoked.
 
 **What it does:**
-1. Reads all three persistent files (CODEREVIEW.md, SECURITY.md, TESTING.md) as the terminal node in the cross-skill reading DAG
+1. Reads all three persistent files (CODEREVIEW.md, SECURITY.md, TESTING.md)
 2. Explores the codebase: README, directory structure, languages, frameworks, entry points, dependency manifests
 3. Evaluates 7 dimensions: structural clarity, appropriate complexity (over-engineering is as bad as under-engineering), scale alignment, dependency health, extensibility, consistency, and business goal alignment
 4. Reports per dimension with HIGH / MEDIUM / LOW priority, or "Nothing to flag"
-5. Produces no persistent file (deliberate; see Cross-Skill Reading DAG below)
+5. Produces no persistent file (terminal node; see [Cross-Skill Reading DAG](#cross-skill-reading-dag))
 
 **"Nothing to add at this time"** is a valid and expected outcome. Most codebases have sound architecture.
 
@@ -207,36 +201,27 @@ These principles address the most common failure mode of AI review agents: gener
 
 Five modes dispatched by argument:
 
-- `/pr` or `/pr <branch-name>` — create a PR. If on `main`, checks out a feature branch
+- `/pr` or `/pr <branch-name>` -- create a PR. If on `main`, checks out a feature branch
   first. Checks for an existing PR on the branch (idempotent; will not create duplicates).
   Composes the title from commit messages and the body from review file metadata.
-- `/pr status` — show the current branch's PR state, CI checks, and merge readiness
-- `/pr <number>` — inspect a specific PR and summarize review comments
-- `/pr merge` — verify the codereview marker, then `gh pr merge --squash --delete-branch`
+- `/pr status` -- show the current branch's PR state, CI checks, and merge readiness
+- `/pr <number>` -- inspect a specific PR and summarize review comments
+- `/pr merge` -- verify the codereview marker, then `gh pr merge --squash --delete-branch`
   and return to main
-- `/pr list` — list open PRs for the repo
+- `/pr list` -- list open PRs for the repo
 
 **Auto-composed PR descriptions.** The skill reads `<!-- REVIEW_META: {...} -->` footers
 from CODEREVIEW.md, SECURITY.md, and TESTING.md to populate a review status table in the
-PR body. Zero extra work: review files written by other skills become the PR description.
+PR body. Review files written by other skills become the PR description with no extra work.
 
 **Review gate on merge.** `/pr merge` performs the same diff-hash check as the pre-push
 hook. A PR cannot be merged through this skill without a passing `/codereview`.
 
-**Design intent.** Right now, `/pr` is primarily a convenience: it saves the mechanical
-work of composing a PR description and running `gh pr create` by hand. Direct-to-main
-remains the default solo workflow, and PRs are opt-in.
-
-The longer-term purpose is to establish PRs as the coordination primitive for autonomous
-agent loops. When multiple agents work in parallel -- each on its own branch -- PRs become
-the natural handoff point: agent A opens a PR, agent B reviews it via `--from-pr`, a
-coordinator merges when review passes. This is one of the key techniques in the Carlini C
-compiler work, where pull requests served as the synchronization boundary between parallel
-agent sessions. See [The Carlini Principle](#the-carlini-principle) for the background.
-This coordination pattern is on the long-term roadmap; the skill is the foundation.
-
-This skill is the terminal node added to the cross-skill reading DAG (like `/architect`):
-reads review metadata, produces no persistent file.
+**Design intent.** Right now, `/pr` is primarily a convenience for composing PR descriptions
+and running `gh pr create`. Direct-to-main remains the default solo workflow, and PRs are
+opt-in. The longer-term purpose is to establish PRs as the coordination primitive for
+autonomous agent loops (see [The Carlini Principle](#the-carlini-principle)). Terminal node
+in the reading DAG: reads review metadata, produces no persistent file.
 
 ### Pre-Push Gate
 
@@ -287,6 +272,39 @@ pr          -> reads all three metadata footers (terminal node, produces no pers
 ```
 
 Architect and pr are terminal nodes: their output informs human decisions and does not feed back into automated review. This prevents recommendations from becoming automatic codereview criteria without deliberate human adoption.
+
+---
+
+## Coding Practices
+
+These instructions are embedded in `claude/global-claude.md` and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
+
+- Work in small, committable increments. Get one thing working before adding the next. Do not build scaffolding for features that are not needed yet.
+- When adding or changing functionality, write or update tests in the same increment. If the project has no test infrastructure, add a minimal test runner first.
+- Run the test suite (or the relevant subset) after each functional change. Do not stack multiple untested changes.
+- When fixing a bug, change only what is necessary. Do not refactor surrounding code or improve unrelated code in the same change.
+- If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
+- Before switching tasks or when context grows large, write key decisions and current state to a file (commit message, README, or project-specific doc). Prefer restarting with a written plan over continuing with a long, stale context.
+
+These practices are deliberately minimal. Shorter, more specific instructions outperform comprehensive ones for AI agents: as instruction volume grows, compliance with any single instruction drops (instruction dilution). Each bullet targets a specific failure mode that agents cannot reliably self-correct without explicit guidance. If a practice can be enforced by tooling (linting, hooks, tests), it belongs in tooling, not here.
+
+---
+
+## Philosophy
+
+**Claude Code as the primary development tool.** This environment is built for long autonomous coding sessions where Claude reviews its own work, fixes issues, and iterates. Skills, hooks, and conventions provide the structure: adversarial review before pushing, quantitative signals to detect convergence, and circuit breakers to cap runaway loops.
+
+**Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `hw-bootstrap.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
+
+**Verification over prompting.** The quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt. See [The Carlini Principle](#the-carlini-principle) for the background.
+
+**Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
+
+**Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
+
+**Portable by design.** This setup is coupled to Claude Code and Ubuntu Linux, both first-rate for agentic workloads. Beyond those two choices, everything is portable: skills are Markdown, hooks are bash, conventions are plain text. If Claude Code gains a serious competitor or a different model pulls ahead, the work to port is swapping skill invocation syntax and hook registration, not rethinking the architecture.
+
+**Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
 ---
 
@@ -343,13 +361,13 @@ The current system is at **Gated**. The skills and persistent files are the foun
 
 **Regression snowballing.** In a loop without baseline snapshots, pre-existing failures get attributed to the agent's changes, triggering fix attempts for code the agent didn't break. The fixes introduce real regressions, compounding the problem. Countered by: baseline state capture before any changes, regression defined as "worse than baseline" (not "any failures"), and hard stops when test count decreases between iterations.
 
+---
+
 ## Current Hardware: Hetzner GEX44
 
-The hardware below is the current choice, not a permanent one. The agentic workflow described above runs on any Linux machine with sufficient resources and a Tailscale connection -- on-premises hardware, a homelab server, or any other dedicated box works equally well.
+The agentic workflow runs on any Linux machine with sufficient resources and a Tailscale connection. The Hetzner GEX44 was selected because it keeps a dedicated GPU box running 24/7 at practical cost. If needs change, the hardware can be swapped without changing any of the agentic tooling.
 
-The Hetzner GEX44 was selected for now because it combines a 14-core CPU, 64 GB RAM, and an NVIDIA RTX 4000 SFF Ada with 20 GB VRAM in a single dedicated (not shared) machine. That's enough VRAM for 7-8B parameter models natively, or ~32B quantized, which covers the majority of local inference use cases. Hetzner's pricing makes it practical to keep running 24/7, which is the main operational requirement. The GPU is the primary differentiator over cheaper CPU-only options. If needs change (larger models, more parallelism, on-prem preference), the hardware can be swapped out without changing any of the agentic tooling.
-
-The only hard networking requirement is Tailscale. All access to the machine goes through the Tailscale mesh: SSH, Claude Code remote sessions, everything. On-premises hardware behind NAT works fine as long as Tailscale is installed. The bootstrap script configures Tailscale as one of its first steps.
+The only hard networking requirement is Tailscale. All access goes through the Tailscale mesh: SSH, Claude Code remote sessions, everything. The bootstrap script configures Tailscale as one of its first steps.
 
 ### Machine Specs
 
@@ -372,8 +390,6 @@ The only hard networking requirement is Tailscale. All access to the machine goe
 **Hetzner notes:**
 - Networking uses a /32 point-to-point config with `on-link: true` gateway routing. Do not modify netplan without understanding this.
 - Cryptocurrency mining is strictly prohibited (Hetzner will terminate the account)
-
----
 
 ### Setup From Scratch
 
@@ -408,8 +424,6 @@ claude
 
 # 8. Start a new Claude session to pick up installed skills
 ```
-
----
 
 ### Directory Overview
 
@@ -469,7 +483,7 @@ Post-install layout (annotated):
 │       ├── architect  -> ~/src/zat.env/claude/skills/architect/
 │       ├── tester     -> ~/src/zat.env/claude/skills/tester/
 │       └── pr         -> ~/src/zat.env/claude/skills/pr/
-│
+
 └── .cache/
     ├── huggingface/                  # Shared HF model cache (never override HF_HOME per-project)
     └── pip/                          # Shared pip cache (don't purge casually; torch is 2GB+)
@@ -481,39 +495,6 @@ Post-install layout (annotated):
 ├── CODEREVIEW.md    # Written by /codereview: dated review history with metadata
 ├── SECURITY.md      # Written by /security: security findings and accepted risks
 └── TESTING.md       # Written by /tester: test strategy assessment
-```
-
----
-
-### Daily Workflow
-
-#### Connecting
-```bash
-ssh peter@<tailscale-hostname>
-# or from phone via any SSH client
-```
-
-#### Starting a project
-```bash
-# Clone an existing repo and open a persistent claude session
-ccproj myrepo git@github.com:peterzat/myrepo.git
-
-# Create a new project from scratch
-newproj my-new-thing
-```
-
-#### tmux and persistent sessions
-`~/src/` is just a directory. You can clone or create repos there however you like. `ccproj` and `newproj` are specifically for when you want a **persistent named terminal session** tied to a project.
-
-When you run `ccproj ranking ...`:
-1. The repo is cloned to `~/src/ranking`
-2. A tmux session named `ranking` is created with `claude` running inside it
-3. If you disconnect (SSH drop, laptop closes), the session keeps running. Claude keeps coding.
-
-Come back later with:
-```bash
-projattach ranking      # reattach to the ranking session
-projls                  # see all running sessions
 ```
 
 ---
@@ -539,31 +520,31 @@ projls                  # see all running sessions
 ### Future (v2+)
 
 **Near-term (high value, incremental):**
-- **`/verify` skill**: executes the project's test suite as ground truth; factual signal to complement opinion-based review
-- **Worktree-based A/B testing**: before applying a fix, create a worktree, run tests in isolation, compare against main branch before merging; `/pr` gains worktree awareness to handle branch/push correctly in worktree context
+- **`/verify` skill**: execute the project's test suite as ground truth; factual signal to complement opinion-based review
+- **Worktree-based A/B testing**: create a worktree before applying a fix, run tests in isolation, compare against main before merging
 - **Quantitative trending**: parse structured metadata footers, track BLOCK/WARN/NOTE counts over sessions, detect convergence or regression
 - **Branch workflow aliases**: `git feat <name>` (create feature branch), `git done` (merge + delete local-only branch)
 
 **Medium-term (autonomous loops):**
-- **Loop orchestrator** (`/review-loop`): run codereview, fix, codereview in a loop until converging or hitting max iterations; auto-create PR via `/pr` when loop converges. Community-validated by Huntley's [Ralph Wiggum technique](https://ghuntley.com/ralph/) (`while :; do cat PROMPT.md | claude-code ; done`) and Carlini's parallel agent loops. Progress must persist in files and git, not in context, so each fresh agent can re-orient from disk. Design around known failure modes (see [Anti-Patterns](#anti-patterns-we-designed-against)).
-- **Loop circuit breakers**: max-iteration cap (configurable, default ~5), regression detection (test count must not decrease between iterations), convergence detection (if BLOCK count is not decreasing, stop), and human checkpoint intervals (pause for approval every N iterations or after any BLOCK auto-fix fails). Without these, loops degrade into placeholder implementations or oscillating fixes.
-- **Baseline snapshots**: before touching code, record current build/test/lint state (exit codes, test counts, diagnostic counts). After changes, diff against baseline. Distinguishes "I broke this" from "this was already broken." Inspired by Anvil's [Forge protocol](https://github.com/burkeholland/anvil). Supports loop reliability by giving each iteration a clean regression signal.
-- **Remote agent PR review**: `/schedule` trigger runs `claude --from-pr <url> --print` with `/codereview` against open PRs, posts results as PR comments; decouples authoring and review sessions
-- **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe append-only updates for concurrent sessions
-- **Alignment checks**: periodic re-read of original task specification during long loops to detect intent drift
+- **Loop orchestrator** (`/review-loop`): codereview/fix/codereview loop until convergence or max iterations; auto-create PR via `/pr` when done. Progress persists in files and git, not context. Design around known failure modes (see [Anti-Patterns](#anti-patterns-we-designed-against)).
+- **Loop circuit breakers**: max-iteration cap, regression detection (test count must not decrease), convergence detection (stop if BLOCK count plateaus), human checkpoint intervals
+- **Baseline snapshots**: record build/test/lint state before changes, diff after. Distinguishes "I broke this" from "this was already broken."
+- **Remote agent PR review**: `/schedule` trigger runs `/codereview` against open PRs, posts results as PR comments
+- **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe concurrent updates
+- **Alignment checks**: periodic re-read of task specification during long loops to detect intent drift
 - **Progressive disclosure**: reference files (`skills/<name>/references/`) for dimension details as skill prompts grow
 
 **Long-term (multi-agent):**
-- **Agent-per-PR pattern**: each agent works in its own worktree on its own branch, opens a PR via `/pr` when done; a coordinator agent reviews and merges
-- **GitHub Actions CI**: justified at this point for independent test signal across multiple agent PRs; branch protection on main replaces local pre-push hook as the gate
-- **Cross-project awareness**: architect and security read persistent files from sibling projects under `~/src/` to detect dependency-chain risks
-- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement for complex projects. Key design inputs from the ecosystem: Carlini used lock files for task claiming (no central orchestrator), GCC as a differential testing oracle for independent verification, and test output designed for agent consumption (sparse, pre-computed statistics, fast sampling modes). Huntley's experience shows these loops work well for tasks with automatic verification (bugfixes, migrations, coverage expansion) but fail for judgment calls or ambiguous requirements. Operator skill in designing the verification harness determines outcomes.
+- **Agent-per-PR pattern**: each agent works in its own worktree/branch, opens a PR via `/pr` when done; a coordinator agent reviews and merges
+- **GitHub Actions CI**: independent test signal across multiple agent PRs; branch protection on main replaces local pre-push hook
+- **Cross-project awareness**: architect and security read persistent files from sibling projects to detect dependency-chain risks
+- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement. Key inputs: lock files for task claiming, differential testing oracles, test output designed for agent consumption.
 - **Multi-agent coordination**: multiple Claude sessions across projects with shared task pools and message passing
 - **Monitoring / dashboards**: visibility into running agent sessions, GPU utilization, loop progress
 
 **Agent framework portability:**
-- **Evaluate agent wrappers**: explore framework-agnostic agent runtimes -- Goose (Block's open-source CLI agent, designed around extensions rather than vendor primitives), Amp Code, Aider, and others. The skills are Markdown prompt files and the hooks are shell scripts; most of the architecture should port with changes to invocation syntax only. Worth benchmarking against Claude Code on representative tasks to understand what, if anything, is lost. Longer-term, a portable skill format (or a thin adapter layer) would let the agentic tooling here survive model and runtime churn without a full rewrite.
-- **Agent-per-PR multi-agent Carlini loop**: full implementation of the pattern from the C compiler paper -- parallel agents on branches, PRs as synchronization boundaries, coordinator agent merging via `/pr`, with GitHub Actions providing the independent verification signal that makes the loop trustworthy at scale.
+- **Evaluate agent wrappers**: benchmark alternative runtimes (Goose, Amp Code, Aider) against Claude Code on representative tasks. Skills are Markdown and hooks are bash; most of the architecture should port with changes to invocation syntax only.
+- **Agent-per-PR Carlini loop**: parallel agents on branches, PRs as synchronization boundaries, coordinator merging via `/pr`, GitHub Actions as the independent verification signal
 
 **Infrastructure:**
 - **Project templates**: versioned starter files for Python ML projects, API services, general Python
