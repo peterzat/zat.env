@@ -81,8 +81,9 @@ cd ~/src/zat.env && git pull
 
 ### Connecting
 ```bash
-ssh peter@<tailscale-hostname>
-# or from phone via any SSH client
+ssh peter@dev
+# or: ssh peter@dev.emperor-exponential.ts.net
+# or from phone via any SSH client (ShellFish, Termius, etc.)
 ```
 
 ### Starting a project
@@ -476,6 +477,17 @@ The only hard networking requirement is Tailscale. All access goes through the T
 - Networking uses a /32 point-to-point config with `on-link: true` gateway routing. Do not modify netplan without understanding this.
 - Cryptocurrency mining is strictly prohibited (Hetzner will terminate the account)
 
+**Networking and access:**
+- **Public DNS**: `dev.agent-hypervisor.ai` (A record to Hetzner public IP)
+- **Tailscale**: hostname `dev`, tailnet `emperor-exponential.ts.net`, FQDN `dev.emperor-exponential.ts.net`
+- **Access pattern**: Mac/iPad connects via Tailscale to `dev:PORT` for web UIs (Jupyter, Gradio, FastAPI, etc.)
+- **Bind address**: always `0.0.0.0` (not `127.0.0.1`) so Tailscale clients can reach services
+- **Public exposure**: `dev.agent-hypervisor.ai:PORT` for webhook callbacks or temporary demos only
+- **No reverse proxy**: services bind directly to ports
+- **Firewall**: not configured by hw-bootstrap.sh; check Hetzner Robot panel
+
+These are per-machine values. See `claude/global-claude.md` `## Networking` for the full conventions and troubleshooting guide.
+
 ### Setup From Scratch
 
 Starting from a bare Hetzner Ubuntu 22.04.2 LTS install with root SSH access. These steps reflect the actual setup of this machine (March 2026, driver 590-server, CUDA 13.1).
@@ -616,6 +628,10 @@ tailscale status
 
 `hostname -f` should return `dev`. `tailscale status` should show `dev` as the machine name with your tailnet identity (`peterzat@`).
 
+**Networking identity (machine-specific):**
+
+The hostname (`dev`), tailnet (`emperor-exponential.ts.net`), and any public DNS record (`dev.agent-hypervisor.ai`) are configured at this point. If you are setting up a different machine, substitute your own values. These values are referenced in `claude/global-claude.md` `## Networking` and should be updated there if they change.
+
 Apply pending system updates (this typically pulls a new kernel):
 
 ```bash
@@ -654,7 +670,7 @@ docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 
 **Phase 6: zat.env config and Claude Code**
 
-From here on, connect via Tailscale SSH (`ssh peter@dev`).
+From here on, connect via Tailscale SSH (`ssh peter@dev` or `ssh peter@dev.emperor-exponential.ts.net`).
 
 Generate an SSH key for GitHub:
 
