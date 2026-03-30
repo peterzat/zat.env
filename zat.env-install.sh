@@ -69,6 +69,26 @@ for skill_dir in "${REPO_DIR}/claude/skills"/*/; do
   echo "    ${skill_name} -> ${skill_dir}"
 done
 
+# --- ~/bin helper scripts ---
+echo "==> Symlinking helper scripts into ~/bin/"
+BIN_DIR="${HOME}/bin"
+mkdir -p "${BIN_DIR}"
+
+for script in "${REPO_DIR}/bin"/*; do
+  script_name="$(basename "${script}")"
+  target="${BIN_DIR}/${script_name}"
+
+  if [[ -L "${target}" ]]; then
+    rm "${target}"
+  elif [[ -f "${target}" ]]; then
+    echo "    WARNING: ${target} exists and is not a symlink — replacing with symlink"
+    rm "${target}"
+  fi
+
+  ln -s "${script}" "${target}"
+  echo "    ${script_name} -> ${script}"
+done
+
 # --- merge pre-push hook into ~/.claude/settings.json ---
 echo "==> Merging pre-push hook into ${CLAUDE_DIR}/settings.json"
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
@@ -105,4 +125,5 @@ echo "  git st                                    # should work (alias from gitc
 echo "  ls -la ~/.claude/CLAUDE.md               # should be a symlink"
 echo "  ls -la ~/.claude/skills/                 # should show spec, codereview, security, architect, tester, pr"
 echo "  cat ~/.claude/skills/codereview/SKILL.md # should resolve through symlink"
+echo "  ls -la ~/bin/                            # should show symlinks to repo bin/"
 echo "  jq .hooks ~/.claude/settings.json        # should show pre-push hook"

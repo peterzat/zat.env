@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage:"
+  echo "  ccproj <project-name> <git-url> [branch]"
+  echo
+  echo "Examples:"
+  echo "  ccproj ranking git@github.com:me/ranking.git"
+  echo "  ccproj ranking https://github.com/me/ranking.git main"
+  exit 1
+}
+
+[[ $# -lt 2 ]] && usage
+
+PROJECT_NAME="$1"
+GIT_URL="$2"
+BRANCH="${3:-}"
+PROJECT_ROOT="${HOME}/src/${PROJECT_NAME}"
+
+mkdir -p "${HOME}/src"
+
+if [[ ! -d "${PROJECT_ROOT}/.git" ]]; then
+  echo "Cloning ${GIT_URL} into ${PROJECT_ROOT}"
+  if [[ -n "${BRANCH}" ]]; then
+    git clone --branch "${BRANCH}" "${GIT_URL}" "${PROJECT_ROOT}"
+  else
+    git clone "${GIT_URL}" "${PROJECT_ROOT}"
+  fi
+else
+  echo "Repo already exists at ${PROJECT_ROOT}"
+fi
+
+if tmux has-session -t "${PROJECT_NAME}" 2>/dev/null; then
+  exec tmux attach -t "${PROJECT_NAME}"
+else
+  exec tmux new-session -s "${PROJECT_NAME}" -c "${PROJECT_ROOT}" "claude"
+fi
