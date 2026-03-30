@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Determine session name and working directory from $PWD.
-#   ~/           -> shellfish-1 (ShellFish default tmux session)
+# zatmux — tmux session toggle
+#
+# Outside tmux: attach or create a session based on $PWD
+#   ~/           -> shellfish-1
 #   ~/src/<proj> -> <proj>
+#
+# Inside tmux: detach
+
+if [[ -n "${TMUX:-}" ]]; then
+  exec tmux detach-client
+fi
 
 if [[ "$PWD" == "$HOME" ]]; then
   SESSION="shellfish-1"
@@ -16,20 +24,12 @@ else
   echo
   echo "From ~/          -> attach or create the shellfish-1 session"
   echo "From ~/src/<proj> -> attach or create a <proj> session"
+  echo "Inside tmux      -> detach"
   exit 1
 fi
 
 if tmux has-session -t "$SESSION" 2>/dev/null; then
-  if [[ -n "${TMUX:-}" ]]; then
-    exec tmux switch-client -t "$SESSION"
-  else
-    exec tmux attach -t "$SESSION"
-  fi
+  exec tmux attach -t "$SESSION"
 else
-  if [[ -n "${TMUX:-}" ]]; then
-    tmux new-session -d -s "$SESSION" -c "$WORK_DIR"
-    exec tmux switch-client -t "$SESSION"
-  else
-    exec tmux new-session -s "$SESSION" -c "$WORK_DIR"
-  fi
+  exec tmux new-session -s "$SESSION" -c "$WORK_DIR"
 fi
