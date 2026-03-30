@@ -108,6 +108,22 @@ projattach ranking      # reattach to the ranking session
 projls                  # see all running sessions
 ```
 
+### zatmux
+
+General-purpose tmux session manager. Reads `$PWD` to decide what to do:
+
+```bash
+cd ~
+zatmux                  # attach or create the "shellfish-1" session
+
+cd ~/src/ranking
+zatmux                  # attach or create a "ranking" session
+```
+
+Designed around ShellFish (iOS SSH client), which auto-creates a tmux session called `shellfish-1`. Running `zatmux` from `~/` gets you into that session whether it already exists or not.
+
+If you're already inside tmux, `zatmux` uses `switch-client` instead of `attach`, so it works from within an existing session without nesting. New sessions get a plain shell (use `ccproj`/`newproj` if you want Claude to launch automatically).
+
 ---
 
 ## Agentic Skills
@@ -697,7 +713,8 @@ Post-install layout (annotated):
 │   ├── ccproj                        # Clone a repo and open a tmux/claude session
 │   ├── newproj                       # Init a new project and open a tmux/claude session
 │   ├── projattach                    # Reattach to an existing project tmux session
-│   └── projls                        # List all running tmux sessions
+│   ├── projls                        # List all running tmux sessions
+│   └── zatmux                        # Attach/create tmux session based on current dir
 │
 ├── data/                             # Shared large datasets and model files (not in git)
 │

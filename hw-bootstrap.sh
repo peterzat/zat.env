@@ -302,7 +302,45 @@ set -euo pipefail
 tmux list-sessions 2>/dev/null || echo "No tmux sessions"
 EOF
 
-chmod +x "${BIN_DIR}/ccproj" "${BIN_DIR}/newproj" "${BIN_DIR}/projattach" "${BIN_DIR}/projls"
+cat > "${BIN_DIR}/zatmux" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Determine session name and working directory from $PWD.
+#   ~/           -> shellfish-1 (ShellFish default tmux session)
+#   ~/src/<proj> -> <proj>
+
+if [[ "$PWD" == "$HOME" ]]; then
+  SESSION="shellfish-1"
+  WORK_DIR="$HOME"
+elif [[ "$PWD" =~ ^"$HOME"/src/([^/]+)(/.*)?$ ]]; then
+  SESSION="${BASH_REMATCH[1]}"
+  WORK_DIR="$HOME/src/$SESSION"
+else
+  echo "zatmux: must be run from ~/ or ~/src/<project>"
+  echo
+  echo "From ~/          -> attach or create the shellfish-1 session"
+  echo "From ~/src/<proj> -> attach or create a <proj> session"
+  exit 1
+fi
+
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  if [[ -n "${TMUX:-}" ]]; then
+    exec tmux switch-client -t "$SESSION"
+  else
+    exec tmux attach -t "$SESSION"
+  fi
+else
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux new-session -d -s "$SESSION" -c "$WORK_DIR"
+    exec tmux switch-client -t "$SESSION"
+  else
+    exec tmux new-session -s "$SESSION" -c "$WORK_DIR"
+  fi
+fi
+EOF
+
+chmod +x "${BIN_DIR}/ccproj" "${BIN_DIR}/newproj" "${BIN_DIR}/projattach" "${BIN_DIR}/projls" "${BIN_DIR}/zatmux"
 
 echo "==> Configuring shell environment"
 if ! grep -q 'export PATH="$HOME/bin:$HOME/.local/bin:$PATH"' "${HOME_DIR}/.bashrc"; then
