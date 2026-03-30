@@ -184,6 +184,7 @@ set -g base-index 1
 setw -g pane-base-index 1
 set -g detach-on-destroy off
 set -g renumber-windows on
+set -g window-size latest
 bind r source-file ~/.tmux.conf \; display-message "tmux config reloaded"
 EOF
 
