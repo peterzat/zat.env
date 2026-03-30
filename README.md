@@ -1,5 +1,13 @@
 # zat.env
 
+<div align="center">
+  <img src="zat-env.png" alt="Claude Code running on an iPad" width="480">
+  <br>
+  <sub>Claude Code on an iPad, connected via Tailscale SSH to a Hetzner server in Germany</sub>
+</div>
+
+<br>
+
 Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get specification, adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot.
@@ -373,7 +381,9 @@ This section documents the design philosophy behind the agentic skill system and
 
 In February 2026, Nicholas Carlini at Anthropic [built a complete C compiler](https://www.anthropic.com/engineering/building-c-compiler) using 16 parallel Claude Opus 4.6 agents running in an infinite loop. 100,000 lines of Rust, 3,982 commits, ~$20,000 in API costs, 2 weeks. No human wrote code.
 
-The key insight: the quality ceiling of agent-built software is determined by the quality of the verification loop, not the quality of the prompt. Designing good test suites and review feedback loops matters more than crafting better instructions.
+Separately, Prithvi Rajasekaran at Anthropic Labs documented [harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps), showing that a generator-evaluator architecture (dedicated planner, generator, and evaluator agents with hard quality thresholds) produces dramatically better results than single-agent runs, even when the single agent is the same model. The key patterns: separate generation from evaluation, make subjective quality measurable with weighted rubrics, and use context resets or compaction to sustain coherence across hours-long sessions.
+
+Together these two papers form the technical basis for the autonomous loop roadmap below. Carlini's work demonstrates that verification loop quality determines output quality. Rajasekaran's work demonstrates how to structure the harness: decompose into specialized agents, stress-test evaluator criteria, and simplify the harness as model capabilities improve.
 
 Applied here: invest in verification (review skills, test suites, feedback loops) before investing in prompts. A well-designed review loop is worth more than a better system prompt.
 
@@ -789,7 +799,7 @@ Post-install layout (annotated):
 - **Remote agent PR review**: `/schedule` trigger runs `/codereview` against open PRs, posts results as PR comments
 - **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe concurrent updates
 - **Alignment checks**: periodic re-read of task specification during long loops to detect intent drift
-- **Evaluate Claude Code Agent SDK**: explore the Agent SDK and `/agent` subagent mechanism for loop orchestration. Subagents can run in isolated worktrees with scoped tools and effort levels, which may be a better fit for coding loops than skill-level fork contexts. Key questions: can a subagent invoke skills, how does effort propagate, what are the context window trade-offs vs. forked skills.
+- **Evaluate Claude Code Agent SDK**: explore the Agent SDK and `/agent` subagent mechanism for loop orchestration. Subagents can run in isolated worktrees with scoped tools and effort levels, which may be a better fit for coding loops than skill-level fork contexts. Key questions: can a subagent invoke skills, how does effort propagate, what are the context window trade-offs vs. forked skills. The [harness design paper](https://www.anthropic.com/engineering/harness-design-long-running-apps) provides a concrete reference architecture: planner/generator/evaluator agents with hard quality thresholds, context resets between sprint contracts, and iterative harness simplification as model capabilities improve. Evaluate whether the Agent SDK can instantiate this pattern (dedicated evaluator subagents running Playwright or test suites, generator subagents in worktrees, a coordinator managing sprint contracts and convergence).
 - **Progressive disclosure**: reference files (`skills/<name>/references/`) for dimension details as skill prompts grow
 
 **Long-term (multi-agent):**
