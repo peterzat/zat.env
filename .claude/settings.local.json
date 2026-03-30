@@ -16,7 +16,11 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:github.blog)",
-      "WebFetch(domain:www.anthropic.com)"
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:documentation.ubuntu.com)",
+      "WebFetch(domain:ubuntu.com)",
+      "Bash(dpkg -l)",
+      "Bash(apt-cache search:*)"
     ]
   }
 }

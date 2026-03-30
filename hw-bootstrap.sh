@@ -4,10 +4,12 @@
 # Turns a bare Ubuntu 22.04.2 LTS install into a usable dev box.
 # Safe to run multiple times (idempotent).
 #
-# Run 1: installs base packages, Docker, Tailscale, Claude Code, shell config.
-#   Stops at NVIDIA driver with instructions for manual install.
-#   Install the driver, validate with modprobe, then reboot.
-# Run 2: completes CUDA toolkit and NVIDIA Container Toolkit setup.
+# Run 1: installs base packages, then stops at NVIDIA driver with
+#   instructions for manual install. Install the driver, validate
+#   with modprobe, then reboot.
+# Run 2: installs CUDA toolkit, Docker, Tailscale, Claude Code,
+#   NVIDIA Container Toolkit, tmux config, helper scripts, and
+#   shell environment.
 set -euo pipefail
 
 if [[ "${EUID}" -eq 0 ]]; then
@@ -66,21 +68,36 @@ if ! command -v nvidia-smi >/dev/null 2>&1; then
   sudo ubuntu-drivers list --gpgpu 2>/dev/null || echo "  (ubuntu-drivers list --gpgpu returned no results)"
   echo "------------------------------------------------------------"
   echo
-  echo "For the GEX44 (RTX 4000 SFF Ada, Ubuntu 22.04), the recommended"
-  echo "install is the headless server driver with the proprietary kernel"
-  echo "module (not -open). As of this writing, that is:"
+  echo "For the GEX44 (RTX 4000 SFF Ada, Ubuntu 22.04), install the"
+  echo "server driver with the proprietary kernel module. Pick the highest"
+  echo "-server (non-open) branch from the list above. Do NOT use -open"
+  echo "or headless variants."
   echo
-  echo "  sudo apt-get install -y nvidia-headless-550-server nvidia-utils-550-server"
+  echo "Install kernel headers first so DKMS can build the module:"
   echo
-  echo "Verify the 550-server branch appears in the list above. If a newer"
-  echo "server branch is available, use that instead."
+  echo "  sudo apt-get install -y linux-headers-\$(uname -r)"
   echo
-  echo "After installing, validate BEFORE rebooting:"
+  echo "Then install the driver. Replace 590 with whichever server branch"
+  echo "number appeared highest in the list above:"
+  echo
+  echo "  sudo apt-get install -y \\"
+  echo "    linux-modules-nvidia-590-server-\$(uname -r) \\"
+  echo "    nvidia-driver-590-server \\"
+  echo "    nvidia-utils-590-server"
+  echo
+  echo "The linux-modules-nvidia package provides pre-built kernel modules."
+  echo "If it is not available for your running kernel, the DKMS fallback"
+  echo "builds from source (requires the headers installed above)."
+  echo
+  echo "Validate BEFORE rebooting:"
   echo
   echo "  sudo modprobe nvidia && nvidia-smi"
   echo
   echo "If modprobe succeeds and nvidia-smi shows the GPU, reboot is safe."
-  echo "If it fails, check dmesg and do NOT reboot."
+  echo "If nvidia-smi fails but modprobe succeeded, verify that"
+  echo "linux-headers-\$(uname -r) is installed and re-run the driver"
+  echo "install to trigger the DKMS build."
+  echo "If modprobe itself fails, check dmesg and do NOT reboot."
   echo
   echo "  sudo reboot"
   echo
