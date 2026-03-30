@@ -637,7 +637,27 @@ ssh-keygen -t ed25519 -C "peterzat"
 cat ~/.ssh/id_ed25519.pub
 ```
 
-Add the public key at https://github.com/settings/keys, then install the zat.env config:
+Add the public key at https://github.com/settings/keys, then verify access:
+
+```bash
+ssh -T git@github.com
+```
+
+You should see "Hi peterzat! You've successfully authenticated". Then install the GitHub CLI (`gh` is not in Ubuntu 22.04's default repos, so the fallback adds GitHub's APT repository):
+
+```bash
+sudo apt-get update -qq && sudo apt-get install -y gh || {
+  sudo sh -c 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    -o /usr/share/keyrings/githubcli-archive-keyring.gpg &&
+  chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg &&
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list &&
+  apt-get update -qq && apt-get install -y gh'
+}
+gh auth login
+```
+
+Install the zat.env config:
 
 ```bash
 ~/src/zat.env/zat.env-install.sh
