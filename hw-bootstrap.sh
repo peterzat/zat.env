@@ -4,10 +4,10 @@
 # Turns a bare Ubuntu 22.04.2 LTS install into a usable dev box.
 # Safe to run multiple times (idempotent).
 #
-# After this script: reboot (required for NVIDIA driver), then re-run to
-# complete CUDA + container toolkit setup.
-#
-# After second run: clone zat.env and run zat.env-install.sh to finish setup.
+# Run 1: installs base packages, Docker, Tailscale, Claude Code, shell config.
+#   Stops at NVIDIA driver with instructions for manual install.
+#   Install the driver, validate with modprobe, then reboot.
+# Run 2: completes CUDA toolkit and NVIDIA Container Toolkit setup.
 set -euo pipefail
 
 if [[ "${EUID}" -eq 0 ]]; then
@@ -52,16 +52,54 @@ sudo apt-get install -y \
 
 git lfs install || true
 
-echo "==> Installing NVIDIA driver"
+echo "==> Checking NVIDIA driver"
 if ! command -v nvidia-smi >/dev/null 2>&1; then
-  echo "Installing recommended NVIDIA driver via ubuntu-drivers..."
-  sudo ubuntu-drivers autoinstall
   echo
-  echo "*** REBOOT REQUIRED ***"
-  echo "NVIDIA driver installed. Please reboot and re-run this script to"
-  echo "complete CUDA toolkit and NVIDIA Container Toolkit setup."
+  echo "No NVIDIA driver detected. This script does NOT auto-install NVIDIA"
+  echo "drivers. The wrong driver can brick a remote headless box with no"
+  echo "recovery path short of an OS reinstall."
+  echo
+  echo "You are responsible for choosing and installing the correct driver."
+  echo
+  echo "Available server/compute (GPGPU) drivers for this machine:"
+  echo "------------------------------------------------------------"
+  sudo ubuntu-drivers list --gpgpu 2>/dev/null || echo "  (ubuntu-drivers list --gpgpu returned no results)"
+  echo "------------------------------------------------------------"
+  echo
+  echo "For the GEX44 (RTX 4000 SFF Ada, Ubuntu 22.04), the recommended"
+  echo "install is the headless server driver with the proprietary kernel"
+  echo "module (not -open). As of this writing, that is:"
+  echo
+  echo "  sudo apt-get install -y nvidia-headless-550-server nvidia-utils-550-server"
+  echo
+  echo "Verify the 550-server branch appears in the list above. If a newer"
+  echo "server branch is available, use that instead."
+  echo
+  echo "After installing, validate BEFORE rebooting:"
+  echo
+  echo "  sudo modprobe nvidia && nvidia-smi"
+  echo
+  echo "If modprobe succeeds and nvidia-smi shows the GPU, reboot is safe."
+  echo "If it fails, check dmesg and do NOT reboot."
   echo
   echo "  sudo reboot"
+  echo
+  echo "Then re-run this script to complete CUDA toolkit and container"
+  echo "toolkit setup."
+  echo
+  echo "RESCUE: If the machine does not come back after reboot, activate"
+  echo "Hetzner rescue mode via the Robot panel, then:"
+  echo
+  echo "  mount /dev/sda2 /mnt        # adjust device as needed"
+  echo "  mount -t proc none /mnt/proc"
+  echo "  mount -o bind /dev /mnt/dev"
+  echo "  mount -o bind /sys /mnt/sys"
+  echo "  chroot /mnt /bin/bash"
+  echo "  apt-get purge 'nvidia-*'"
+  echo "  update-initramfs -u"
+  echo "  exit"
+  echo "  umount -R /mnt"
+  echo "  reboot"
   echo
   exit 0
 else
@@ -271,8 +309,7 @@ echo "  2. Authenticate Tailscale:"
 echo "       sudo tailscale up --ssh"
 echo "     or, with an auth key:"
 echo "       sudo tailscale up --ssh --authkey=tskey-xxxxx"
-echo "  3. Set up SSH key for GitHub, then clone and install zat.env:"
-echo "       git clone git@github.com:peterzat/zat.env.git ~/src/zat.env"
+echo "  3. Install zat.env config (repo should already be cloned at ~/src/zat.env):"
 echo "       ~/src/zat.env/zat.env-install.sh"
 echo "  4. Authenticate Claude Code:"
 echo "       claude"

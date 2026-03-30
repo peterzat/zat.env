@@ -452,36 +452,59 @@ The only hard networking requirement is Tailscale. All access goes through the T
 
 ### Setup From Scratch
 
-Starting from a bare Ubuntu 22.04.2 LTS install with SSH access:
+Starting from a bare Ubuntu 22.04.2 LTS install with root SSH access:
 
 ```bash
-# 1. Copy bootstrap script to the machine and run it
-scp hw-bootstrap.sh user@<ip>:~/
-ssh user@<ip>
-bash ~/hw-bootstrap.sh
+# 1. SSH in as root and create a sudo-enabled user
+ssh root@<ip>
+adduser <username>
+usermod -aG sudo <username>
+mkdir -p /home/<username>/.ssh
+cp /root/.ssh/authorized_keys /home/<username>/.ssh/authorized_keys
+chown -R <username>:<username> /home/<username>/.ssh
+chmod 700 /home/<username>/.ssh
+chmod 600 /home/<username>/.ssh/authorized_keys
+# Then SSH back in as the new sudo-enabled user
 
-# 2. Reboot (required after NVIDIA driver install)
+# 2. Clone the repo and run the bootstrap script
+sudo apt-get update
+sudo apt-get install -y git
+mkdir -p ~/src
+git clone <repo-url> ~/src/zat.env
+cd ~/src/zat.env
+bash hw-bootstrap.sh
+
+# 3. Install NVIDIA driver manually (the script prints the recommended
+#    command and available server drivers; do NOT use ubuntu-drivers autoinstall)
+#    For the GEX44 (RTX 4000 SFF Ada), as of this writing:
+sudo apt-get install -y nvidia-headless-550-server nvidia-utils-550-server
+
+# 4. Validate the driver BEFORE rebooting
+sudo modprobe nvidia && nvidia-smi
+# If this fails, check dmesg. Do NOT reboot until modprobe succeeds.
+
+# 5. Reboot
 sudo reboot
 
-# 3. Re-run bootstrap to complete CUDA + NVIDIA Container Toolkit setup
-bash ~/hw-bootstrap.sh
+# 6. Re-run bootstrap to complete CUDA + NVIDIA Container Toolkit setup
+cd ~/src/zat.env
+bash hw-bootstrap.sh
 
-# 4. Authenticate Tailscale
+# 7. Authenticate Tailscale
 sudo tailscale up --ssh
 # or with an auth key:
 sudo tailscale up --ssh --authkey=tskey-xxxxx
 
-# 5. From here on, connect via Tailscale SSH
-ssh user@<tailscale-hostname>
+# 8. From here on, connect via Tailscale SSH
+ssh <username>@<tailscale-hostname>
 
-# 6. Set up SSH key for GitHub, then clone and install zat.env
-git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
+# 9. Set up SSH key for GitHub and install zat.env config
 ~/src/zat.env/zat.env-install.sh
 
-# 7. Authenticate Claude Code
+# 10. Authenticate Claude Code
 claude
 
-# 8. Start a new Claude session to pick up installed skills
+# 11. Start a new Claude session to pick up installed skills
 ```
 
 ### Directory Overview
