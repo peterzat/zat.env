@@ -12,6 +12,8 @@ Reproducible framework for autonomous agentic coding with spec-driven developmen
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot.
 
+**Where this is headed.** Today, zat.env provides best practices for supervised Claude Code usage: spec-driven development, adversarial review gates, and minimal conventions that stay out of the model's way. The design is deliberately minimal because current and future Anthropic coding models are good enough that over-specializing the harness limits your ability to benefit from model improvements. Over time, the goal is to layer autonomous coding loops on top of this foundation (review/fix/review cycles, convergence detection, parallel agents on branches) while keeping the harness as simple as the models allow. See [Roadmap](#roadmap) for the progression.
+
 ## Contents
 
 - [Quick Start](#quick-start)
