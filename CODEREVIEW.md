@@ -1,18 +1,18 @@
-## Review — 2026-03-29 (commit: f4332e7)
+## Review — 2026-03-31 (commit: ec8e020)
 
-**Review scope:** Refresh review. Focus: 3 file(s) changed since prior review (commit 0d8aad0). 0 already-reviewed file(s) checked for interactions only.
+**Review scope:** Light review. 2 unpushed commits touching `claude/global-claude.md` and `README.md` (documentation only).
 
-**Summary:** Reviewed 1 unpushed commit replacing automatic NVIDIA driver installation with a stop-and-advise block in hw-bootstrap.sh, plus matching README.md setup rewrite. Also reviewed unstaged settings.local.json adding Ubuntu documentation WebFetch and package query Bash permissions.
+**Summary:** Reviewed 2 commits updating firewall documentation from "not configured" to active UFW policy (deny incoming, allow outgoing, SSH and tailscale0 allowed inbound). The first commit updated global-claude.md; the second updated README.md to match. Both files are now consistent.
 
 ### Findings
 
-No issues found.
+No issues found. The prior review's WARN (stale README firewall description) has been resolved by commit ec8e020.
 
 ### Fixes Applied
 
-None.
+None (light review, no auto-fix).
 
 ---
-*Prior review (2026-03-29, commit 0d8aad0): Light review of refresh-tier codereview addition. No issues found.*
+*Prior review (2026-03-31, commit 75a6784): Light review of firewall doc update in global-claude.md. 1 WARN: stale README firewall line. Resolved in subsequent commit ec8e020.*
 
-<!-- REVIEW_META: {"date":"2026-03-29","commit":"f4332e7","reviewed_up_to":"f4332e7a3608b9e52d0fb41a3d7cf3dcc87f46f5","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-03-31","commit":"ec8e020","reviewed_up_to":"ec8e020c6e6f54ce58fd9a50d7ad703f802fc067","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
