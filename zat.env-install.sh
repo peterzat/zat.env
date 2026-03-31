@@ -99,7 +99,6 @@ fi
 
 # Replace permissions: defaultMode, allow list, deny list.
 # Clean slate on each install to prevent session-accumulated cruft.
-# Project-specific overrides belong in project-level settings.local.json.
 jq '
   .permissions = {
     "defaultMode": "auto",
