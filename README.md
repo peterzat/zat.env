@@ -28,6 +28,7 @@ Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare
 - [Philosophy](#philosophy)
 - [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
 - [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44)
+- [References](#references)
 - [Roadmap](#roadmap)
 
 ---
@@ -362,7 +363,9 @@ These instructions are embedded in [`claude/global-claude.md`](claude/global-cla
 - Run the test suite (or the relevant subset) after each functional change. Do not stack multiple untested changes.
 - When fixing a bug, change only what is necessary. Do not refactor surrounding code or improve unrelated code in the same change.
 - If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
+- When a change fails, read the full error output and identify the root cause before attempting a fix. If two consecutive fix attempts fail, stop, revert to the last working state, and re-evaluate the approach.
 - Before switching tasks or when context grows large, write key decisions and current state to a file (commit message, README, or project-specific doc). Prefer restarting with a written plan over continuing with a long, stale context.
+
 
 These practices are deliberately minimal. Shorter, more specific instructions outperform comprehensive ones for AI agents: as instruction volume grows, compliance with any single instruction drops (instruction dilution). Each bullet targets a specific failure mode that agents cannot reliably self-correct without explicit guidance. If a practice can be enforced by tooling (linting, hooks, tests), it belongs in tooling, not here.
 
@@ -795,6 +798,24 @@ Post-install layout (annotated):
 ├── SECURITY.md      # Written by /security: security findings and accepted risks
 └── TESTING.md       # Written by /tester: test strategy assessment
 ```
+
+---
+
+## References
+
+Papers and posts that inform the design of this setup, particularly around long-running autonomous coding loops.
+
+- [Building a C Compiler with a Team of Parallel Claudes](https://www.anthropic.com/engineering/building-c-compiler) (Carlini, Anthropic, Feb 2026). 16 parallel Claude agents build a 100K-line C compiler passing 99% of GCC's torture tests, demonstrating that verification quality (test suites, not prompts) is the ceiling on autonomous output quality.
+
+- [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) (Anthropic, Nov 2025). Techniques for enabling agents to work across multiple context windows: initializer agents, incremental progress patterns, and artifact-based memory. The direct inspiration for the skill/hook/artifact architecture in this repo.
+
+- [Harness Design for Long-Running Application Development](https://www.anthropic.com/engineering/harness-design-long-running-apps) (Anthropic, Mar 2026). Multi-agent architecture (Planner/Generator/Evaluator) for extended autonomous sessions, with the evaluator loop modeled on adversarial training. Supports the design of `/codereview` and `/security` as adversarial gates.
+
+- [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) (Anthropic, Dec 2024). Foundational taxonomy of agent design patterns (prompt chaining, routing, orchestrator-workers, evaluator-optimizer). Argues for simplicity: start with the least complex pattern that works, add structure only when needed.
+
+- [Curse of Instructions](https://openreview.net/forum?id=R6q67CDBCH) (ICLR 2026). LLM ability to follow all N instructions simultaneously degrades as p^N. The reason global-claude.md is kept short and skills load on demand rather than sitting in the always-on context.
+
+- [Claude Code Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices) (Anthropic). Official guidance on CLAUDE.md structure, what to include (build commands, project-specific conventions), and what to omit (things Claude already knows).
 
 ---
 
