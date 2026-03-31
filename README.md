@@ -487,7 +487,7 @@ The only hard networking requirement is Tailscale. All access goes through the T
 - **Bind address**: always `0.0.0.0` (not `127.0.0.1`) so Tailscale clients can reach services
 - **Public exposure**: `dev.agent-hypervisor.ai:PORT` for webhook callbacks or temporary demos only
 - **No reverse proxy**: services bind directly to ports
-- **Firewall**: not configured by hw-bootstrap.sh; check Hetzner Robot panel
+- **Firewall (UFW)**: active; deny incoming, allow SSH (22/tcp) and all on tailscale0
 
 These are per-machine values. See `claude/global-claude.md` `## Networking` for the full conventions and troubleshooting guide.
 
