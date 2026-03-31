@@ -96,7 +96,7 @@ Machine-specific values from the current setup. Update these if the machine, dom
 - Temporary demos for external collaborators
 - Keep public exposure brief. Stop or rebind the service when done.
 
-**Firewall:** not explicitly configured by hw-bootstrap.sh. Hetzner may apply network-level rules (check Robot panel). Assume all ports on the public IP may be reachable unless verified otherwise.
+**Firewall (UFW):** active. Default policy: deny incoming, allow outgoing. Allowed inbound: SSH (22/tcp), all traffic on `tailscale0`. Hetzner may apply additional network-level rules (check Robot panel).
 
 **No reverse proxy.** Services bind directly to ports. If Caddy or nginx is added later, update this section.
 
