@@ -65,7 +65,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 **Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
 - `~/.claude/settings.json` gets a pre-push hook entry with the path to `hooks/pre-push-codereview.sh`
-- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, deny list for dangerous patterns). This block is replaced on each install to prevent session-accumulated cruft. Project-specific overrides belong in `settings.local.json`.
+- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, deny list for dangerous patterns). This block is replaced on each install to prevent session-accumulated cruft.
 
 **Re-run `zat.env-install.sh` when:**
 - A new skill is added to `claude/skills/` (the symlink for the new skill won't exist yet)
@@ -748,8 +748,6 @@ Post-install layout (annotated):
 │       ├── .gitignore
 │       ├── hw-bootstrap.sh           # Bare machine -> usable dev box
 │       ├── zat.env-install.sh        # Wire this repo's config into the live system
-│       ├── .claude/
-│       │   └── settings.local.json   # Repo-scoped Claude Code permissions
 │       ├── claude/
 │       │   ├── global-claude.md      # Machine-wide Claude conventions (symlinked below)
 │       │   ├── references/           # Detailed reference docs (read on demand, not always-on)

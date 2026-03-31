@@ -11,9 +11,8 @@
 .idea/
 .vscode/
 
-# Claude Code local state — track settings.local.json, ignore everything else
-.claude/*
-!.claude/settings.local.json
+# Claude Code local state (settings.local.json is machine-specific, not tracked)
+.claude/
 
 # Python artifacts
 __pycache__/
