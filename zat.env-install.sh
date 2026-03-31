@@ -97,26 +97,24 @@ if [[ ! -f "${SETTINGS_FILE}" ]]; then
   echo '{}' > "${SETTINGS_FILE}"
 fi
 
-# Only add if no existing entry already references our hook script
-if jq -e '.hooks.PreToolUse // [] | map(select(.hooks[]?.command // "" | test("pre-push-codereview"))) | length > 0' \
-    "${SETTINGS_FILE}" > /dev/null 2>&1; then
-  echo "    Hook already present — skipping"
-else
-  HOOK_COMMAND="bash ${REPO_DIR}/hooks/pre-push-codereview.sh"
-  jq --arg cmd "${HOOK_COMMAND}" '
-    .hooks //= {} |
-    .hooks.PreToolUse //= [] |
-    .hooks.PreToolUse += [{
-      "matcher": "Bash",
-      "hooks": [{
-        "type": "command",
-        "command": $cmd,
-        "timeout": 10
-      }]
+# Remove any existing pre-push-codereview entry (may be old format without "if" field),
+# then add the current version. This keeps the hook config up to date on re-runs.
+HOOK_COMMAND="bash ${REPO_DIR}/hooks/pre-push-codereview.sh"
+jq --arg cmd "${HOOK_COMMAND}" '
+  .hooks //= {} |
+  .hooks.PreToolUse //= [] |
+  .hooks.PreToolUse = [.hooks.PreToolUse[] | select(.hooks | map(.command // "" | test("pre-push-codereview")) | any | not)] |
+  .hooks.PreToolUse += [{
+    "matcher": "Bash",
+    "if": "Bash(git push*)",
+    "hooks": [{
+      "type": "command",
+      "command": $cmd,
+      "timeout": 10
     }]
-  ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-  echo "    Added pre-push hook"
-fi
+  }]
+' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    Added pre-push hook"
 
 echo "==> Done"
 echo

@@ -12,7 +12,7 @@ Blocks `git push` commands unless `/codereview` has been run and passed on the
 current diff.
 
 **How it works:**
-1. When Claude attempts a `git push`, the `PreToolUse` hook fires first
+1. When Claude attempts a `git push`, the `PreToolUse` hook fires (filtered by `"if": "Bash(git push*)"` in the hook config, so it only runs for push commands)
 2. The hook checks for a marker file at `/tmp/.claude-codereview-<project-hash>`
 3. The marker contains the diff hash (SHA-256, 16 chars) from the passing review
 4. If the marker exists and the diff hash matches the current diff → push allowed

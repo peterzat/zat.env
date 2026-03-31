@@ -5,6 +5,7 @@ description: >-
   for a unit of work. Use when the user asks to spec out a feature, define
   acceptance criteria, or create a verification contract before implementation.
   Manual invocation only via /spec.
+argument-hint: [new | description]
 disable-model-invocation: true
 context: fork
 effort: high

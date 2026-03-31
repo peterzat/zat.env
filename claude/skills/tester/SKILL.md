@@ -6,6 +6,7 @@ description: >-
   for a test strategy assessment, coverage review, or CI/CD evaluation.
 disable-model-invocation: true
 context: fork
+effort: high
 allowed-tools: Bash(*), Read, Grep, Glob
 ---
 

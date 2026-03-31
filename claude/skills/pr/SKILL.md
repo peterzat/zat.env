@@ -4,8 +4,10 @@ description: >-
   Create, inspect, or merge GitHub pull requests. Use when the user asks to
   open a PR, check PR status, or merge a PR. Composes PR descriptions from
   existing review file metadata. Manual invocation only via /pr.
+argument-hint: [branch | status | number | merge | list]
 disable-model-invocation: true
 context: fork
+effort: high
 allowed-tools: Bash(*), Read, Grep, Glob
 ---
 
