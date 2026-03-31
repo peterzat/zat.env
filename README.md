@@ -827,7 +827,7 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 ## Roadmap
 
-### Done (v1)
+### Done (v1.0)
 
 - [x] Machine provisioning script (`hw-bootstrap.sh`)
 - [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
@@ -843,6 +843,21 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Cross-skill reading DAG with circular amplification prevention
 - [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
 - [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
+
+### Done (v1.1)
+
+- [x] Reduce global-claude.md instruction density: trim redundant directives, shorten to what the model actually needs
+- [x] Extract reference files: networking and ML/GPU details moved to `claude/references/` (read on demand, not always loaded)
+- [x] Skill frontmatter: add `argument-hint` and `effort:high` across skills for better Claude Code integration
+- [x] Hook `if`-field filtering: install script now writes conditional hooks (push-only filtering) instead of relying on in-script guards
+- [x] README trajectory summary: added design philosophy paragraph explaining where zat.env is headed
+- [x] Documentation consistency: firewall status, coding practices, and directory overview kept in sync across all files
+
+### Next up
+
+- `/verify` skill: execute the project's test suite as ground truth signal
+- Worktree-based A/B testing, quantitative trending, branch workflow aliases
+- Loop orchestrator and circuit breakers for autonomous review/fix cycles
 
 ### Future (v2+)
 
