@@ -1,6 +1,6 @@
-## Security Review — 2026-03-31 (scope: full)
+## Security Review — 2026-04-01 (scope: full)
 
-**Summary:** Full repository audit of all source files, configuration, skill prompts, hooks, and git history. No security issues identified. All prior accepted risks remain unchanged.
+**Summary:** Full repository audit of all shell scripts, skill prompts, hooks, gitconfig, reference docs, and git history. No security issues identified. All prior accepted risks remain unchanged.
 
 ### Findings
 
@@ -11,6 +11,6 @@ No security issues identified.
 - **PII in source files** (hw-bootstrap.sh:223, README.md, and other references to `peterzat`): Inherent to a personal dotfiles repo. Reviewed and accepted.
 
 ---
-*Prior review (2026-03-29, changes-only): Reviewed settings.local.json permission additions. No findings. Two NOTEs from earlier full review: curl-pipe-shell install patterns, world-readable marker files in /tmp.*
+*Prior review (2026-03-31, full): Full audit of all source files, configuration, skill prompts, hooks, and git history. No findings. PII accepted risk carried forward.*
 
-<!-- SECURITY_META: {"date":"2026-03-31","commit":"935200f","scope":"full","block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-04-01","commit":"e2df013","scope":"full","block":0,"warn":0,"note":0} -->

@@ -21,7 +21,10 @@
       "WebFetch(domain:ubuntu.com)",
       "Bash(dpkg -l)",
       "Bash(apt-cache search:*)",
-      "Bash(jq . /home/peter/src/zat.env/.claude/settings.local.json)"
+      "Bash(jq . /home/peter/src/zat.env/.claude/settings.local.json)",
+      "Bash(gh release:*)",
+      "Bash(gh label:*)",
+      "Bash(gh issue:*)"
     ]
   }
 }
