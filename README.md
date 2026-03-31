@@ -65,6 +65,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 **Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
 - `~/.claude/settings.json` gets a pre-push hook entry with the path to `hooks/pre-push-codereview.sh`
+- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, deny list for dangerous patterns). This block is replaced on each install to prevent session-accumulated cruft. Project-specific overrides belong in `settings.local.json`.
 
 **Re-run `zat.env-install.sh` when:**
 - A new skill is added to `claude/skills/` (the symlink for the new skill won't exist yet)
