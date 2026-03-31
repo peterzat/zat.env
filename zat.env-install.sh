@@ -89,13 +89,49 @@ for script in "${REPO_DIR}/bin"/*; do
   echo "    ${script_name} -> ${script}"
 done
 
-# --- merge pre-push hook into ~/.claude/settings.json ---
-echo "==> Merging pre-push hook into ${CLAUDE_DIR}/settings.json"
+# --- merge permissions and hooks into ~/.claude/settings.json ---
+echo "==> Merging permissions and hooks into ${CLAUDE_DIR}/settings.json"
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
 
 if [[ ! -f "${SETTINGS_FILE}" ]]; then
   echo '{}' > "${SETTINGS_FILE}"
 fi
+
+# Replace permissions: defaultMode, allow list, deny list.
+# Clean slate on each install to prevent session-accumulated cruft.
+# Project-specific overrides belong in project-level settings.local.json.
+jq '
+  .permissions = {
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(python3 *)",
+      "Bash(pip *)",
+      "Bash(npm *)",
+      "Bash(node *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(which *)",
+      "Bash(command -v *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(diff *)",
+      "Bash(jq *)",
+      "Bash(bash -n *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(curl * | bash *)",
+      "Bash(wget * | bash *)"
+    ]
+  }
+' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    Set permissions (defaultMode, allow list, deny list)"
 
 # Remove any existing pre-push-codereview entry (may be old format without "if" field),
 # then add the current version. This keeps the hook config up to date on re-runs.
@@ -124,4 +160,5 @@ echo "  ls -la ~/.claude/CLAUDE.md               # should be a symlink"
 echo "  ls -la ~/.claude/skills/                 # should show spec, codereview, security, architect, tester, pr"
 echo "  cat ~/.claude/skills/codereview/SKILL.md # should resolve through symlink"
 echo "  ls -la ~/bin/                            # should show symlinks to repo bin/"
-echo "  jq .hooks ~/.claude/settings.json        # should show pre-push hook"
+echo "  jq .permissions ~/.claude/settings.json   # should show allow/deny lists
+  jq .hooks ~/.claude/settings.json        # should show pre-push hook"
