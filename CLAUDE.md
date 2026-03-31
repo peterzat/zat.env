@@ -9,6 +9,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - `hw-bootstrap.sh` — system provisioning script (apt packages, NVIDIA drivers, Docker, Tailscale, Claude Code)
 - `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks, skills, hooks)
 - `claude/global-claude.md` — machine-wide Claude conventions
+- `claude/references/` — detailed reference docs (networking, ML/GPU) read on demand
 - `claude/skills/` — global Claude Code skills: `/spec`, `/codereview`, `/security`, `/architect`, `/tester`, `/pr`
 - `gitconfig/` — versioned git aliases and global gitignore, included via `~/.gitconfig`
 - `hooks/` — Claude Code hooks; `pre-push-codereview.sh` gates git push on passing `/codereview`

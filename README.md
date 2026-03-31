@@ -359,11 +359,12 @@ SPEC.md sits upstream of all review skills as the intent declaration. Review ski
 These instructions are embedded in [`claude/global-claude.md`](claude/global-claude.md) and active in every Claude Code session on this machine. They are the operational translation of the philosophy above into day-to-day coding behavior.
 
 - Work in small, committable increments. Get one thing working before adding the next. Do not build scaffolding for features that are not needed yet.
+- Before implementing changes, verify the project builds and existing tests pass. Fix pre-existing failures before adding new work.
 - When adding or changing functionality, write or update tests in the same increment. If the project has no test infrastructure, add a minimal test runner first.
 - Run the test suite (or the relevant subset) after each functional change. Do not stack multiple untested changes.
 - When fixing a bug, change only what is necessary. Do not refactor surrounding code or improve unrelated code in the same change.
 - If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
-- When a change fails, read the full error output and identify the root cause before attempting a fix. If two consecutive fix attempts fail, stop, revert to the last working state, and re-evaluate the approach.
+- If two consecutive fix attempts fail, stop, revert to the last working state, and re-evaluate the approach.
 - Before switching tasks or when context grows large, write key decisions and current state to a file (commit message, README, or project-specific doc). Prefer restarting with a written plan over continuing with a long, stale context.
 
 
@@ -489,7 +490,7 @@ The only hard networking requirement is Tailscale. All access goes through the T
 - **No reverse proxy**: services bind directly to ports
 - **Firewall (UFW)**: active; deny incoming, allow SSH (22/tcp) and all on tailscale0
 
-These are per-machine values. See `claude/global-claude.md` `## Networking` for the full conventions and troubleshooting guide.
+These are per-machine values. See `claude/references/networking.md` for the full conventions.
 
 ### Setup From Scratch
 
@@ -633,7 +634,7 @@ tailscale status
 
 **Networking identity (machine-specific):**
 
-The hostname (`dev`), tailnet (`emperor-exponential.ts.net`), and any public DNS record (`dev.agent-hypervisor.ai`) are configured at this point. If you are setting up a different machine, substitute your own values. These values are referenced in `claude/global-claude.md` `## Networking` and should be updated there if they change.
+The hostname (`dev`), tailnet (`emperor-exponential.ts.net`), and any public DNS record (`dev.agent-hypervisor.ai`) are configured at this point. If you are setting up a different machine, substitute your own values. These values are referenced in `claude/references/networking.md` and should be updated there if they change.
 
 Apply pending system updates (this typically pulls a new kernel):
 
@@ -748,6 +749,9 @@ Post-install layout (annotated):
 │       │   └── settings.local.json   # Repo-scoped Claude Code permissions
 │       ├── claude/
 │       │   ├── global-claude.md      # Machine-wide Claude conventions (symlinked below)
+│       │   ├── references/           # Detailed reference docs (read on demand, not always-on)
+│       │   │   ├── networking.md     # Tailscale, DNS, bind addresses, firewall
+│       │   │   └── ml-gpu.md         # VRAM, TDP, Docker GPU, CUDA
 │       │   └── skills/               # Global Claude Code skills (symlinked below)
 │       │       ├── spec/             # /spec: specification and acceptance criteria
 │       │       │   └── SKILL.md

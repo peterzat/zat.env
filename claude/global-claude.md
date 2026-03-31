@@ -1,4 +1,4 @@
-# Global Claude Conventions — GEX44 Dev Box
+# Global Claude Conventions
 
 This file is symlinked to `~/.claude/CLAUDE.md` and applies to all projects on this machine.
 
@@ -8,18 +8,14 @@ All commits must be attributed solely to the configured `user.name`. Never add C
 
 ## Specification Quality
 
-Acceptance criteria are the highest-leverage artifact in the workflow. Every review
-skill reads them. When writing or substantially revising acceptance criteria (whether
-via `/spec` or directly), pressure-test each criterion: what input breaks it, what
-assumptions are unstated, what failure behavior is unspecified. Remove criteria that
-prescribe implementation rather than verifiable behavior. The `/spec` skill sets
-`effort: high` and includes a structured pressure-test step for this analysis;
-apply the same rigor when editing criteria outside of `/spec`.
+When editing acceptance criteria outside `/spec`, apply the same pressure-test rigor the skill uses: what input breaks it, what assumptions are unstated, what failure behavior is unspecified. Do not remove, reword, or reorder acceptance criteria in SPEC.md; only check them off when verified.
 
 ## Coding Practices
 
 - Work in small, committable increments. Get one thing working before adding the next.
   Do not build scaffolding for features that are not needed yet.
+- Before implementing changes, verify the project builds and existing tests pass.
+  Fix pre-existing failures before adding new work.
 - When adding or changing functionality, write or update tests in the same increment.
   If the project has no test infrastructure, add a minimal test runner first.
 - Run the test suite (or the relevant subset) after each functional change.
@@ -28,78 +24,36 @@ apply the same rigor when editing criteria outside of `/spec`.
   or improve unrelated code in the same change.
 - If a change causes previously passing tests to fail, revert it and try a different
   approach. Do not modify tests to accommodate a regression.
-- When a change fails, read the full error output and identify the root cause before
-  attempting a fix. If two consecutive fix attempts fail, stop, revert to the last
-  working state, and re-evaluate the approach.
+- If two consecutive fix attempts fail, stop, revert to the last working state, and
+  re-evaluate the approach.
 - Before switching tasks or when context grows large, write key decisions and current
   state to a file (commit message, README, or project-specific doc). Prefer restarting
   with a written plan over continuing with a long, stale context.
-
 
 ## Writing Style
 
 When writing human-readable output (commit messages, review findings, explanations,
 persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README content):
 
-- Professional and direct. State the point, then support it.
-- Concise. Cut filler words, throat-clearing, and redundant qualifications.
-- No AI-voice patterns: avoid "It's important to note that," "It's worth mentioning,"
-  "This is not X, it's Y" reframing, "Let's," "Great question," or similar preamble.
-- No em-dashes. Use commas, periods, or parentheses instead.
-- No emoji unless explicitly requested.
-- Prefer short declarative sentences over long compound ones.
-- When uncertain, say so plainly ("I'm not sure" or "this may be wrong") rather than
-  hedging with weasel words.
+- Professional, direct, concise. State the point, then support it.
+- No AI-voice patterns ("It's important to note that," "Let's," "Great question,"),
+  no em-dashes (use commas, periods, or parentheses), no emoji unless requested.
+- Prefer short declarative sentences. When uncertain, say so plainly.
 
 ## Python
 
 - Always use `python3 -m venv .venv` per project. Never `pip install` outside a venv.
-- `PIP_REQUIRE_VIRTUALENV=true` is set globally — pip will refuse if no venv is active.
-- `newproj` auto-creates `.venv` in new projects.
-- Pin dependencies in `requirements.txt` or `pyproject.toml`.
+- `PIP_REQUIRE_VIRTUALENV=true` is set globally.
 - System Python (3.10) is for tooling only.
 
-## Project Layout
+## ML / GPU
 
-- All projects live under `~/src/<name>/`
-- Large datasets and shared model files go in `~/data/` — never inside project dirs, never in git
-- Each project has its own git repo, venv, and (when running) tmux session
-
-## ML / GPU Conventions
-
-- **Shared HF cache**: `~/.cache/huggingface` — never override `HF_HOME` per-project; all projects share the same downloaded models
-- **Model sizing**: 20GB VRAM fits ~7-8B models natively; ~32B quantized (IQ4_XS ~ 16-17 GB)
-- **70W TDP**: this GPU is for inference and experimentation, not heavy training — expect power throttling on sustained training workloads
-- **Docker GPU**: always use `--gpus all --shm-size=8g` (or `--ipc=host`) for PyTorch DataLoader with num_workers > 0
-- **gcc**: system gcc-11 is CUDA-compatible — do not install or switch gcc versions
-- **CUDA_HOME**: `/usr/local/cuda`
+20GB VRAM (RTX 4000 SFF Ada), 70W TDP. For full conventions see `~/src/zat.env/claude/references/ml-gpu.md`.
 
 ## Networking
 
-Machine-specific values from the current setup. Update these if the machine, domain, or tailnet changes.
-
-- **Public DNS**: `dev.agent-hypervisor.ai` (A record pointing to Hetzner public IP)
-- **Tailscale hostname**: `dev` (short) / `dev.emperor-exponential.ts.net` (FQDN)
-- **Tailnet**: `emperor-exponential.ts.net`
-
-**Default access model: Tailscale.** All routine access (SSH, web UIs, APIs) goes through the Tailscale mesh. From a Mac or iPad, connect to `dev:PORT` or `dev.emperor-exponential.ts.net:PORT`. Public DNS is reserved for webhook callbacks, external demos, or anything that must be reachable from the open internet.
-
-**Binding addresses for services:**
-
-- Local dev server (no Docker): bind `0.0.0.0` so Tailscale clients can reach it. `127.0.0.1` is local-only.
-- Docker containers: `-p PORT:PORT` (binds `0.0.0.0`). Never `-p 127.0.0.1:PORT:PORT` unless the service must be unreachable from Tailscale.
-- Combine with `--gpus all --shm-size=8g` for GPU workloads (see ML/GPU Conventions).
-
-**Public DNS (`dev.agent-hypervisor.ai`) use cases:**
-
-- Webhook callbacks from external services (GitHub, Stripe, etc.)
-- Temporary demos for external collaborators
-- Keep public exposure brief. Stop or rebind the service when done.
-
-**Firewall (UFW):** active. Default policy: deny incoming, allow outgoing. Allowed inbound: SSH (22/tcp), all traffic on `tailscale0`. Hetzner may apply additional network-level rules (check Robot panel).
-
-**No reverse proxy.** Services bind directly to ports. If Caddy or nginx is added later, update this section.
+Tailscale hostname `dev`, bind services to `0.0.0.0`, UFW active. For full conventions see `~/src/zat.env/claude/references/networking.md`.
 
 ## Secrets
 
-Never commit secrets, credentials, or API keys. `.env` files are globally gitignored. Use environment variables or a secrets manager. Tailscale-scoped access preferred for internal services.
+`.env` files are globally gitignored. Use environment variables or a secrets manager. Tailscale-scoped access preferred for internal services.
