@@ -48,7 +48,7 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
 
 ## ML / GPU
 
-20GB VRAM (RTX 4000 SFF Ada), 70W TDP. For full conventions see `~/src/zat.env/claude/references/ml-gpu.md`.
+20GB VRAM (RTX 4000 SFF Ada), 70W TDP. Large datasets and model files go in `~/data/`, not in project directories or git. For full conventions see `~/src/zat.env/claude/references/ml-gpu.md`.
 
 ## Networking
 
