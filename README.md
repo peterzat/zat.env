@@ -783,7 +783,7 @@ Post-install layout (annotated):
 
 ```
 ~/
-├── bin/                              # Project management helper scripts (from bootstrap)
+├── bin/                              # Project management helper scripts (symlinked by install)
 │   ├── ccproj                        # Clone a repo and open a tmux/claude session
 │   ├── newproj                       # Init a new project and open a tmux/claude session
 │   ├── projattach                    # Reattach to an existing project tmux session
