@@ -28,7 +28,6 @@ Each pass through the loop tightens quality. The spec is what prevents drift acr
 
 ## Contents
 
-- [Spec-Driven Iteration](#spec-driven-iteration)
 - [Quick Start](#quick-start)
   - [What the install script does](#what-the-install-script-does)
 - [Daily Workflow](#daily-workflow)
@@ -36,7 +35,6 @@ Each pass through the loop tightens quality. The spec is what prevents drift acr
   - [Starting a project](#starting-a-project)
   - [tmux and persistent sessions](#tmux-and-persistent-sessions)
   - [zatmux](#zatmux)
-  - [Development loop](#development-loop)
 - [Agentic Skills](#agentic-skills)
   - [Prompt Design Principles](#prompt-design-principles)
   - [`/spec`: Specification](#spec-specification)
@@ -158,10 +156,6 @@ zatmux                  # (inside tmux) detach
 ```
 
 Designed around ShellFish (iOS SSH client), which auto-creates a tmux session called `shellfish-1`. Running `zatmux` from `~/` gets you into that session whether it already exists or not. Running it again from inside any tmux session detaches cleanly without killing the session. New sessions get a plain shell (use `ccproj`/`newproj` if you want Claude to launch automatically).
-
-### Development loop
-
-The [spec-driven iteration](#spec-driven-iteration) cycle described in the introduction is the core of daily work once you are inside a project.
 
 ---
 
