@@ -14,8 +14,21 @@ Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare
 
 **Where this is headed.** Today, zat.env provides best practices for supervised Claude Code usage: spec-driven development, adversarial review gates, and minimal conventions that stay out of the model's way. The design is deliberately minimal because current and future Anthropic coding models are good enough that over-specializing the harness limits your ability to benefit from model improvements. Over time, the goal is to layer autonomous coding loops on top of this foundation (review/fix/review cycles, convergence detection, parallel agents on branches) while keeping the harness as simple as the models allow. See [Roadmap](#roadmap) for the progression.
 
+<a id="spec-driven-iteration"></a>
+
+**Spec-driven iteration.** Agents without concrete acceptance criteria drift. They optimize for making tests pass rather than solving the problem, and "works but not good enough" stays vague indefinitely. The spec is what keeps the agent (and the human) oriented: it defines what done looks like, gives review skills something to verify against, and lets a fresh session re-orient from disk without stale context. This loop is how you actually build things with zat.env, whether supervised or autonomous:
+
+1. `/spec` (or `/spec <description>`) to define acceptance criteria
+2. "Implement the spec" and let Claude work. Intervene with manual direction as needed.
+3. `/spec` again to check off completed criteria (evolve mode)
+4. Repeat 2-3 until all criteria are met
+5. `/spec` again to define the next unit of work. If the result works but quality is not where you want it, say so: "/spec the feature is complete but the output is still rough, build a plan to improve quality over time." This produces a new SPEC.md with criteria targeting specific quality dimensions, and the cycle repeats.
+
+Each pass through the loop tightens quality. The spec is what prevents drift across sessions, what gives review skills a contract to verify against, and what makes "improve quality" a concrete, trackable activity rather than a vague aspiration. (See [Philosophy](#philosophy) for the design principles behind this.)
+
 ## Contents
 
+- [Spec-Driven Iteration](#spec-driven-iteration)
 - [Quick Start](#quick-start)
 - [Daily Workflow](#daily-workflow)
 - [Agentic Skills](#agentic-skills)
@@ -129,17 +142,9 @@ zatmux                  # (inside tmux) detach
 
 Designed around ShellFish (iOS SSH client), which auto-creates a tmux session called `shellfish-1`. Running `zatmux` from `~/` gets you into that session whether it already exists or not. Running it again from inside any tmux session detaches cleanly without killing the session. New sessions get a plain shell (use `ccproj`/`newproj` if you want Claude to launch automatically).
 
-### Spec-driven iteration
+### Development loop
 
-The core development loop once you are inside a project:
-
-1. `/spec` (or `/spec <description>`) to define acceptance criteria
-2. "Implement the spec" and let Claude work. Intervene with manual direction as needed.
-3. `/spec` again to check off completed criteria (evolve mode)
-4. Repeat 2-3 until all criteria are met
-5. `/spec` again to define the next unit of work. If the result works but quality is not where you want it, say so: "/spec the feature is complete but the output is still rough, build a plan to improve quality over time." This produces a new SPEC.md with criteria targeting specific quality dimensions, and the cycle repeats.
-
-Each pass through the loop tightens quality. The spec is what keeps the agent (and you) oriented across sessions, and what prevents "works but not good enough" from staying vague.
+The [spec-driven iteration](#spec-driven-iteration) cycle described in the introduction is the core of daily work once you are inside a project.
 
 ---
 
