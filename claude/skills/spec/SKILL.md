@@ -178,5 +178,6 @@ Show the user the spec you wrote. End with a one-line summary:
   "Spec completed: [old title]. New spec: [new title] with N criteria."
 
 Note: This skill does not generate code, write tests, or run the test suite. It
-defines the verification contract. Implementation is the agent's next step after
-the spec is written.
+defines the verification contract. After writing the spec, STOP and wait for the
+user's next instruction. Do not begin implementation unless the user explicitly
+asks for it.
