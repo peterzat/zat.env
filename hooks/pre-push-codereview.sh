@@ -64,8 +64,10 @@ fi
 if [[ -f "${MARKER}" ]]; then
   STORED_HASH=$(cat "${MARKER}")
   if [[ "${STORED_HASH}" == "${DIFF_HASH}" ]]; then
-    # Codereview passed for this exact diff — allow push, consume marker
-    rm -f "${MARKER}"
+    # Codereview passed for this exact diff — allow push. Marker is kept
+    # so a failed push (network error, remote rejection) does not force
+    # a full re-review. The marker is content-addressed by diff hash, so
+    # a stale marker for an old diff is harmless.
     exit 0
   fi
 fi
