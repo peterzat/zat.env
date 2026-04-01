@@ -32,6 +32,8 @@ project context not derivable from code or git. Durable operational facts about 
 project (required env setup, CI quirks, test prerequisites) belong in that project's
 CLAUDE.md, not memory. Working documents are managed by their respective skills.
 If MEMORY.md has more than 10 entries, review for staleness before adding more.
+During review, check whether any memories contain durable facts that belong in the
+project's CLAUDE.md; if so, promote and delete the memory.
 
 ## Specification Quality
 
