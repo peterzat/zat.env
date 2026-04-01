@@ -228,18 +228,21 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Tiered review.** After gathering the diff, the skill classifies changes as **light** (docs/config only: `.md`, `.json`, `.yaml`, etc.) or **full** (any code files). Light review skips the test suite, security chain, auto-fix loop, and fix verification. This keeps doc-only pushes fast while maintaining the full pipeline for code changes.
 
+**Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0` and the reviewed commit is an ancestor of HEAD, the skill performs an incremental review scoped to files changed since the prior review. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
+
 **Full review pipeline:**
 1. Reads prior review state from CODEREVIEW.md, SECURITY.md, TESTING.md, and SPEC.md (scoped reads)
-2. Gathers all uncommitted/staged changes via `git diff`; reads full changed files for context
-3. Classifies review tier (light or full)
-4. Runs the project's test suite (if one exists) to capture a baseline
-5. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
-6. Chains to `/security changes-only` for a focused security review of the same diff
-7. Reports findings as BLOCK / WARN / NOTE with evidence citations
-8. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
-9. Re-runs tests after fixing; reverts any fix that causes test regression
-10. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
-11. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
+2. Checks for a prior successful review (refresh detection); if eligible, scopes to changed-since files only
+3. Gathers all uncommitted/staged changes via `git diff`; reads full changed files for context
+4. Classifies review tier (light or full)
+5. Runs the project's test suite (if one exists) to capture a baseline
+6. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
+7. Chains to `/security changes-only` for a focused security review of the same diff. If no code files changed since the prior security scan, carries forward existing findings instead of re-invoking the security skill.
+8. Reports findings as BLOCK / WARN / NOTE with evidence citations
+9. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
+10. Re-runs tests after fixing; reverts any fix that causes test regression
+11. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
+12. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
 
 **Pressure test (full review only).** After evaluating all review dimensions and before writing findings, a structured pressure-test checkpoint verifies bugs are confirmed rather than suspected, checks that regression risk claims trace actual callers, filters style-as-substance false positives, and reconsiders solution approach. Skipped for light reviews. The skill runs at `effort: high` via frontmatter.
 
@@ -305,9 +308,13 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 Five modes dispatched by argument:
 
-- `/pr` or `/pr <branch-name>` -- create a PR. If on `main`, checks out a feature branch
-  first. Checks for an existing PR on the branch (idempotent; will not create duplicates).
-  Composes the title from commit messages and the body from review file metadata.
+- `/pr` or `/pr <branch-name>` -- create a PR. If on `main`, creates a feature branch:
+  when a branch name is given, uses it with an appropriate prefix (`feat/`, `fix/`, `docs/`);
+  when no branch name is given, derives one from the commit message (lowercased, hyphenated,
+  with the same prefix convention). Checks for an existing PR on the branch (idempotent;
+  will not create duplicates). Composes the title from commit messages (single commit: uses
+  the commit message; multiple commits: writes a concise summary under 70 chars) and the
+  body from review file metadata.
 - `/pr status` -- show the current branch's PR state, CI checks, and merge readiness
 - `/pr <number>` -- inspect a specific PR and summarize review comments
 - `/pr merge` -- verify the codereview marker, then `gh pr merge --squash --delete-branch`
@@ -443,12 +450,24 @@ Applied here: invest in verification (review skills, test suites, feedback loops
 
 ### Why Agents Can't One-Shot Complex Projects
 
-Even Opus 4.6 cannot reliably one-shot complex projects. This is not a model limitation to be overcome; it's a fundamental property of complex systems. The solution is structure:
+Even Opus 4.6 cannot reliably one-shot complex projects. This is not a model limitation to be overcome with better prompts or larger context windows. It is a fundamental property of how complexity interacts with sequential decision-making.
 
-1. **Quantitative signals.** Not just "BLOCK/WARN/NOTE" in prose, but structured metadata (`<!-- REVIEW_META: {...} -->`) that enables convergence detection over time.
-2. **Regression detection.** Run tests before and after fixes; revert if things get worse.
-3. **Cycle detection.** Escalating conservatism on repeated fix attempts; stop after 3.
-4. **Diminishing returns.** Skills are designed to report "nothing to add" when code is clean, rather than generating noise.
+**Requirements are underspecified.** Real projects have ambiguity that only surfaces during implementation. "Add authentication" implies dozens of decisions (session lifetime, token storage, error UX, rate limiting) that the requester hasn't articulated and may not have opinions on until they see a working version. An agent making all these decisions at once will get some wrong, and the cost of correcting compound errors is higher than making them incrementally.
+
+**Errors compound non-linearly.** A wrong abstraction chosen in step 3 of 20 doesn't just make step 3 wrong. It warps steps 4 through 20 to fit the bad abstraction. In an iterative loop, the wrong abstraction is caught at step 4 and corrected. In a one-shot run, the agent builds confidently on a flawed foundation because it has no external signal that anything is off.
+
+**Context degrades with scale.** Models attend to everything in context, but not equally. As a one-shot generation grows, early decisions (architecture, naming, module boundaries) get diluted by the volume of later code. The agent loses coherence with its own earlier choices. This is why Rajasekaran's harness design paper emphasizes context resets: sustained coherence requires periodically discarding accumulated context and re-grounding from persistent artifacts.
+
+**Verification requires a different mode than generation.** Generating code and evaluating code exercise different judgment. When the same agent does both in a single pass, it is biased toward confirming its own choices. Carlini's compiler project and Rajasekaran's harness work both show that separating generation from evaluation (even when the same model does both) produces measurably better results.
+
+**Human intent is discovered, not transmitted.** Users refine what they want by reacting to what they see. A one-shot agent denies the user this feedback opportunity. The result may be technically correct and still miss the point, because the point only becomes clear through iteration.
+
+The solution is iterative structure with verification at each step. This system implements the following mitigations:
+
+1. **Regression detection.** The Coding Practices conventions require running tests before and after fixes, and reverting if things get worse. This is enforced by convention in the global prompt, not by automated tooling.
+2. **Retry limits.** The convention "if two consecutive fix attempts fail, stop and re-evaluate" prevents the agent from spiraling. This is a prompt-level rule, not a stateful detection mechanism.
+3. **Diminishing returns.** Skills are designed to report "nothing to add" when code is clean, rather than generating noise to fill a template.
+4. **Machine-readable review metadata.** Review skills emit structured metadata (`<!-- REVIEW_META: {...} -->`) alongside prose findings. This is the foundation for future automated convergence detection but is not yet consumed programmatically.
 
 ### The Autonomy Spectrum
 
