@@ -1,6 +1,6 @@
-## Review — 2026-04-01 (commit: 0244ba7)
+## Review — 2026-04-01 (commit: da959a1)
 
-**Summary:** Light review of uncommitted changes to README.md (new "Spec-driven iteration" section), CODEREVIEW.md, and SECURITY.md (review metadata refreshes). All documentation only; no code files modified.
+**Summary:** Light review of uncommitted README.md change adding sub-heading entries to the table of contents for better navigation. All 17 new TOC anchors verified against actual headings. No broken links, no secret leaks, no factual issues.
 
 ### Findings
 
@@ -11,6 +11,6 @@ No issues found.
 None.
 
 ---
-*Prior review (2026-04-01, commit 0244ba7): Refresh review of 3 unpushed commits removing settings.local.json from version control. No issues found.*
+*Prior review (2026-04-01, commit 0244ba7): Light review of README.md spec-driven iteration section and metadata refreshes. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-04-01","commit":"0244ba7","reviewed_up_to":"0244ba7c1191b42a607b63297e5929fdf8cd5c12","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-04-01","commit":"da959a1","reviewed_up_to":"da959a1a4135444a2da30d741c9f5012f001215f","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
