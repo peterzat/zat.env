@@ -129,6 +129,18 @@ zatmux                  # (inside tmux) detach
 
 Designed around ShellFish (iOS SSH client), which auto-creates a tmux session called `shellfish-1`. Running `zatmux` from `~/` gets you into that session whether it already exists or not. Running it again from inside any tmux session detaches cleanly without killing the session. New sessions get a plain shell (use `ccproj`/`newproj` if you want Claude to launch automatically).
 
+### Spec-driven iteration
+
+The core development loop once you are inside a project:
+
+1. `/spec` (or `/spec <description>`) to define acceptance criteria
+2. "Implement the spec" and let Claude work. Intervene with manual direction as needed.
+3. `/spec` again to check off completed criteria (evolve mode)
+4. Repeat 2-3 until all criteria are met
+5. `/spec` again to define the next unit of work. If the result works but quality is not where you want it, say so: "/spec the feature is complete but the output is still rough, build a plan to improve quality over time." This produces a new SPEC.md with criteria targeting specific quality dimensions, and the cycle repeats.
+
+Each pass through the loop tightens quality. The spec is what keeps the agent (and you) oriented across sessions, and what prevents "works but not good enough" from staying vague.
+
 ---
 
 ## Agentic Skills

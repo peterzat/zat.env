@@ -1,6 +1,6 @@
-## Review — 2026-04-01 (commit: e2df013)
+## Review — 2026-04-01 (commit: 0244ba7)
 
-**Summary:** Light review of uncommitted changes to 3 files: settings.local.json (adding gh release/label/issue permissions), SECURITY.md and TESTING.md (date and metadata refreshes).
+**Summary:** Light review of uncommitted changes to README.md (new "Spec-driven iteration" section), CODEREVIEW.md, and SECURITY.md (review metadata refreshes). All documentation only; no code files modified.
 
 ### Findings
 
@@ -11,6 +11,6 @@ No issues found.
 None.
 
 ---
-*Prior review (2026-03-31, commit 9de8607): Refresh review of 13 files across 4 unpushed commits. No issues found.*
+*Prior review (2026-04-01, commit 0244ba7): Refresh review of 3 unpushed commits removing settings.local.json from version control. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-04-01","commit":"e2df013","reviewed_up_to":"e2df013098a4ebfc35a80e1d5867a5d60b4a45ea","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-04-01","commit":"0244ba7","reviewed_up_to":"0244ba7c1191b42a607b63297e5929fdf8cd5c12","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
