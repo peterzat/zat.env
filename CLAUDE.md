@@ -41,6 +41,8 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 
 **Coding Practices sync** — the `## Coding Practices` section in `README.md` is a verbatim copy of the bullet points in `claude/global-claude.md`. Whenever `global-claude.md`'s Coding Practices section changes, update `README.md` to match.
 
+**Upstream fix pattern** — when an issue is discovered while working on a downstream project (skill produces wrong output, convention is missing, prompt needs adjustment), the fix is made here in zat.env. Test the fix by re-running the skill or checking global-claude.md in a downstream project session. The goal is that improvements compound: every fix benefits all future projects.
+
 ## What NOT to put here
 
 - Project-specific code, configs, or dependencies — those belong in each project's own repo

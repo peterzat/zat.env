@@ -6,6 +6,18 @@ This file is symlinked to `~/.claude/CLAUDE.md` and applies to all projects on t
 
 All commits must be attributed solely to the configured `user.name`. Never add Co-Authored-By trailers. Identity is set by `zat.env-install.sh` (prompted on first run, reused from git config on subsequent runs).
 
+## Shared System Boundary
+
+Skills (`~/.claude/skills/`), hooks, and this file (`~/.claude/CLAUDE.md`) are symlinked
+from `~/src/zat.env/`. Editing them in-place from a downstream project modifies the shared
+system. When working on any project other than zat.env itself, do not modify these files.
+If a skill produces wrong behavior or a convention needs updating, note the issue and defer
+the fix to a zat.env session.
+
+Memory files are for user context and external references (API endpoints, project-specific
+workflows, domain knowledge). If a skill does the wrong thing, the fix belongs in the skill
+definition in zat.env, not in a per-project memory file that patches around the behavior.
+
 ## Specification Quality
 
 When editing acceptance criteria outside `/spec`, apply the same pressure-test rigor the skill uses: what input breaks it, what assumptions are unstated, what failure behavior is unspecified. Do not remove, reword, or reorder acceptance criteria in SPEC.md; only check them off when verified.
