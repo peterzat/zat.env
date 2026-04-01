@@ -5,7 +5,9 @@ description: >-
   to review code, check changes before pushing, or run a code review. Also use
   automatically before any git push, unless the diff contains only documentation
   and configuration files (.md, .json, .yaml, .txt, etc.), in which case skip
-  codereview and use the "push now" bypass marker instead.
+  codereview and create the bypass marker before pushing:
+  PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8) &&
+  touch /tmp/.claude-codereview-skip-$PROJ_HASH && git push
 context: fork
 effort: high
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
