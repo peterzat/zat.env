@@ -108,6 +108,20 @@ Consider whether the project needs and lacks: integration tests, end-to-end test
 performance/load tests, contract tests. Only flag what's actually needed for this
 project's goals and scale.
 
+**9. Development loop cadence**
+For projects using autonomous or semi-autonomous coding loops: does the test suite
+support rapid iteration? Look for: (a) a fast inner loop (<15s) that gives signal on
+the most common type of change (parameter tuning, single-function edits), (b) targeted
+test commands for specific concerns (regression, integration, performance) rather than
+only all-or-nothing suite runs, (c) a documented cadence mapping stages of work to
+appropriate test commands with expected timings. A 2-minute suite is fine for full
+validation but too slow for inner-loop iteration. Projects with tiered tests should
+have Makefile targets (or equivalent) for each tier and for the most common single-test
+scenarios. Run representative fast-path commands and note wall-clock time rather than
+trusting documented estimates. Flag if the only option is "run everything" or if test
+timing is undocumented. For projects not using autonomous loops, state "Not applicable"
+and move on.
+
 ## Step 4: Report
 
 Classify findings:
