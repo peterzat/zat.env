@@ -78,8 +78,11 @@ Run /codereview first. After the review passes (all BLOCK and WARN items
 resolved and tests stable), retry the push.
 
 To skip codereview for this push (e.g. docs-only changes), the user can
-say "push now". If they do, create the bypass marker and push:
-  touch ${SKIP_MARKER} && git push
+say "push now". If they do, create the bypass marker then push (two
+separate commands, not combined, so the hook sees the marker before the
+touch re-runs):
+  touch ${SKIP_MARKER}
+  git push
 EOF
 
 exit 2
