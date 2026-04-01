@@ -294,7 +294,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 **What it does:**
 1. Reads prior assessment from TESTING.md, SECURITY.md, CODEREVIEW.md, and SPEC.md (scoped reads)
 2. Discovers test infrastructure: test files, frameworks, CI/CD configs, coverage tools, pre-commit hooks, deployment configs
-3. Evaluates 8 dimensions: test coverage strategy (are the right things tested?), automation maturity, automatic test execution (tests that must be run manually are often not run), CI/CD integration, framework choices, fixture management, flaky test patterns, and missing test categories
+3. Evaluates 9 dimensions: test coverage strategy (are the right things tested?), automation maturity, automatic test execution (tests that must be run manually are often not run), CI/CD integration, framework choices, fixture management, flaky test patterns, missing test categories, and development loop cadence (whether test timing supports autonomous iteration)
 4. Reports findings as BLOCK / WARN / NOTE. Does not write or run individual tests.
 5. Updates `TESTING.md` with dated assessment and status of prior recommendations
 
