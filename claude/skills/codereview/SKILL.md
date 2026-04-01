@@ -3,7 +3,9 @@ name: codereview
 description: >-
   Adversarial code review of uncommitted or staged changes. Use when the user asks
   to review code, check changes before pushing, or run a code review. Also use
-  automatically before any git push.
+  automatically before any git push, unless the diff contains only documentation
+  and configuration files (.md, .json, .yaml, .txt, etc.), in which case skip
+  codereview and use the "push now" bypass marker instead.
 context: fork
 effort: high
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
