@@ -14,9 +14,24 @@ system. When working on any project other than zat.env itself, do not modify the
 If a skill produces wrong behavior or a convention needs updating, note the issue and defer
 the fix to a zat.env session.
 
-Memory files are for user context and external references (API endpoints, project-specific
-workflows, domain knowledge). If a skill does the wrong thing, the fix belongs in the skill
-definition in zat.env, not in a per-project memory file that patches around the behavior.
+Memory file conventions are in the Memory section below. If a skill does the wrong thing,
+the fix belongs in the skill definition in zat.env, not in a per-project memory file that
+patches around the behavior.
+
+## Memory
+
+Memory persistence hierarchy, most to least durable:
+1. CLAUDE.md (global + project) -- conventions, always loaded
+2. Skills -- reusable prompts, shared across projects
+3. Working documents (SPEC.md, TESTING.md, etc.) -- project state, read by skills on demand
+4. Memory files -- cross-conversation context per project
+5. Plans/Tasks -- current conversation only
+
+Save to memory: user profile, feedback/corrections, external system pointers,
+project context not derivable from code or git. Durable operational facts about a
+project (required env setup, CI quirks, test prerequisites) belong in that project's
+CLAUDE.md, not memory. Working documents are managed by their respective skills.
+If MEMORY.md has more than 10 entries, review for staleness before adding more.
 
 ## Specification Quality
 
