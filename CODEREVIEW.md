@@ -1,18 +1,18 @@
-## Review -- 2026-04-02 (commit: e5dfeee)
+## Review -- 2026-04-02 (commit: 8b52d4a)
 
-**Review scope:** Refresh review. Focus: 1 file changed since prior review (commit 1cd94f2). 0 already-reviewed files checked for interactions only.
-
-**Summary:** Reviewed addition of venv activation pattern (`Bash(. .venv/bin/activate && *)`) to the base allowlist in `zat.env-install.sh`. Single-line addition, correctly placed in the JSON array, consistent with the global Python venv convention. No test infrastructure in this repo (expected for a dotfiles/config repo). Security scan found no issues.
+**Summary:** Light review of updated hero image and caption in README.md. The screenshot was replaced with an iPhone/ShellFish/tmux photo, and the caption was updated to match. The image file (zat-env.png) was also replaced.
 
 ### Findings
 
-No issues found.
+[NOTE] README.md:4 -- The `alt` attribute on the `<img>` tag still says "Claude Code running on an iPad" but the image and caption now show an iPhone.
+  Evidence: `<img src="zat-env.png" alt="Claude Code running on an iPad" width="480">`
+  Suggested fix: Change `alt` to "Claude Code running on an iPhone" or similar.
 
 ### Fixes Applied
 
 None.
 
 ---
-*Prior review (2026-04-02, commit 1cd94f2): Refresh review (light tier) of /spec reply reminder addition. No issues found.*
+*Prior review (2026-04-02, commit e5dfeee): Refresh review of venv activation allowlist addition. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-04-02","commit":"e5dfeee","reviewed_up_to":"e5dfeee813b9c530368557c285c7045d2ec91af2","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-04-02","commit":"8b52d4a","reviewed_up_to":"8b52d4ae6e7099e1d6632c8bc846233347190732","base":"origin/main","tier":"light","block":0,"warn":0,"note":1} -->

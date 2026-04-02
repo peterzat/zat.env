@@ -1,9 +1,9 @@
 # zat.env
 
 <div align="center">
-  <img src="zat-env.png" alt="Claude Code running on an iPad" width="480">
+  <img src="zat-env.png" alt="Claude Code running on an iPhone" width="480">
   <br>
-  <sub>Claude Code on an iPad (ShellFish), connected via Tailscale SSH to a Linux server in Germany</sub>
+  <sub>Claude Code on an iPhone (ShellFish) with tmux, connected via Tailscale SSH to a Linux server in Germany</sub>
 </div>
 
 <br>
