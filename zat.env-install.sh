@@ -123,6 +123,7 @@ jq '
       "Bash(jq *)",
       "Bash(bash -n *)",
       "Bash(make *)",
+      "Bash(. .venv/bin/activate && *)",
       "Skill(codereview)",
       "Skill(security)"
     ],
