@@ -66,6 +66,15 @@ Also read the zat.env README for framework philosophy and practices:
 
 List directory structure 1-2 levels deep to understand the project shape.
 
+Check `~/.claude/plans/` for the most recently modified `.md` file. If one exists
+and was modified within the last 24 hours, read it as advisory planning context.
+This provides visibility into implementation sequencing, discovered constraints,
+and lessons from recent planning sessions.
+
+Plan context is advisory, not authoritative. If plan content conflicts with the
+current codebase state, trust the code. Do not treat plan implementation details
+as acceptance criteria.
+
 ## Step 2: Determine Mode
 
 Parse `$ARGUMENTS` and project state:
