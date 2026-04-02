@@ -1,6 +1,6 @@
-## Security Review — 2026-04-01 (scope: changes-only)
+## Security Review — 2026-04-02 (scope: changes-only)
 
-**Summary:** Review of uncommitted CODEREVIEW.md update and 3 unpushed commits (removing settings.local.json from tracking, updating .gitignore, README, and install script). No security issues identified. Changes are documentation and configuration hygiene only.
+**Summary:** Reviewed uncommitted changes to CODEREVIEW.md and SECURITY.md. Both diffs are documentation-only metadata updates (refreshed review summaries, commit references, prior-review pointers). No code, configuration, or executable content changed. No security issues identified.
 
 ### Findings
 
@@ -11,6 +11,6 @@ No security issues identified.
 - **PII in source files** (hw-bootstrap.sh:223, README.md, and other references to `peterzat`): Inherent to a personal dotfiles repo. Reviewed and accepted.
 
 ---
-*Prior review (2026-04-01, full): Full repository audit of all shell scripts, skill prompts, hooks, gitconfig, reference docs, and git history. No findings.*
+*Prior review (2026-04-02, scope: zat.env-install.sh): Targeted review of install script and all files it touches. No findings.*
 
-<!-- SECURITY_META: {"date":"2026-04-01","commit":"0244ba7","scope":"changes-only","block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-04-02","commit":"e5dfeee","scope":"changes-only","block":0,"warn":0,"note":0} -->

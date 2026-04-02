@@ -1,8 +1,8 @@
-## Review — 2026-04-02 (commit: f642b9e)
+## Review -- 2026-04-02 (commit: e5dfeee)
 
-**Review scope:** Refresh review (light tier). Focus: 3 files changed since prior review (commit 00d5ef2). 0 already-reviewed files checked for interactions only.
+**Review scope:** Refresh review. Focus: 1 file changed since prior review (commit 1cd94f2). 0 already-reviewed files checked for interactions only.
 
-**Summary:** Light review of unpushed commit removing the empty `templates/` placeholder directory and cleaning up all references in CLAUDE.md (directory listing), README.md (directory tree and roadmap "Infrastructure" subsection). Deletions only, no broken links or dangling references remain.
+**Summary:** Reviewed addition of venv activation pattern (`Bash(. .venv/bin/activate && *)`) to the base allowlist in `zat.env-install.sh`. Single-line addition, correctly placed in the JSON array, consistent with the global Python venv convention. No test infrastructure in this repo (expected for a dotfiles/config repo). Security scan found no issues.
 
 ### Findings
 
@@ -10,9 +10,9 @@ No issues found.
 
 ### Fixes Applied
 
-None (light review, auto-fix skipped).
+None.
 
 ---
-*Prior review (2026-04-02, commit 00d5ef2): Light refresh review of advisory plan file reading added to /spec skill. No issues found.*
+*Prior review (2026-04-02, commit 1cd94f2): Refresh review (light tier) of /spec reply reminder addition. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-04-02","commit":"f642b9e","reviewed_up_to":"f642b9e604758afa52f5d55f843d37e252a97c40","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-04-02","commit":"e5dfeee","reviewed_up_to":"e5dfeee813b9c530368557c285c7045d2ec91af2","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
