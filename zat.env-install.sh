@@ -121,7 +121,10 @@ jq '
       "Bash(wc *)",
       "Bash(diff *)",
       "Bash(jq *)",
-      "Bash(bash -n *)"
+      "Bash(bash -n *)",
+      "Bash(make *)",
+      "Skill(codereview)",
+      "Skill(security)"
     ],
     "deny": [
       "Bash(rm -rf *)",

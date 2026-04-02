@@ -1,6 +1,8 @@
-## Review — 2026-04-01 (commit: 633add7)
+## Review — 2026-04-02 (commit: f642b9e)
 
-**Summary:** Light review of uncommitted README.md changes expanding three sections: codereview skill description (added refresh review optimization paragraph and renumbered pipeline steps), PR skill description (expanded branch creation and title composition details), and "Why Agents Can't One-Shot Complex Projects" (replaced 4-item list with structured argument and more accurate mitigation descriptions).
+**Review scope:** Refresh review (light tier). Focus: 3 files changed since prior review (commit 00d5ef2). 0 already-reviewed files checked for interactions only.
+
+**Summary:** Light review of unpushed commit removing the empty `templates/` placeholder directory and cleaning up all references in CLAUDE.md (directory listing), README.md (directory tree and roadmap "Infrastructure" subsection). Deletions only, no broken links or dangling references remain.
 
 ### Findings
 
@@ -8,9 +10,9 @@ No issues found.
 
 ### Fixes Applied
 
-None.
+None (light review, auto-fix skipped).
 
 ---
-*Prior review (2026-04-01, commit 9606295): Light review of README.md removing stale TOC entries and redundant subsection. No issues found.*
+*Prior review (2026-04-02, commit 00d5ef2): Light refresh review of advisory plan file reading added to /spec skill. No issues found.*
 
-<!-- REVIEW_META: {"date":"2026-04-01","commit":"633add7","reviewed_up_to":"633add7619a7748854e8c4215e6427563d1f1f53","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-04-02","commit":"f642b9e","reviewed_up_to":"f642b9e604758afa52f5d55f843d37e252a97c40","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
