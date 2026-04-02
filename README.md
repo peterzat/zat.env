@@ -825,8 +825,6 @@ Post-install layout (annotated):
 │       ├── hooks/
 │       │   ├── README.md             # Hook documentation
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
-│       └── templates/
-│           └── README.md             # Future: project scaffolding templates
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering
@@ -945,9 +943,6 @@ Papers and posts that inform the design of this setup, particularly around long-
 - **Diff-against-prior mode**: `/architect diff` compares current assessment against a user-provided prior assessment to highlight what changed
 - **Progressive disclosure**: move detailed dimension descriptions into `references/dimensions.md` as the skill prompt approaches the 500-line limit
 - **Cross-project awareness**: read persistent files from sibling `~/src/` projects to detect dependency-chain risks and architectural inconsistencies
-
-**Infrastructure:**
-- **Project templates**: versioned starter files for Python ML projects, API services, general Python
 
 ---
 

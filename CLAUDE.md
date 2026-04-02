@@ -13,7 +13,6 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - `claude/skills/` — global Claude Code skills: `/spec`, `/codereview`, `/security`, `/architect`, `/tester`, `/pr`
 - `gitconfig/` — versioned git aliases and global gitignore, included via `~/.gitconfig`
 - `hooks/` — Claude Code hooks; `pre-push-codereview.sh` gates git push on passing `/codereview`
-- `templates/` — future home for project scaffolding templates
 
 ## Working on this repo
 
