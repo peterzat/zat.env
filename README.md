@@ -218,6 +218,8 @@ Three modes:
 
 For external or cloned projects, SPEC.md describes what you are building or changing right now, not what the project is (that's README territory).
 
+**Replaces plan mode.** `/spec` supersedes Claude Code's built-in plan mode for this project. Plan mode produces a one-off plan that lives only in the current conversation; `/spec` produces a persistent SPEC.md that survives across sessions, integrates with review skills, and drives the implementation loop. Use `/spec` instead of entering plan mode. If you need to think through an approach before coding, `/spec` is the tool for that.
+
 **Design intent.** Agents without acceptance criteria optimize for "make tests pass" rather than "solve the problem." In autonomous loops, the spec is the artifact that answers "what should I be building?" when the agent starts a fresh session. All review skills read SPEC.md when it exists: `/codereview` checks spec alignment, `/tester` checks whether tests cover the criteria, `/architect` evaluates whether the architecture can support the criteria, `/security` uses the spec for scope awareness.
 
 ### [`/codereview`](claude/skills/codereview/SKILL.md): Adversarial Code Review
