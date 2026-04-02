@@ -115,7 +115,9 @@ based on the current codebase state (read relevant code and tests). Then:
 
 2. Then:
    - If all criteria are met: summarize completion and ask the user what the next unit
-     of work is. Write a new spec entry (current entry becomes the prior summary).
+     of work is. Remind the user to start their reply with `/spec` so the response
+     is handled by this skill (e.g. "/spec [description of next unit of work]").
+     Write a new spec entry (current entry becomes the prior summary).
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it.
 
