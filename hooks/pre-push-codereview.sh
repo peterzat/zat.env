@@ -30,6 +30,12 @@ if [[ "${INVOKED_CMD}" != git\ push* ]]; then
   exit 0
 fi
 
+# Tag-only pushes (e.g. "git push origin v1.2") contain no code changes — skip
+TAG_PATTERN='git push .+ v[0-9]'
+if [[ "${INVOKED_CMD}" =~ ${TAG_PATTERN} ]] || [[ "${INVOKED_CMD}" == *"--tags"* ]]; then
+  exit 0
+fi
+
 # Determine per-project marker file path
 PROJ_HASH=$(git rev-parse --show-toplevel 2>/dev/null | md5sum | cut -c1-8) || {
   # Not in a git repo — allow the push (don't block non-project pushes)
