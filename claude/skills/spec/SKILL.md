@@ -157,7 +157,9 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    must work from git history and SPEC.md alone as the universal baseline.
 4. If a `### Proposal` section already exists in SPEC.md, flag it: "There is an
    existing proposal from YYYY-MM-DD. Regenerate from current state?" Wait for yes/no.
-   If no, stop.
+   If no, stop. If yes, read the old proposal content before replacing it. Use it as
+   context alongside the new git history: what thinking still applies, what has been
+   overtaken by new work, what new directions emerged.
 5. Generate a concise proposal (under 40 lines) containing:
    - **What happened:** what was built, what was learned, what changed. Grounded in
      git history and file state, not conversation memory. This is the key section: it
