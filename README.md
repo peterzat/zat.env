@@ -25,6 +25,8 @@ Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare
 5. `/spec` to close the turn: evolve checks off final criteria, asks a retrospective ("what did you learn?"), and writes a proposal for the next turn
 6. `/spec` to start the next turn (detects the proposal and uses it as the input brief automatically)
 
+Start each session with `/spec`. It re-orients from the current project state: picking up a proposal, reporting progress on unmet criteria, or prompting you to define what to build. Every path is useful, and it costs less than trying to remember where things stand.
+
 Each turn tightens quality. The spec prevents drift across sessions, gives review skills a contract to verify against, and makes "improve quality" a concrete, trackable activity rather than a vague aspiration. When a turn completes, evolve writes a proposal grounded in git history and current state, so the next turn starts with context instead of a blank slate. (See [Philosophy](#philosophy) for the design principles behind this.)
 
 ## Contents
