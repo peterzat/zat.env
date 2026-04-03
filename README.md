@@ -212,12 +212,7 @@ Four modes:
 
 **What it does NOT do:** generate code, write tests, or run the test suite. It defines the contract. Implementation follows separately.
 
-**Typical workflow:**
-1. Run `/spec` (or `/spec <description>`) to define acceptance criteria before starting work
-2. Implement normally. `/codereview` checks spec alignment as part of its review.
-3. When you think you're done, run `/spec` again. Evolve mode reads the codebase, checks off met criteria, and updates the metadata footer.
-4. When all criteria are met, evolve asks a retrospective, then writes a proposal for the next turn.
-5. Run `/spec` again. It detects the proposal and enters direct mode, using the proposal as the input brief. The cycle repeats.
+**Typical workflow:** See [Spec-driven iteration](#spec-driven-iteration) for the full turn-based workflow.
 
 You can also run `/spec propose` at any time to generate a proposal without waiting for all criteria to be met. This is useful for pivoting mid-turn or generating a status snapshot.
 
@@ -909,6 +904,22 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Hook `if`-field filtering: install script now writes conditional hooks (push-only filtering) instead of relying on in-script guards
 - [x] README trajectory summary: added design philosophy paragraph explaining where zat.env is headed
 - [x] Documentation consistency: firewall status, coding practices, and directory overview kept in sync across all files
+
+### Done (v1.2)
+
+- [x] Turn-based development loop: `/spec` evolve mode now runs a turn-boundary transition when all criteria are met (retrospective question, proposal generation, "run `/spec` to start the next turn")
+- [x] Propose mode (`/spec propose`): generate a next-turn proposal grounded in git history and current spec state, independent of conversation memory
+- [x] Stale proposal guard: when a proposal exists with 5+ commits since its date, flag it for confirmation before consuming
+- [x] Proposal-as-input-brief: `/spec` with no arguments auto-detects a proposal section and enters direct mode using it as the input brief
+- [x] "Context loss at turn boundaries" anti-pattern documented with mitigation
+- [x] Advisory plan file reading: `/spec` checks `~/.claude/plans/` for recent planning context
+- [x] `/spec` documented as replacement for Claude Code's built-in plan mode
+- [x] Development loop cadence dimension added to `/tester` skill
+- [x] Shared system boundary and upstream fix pattern documented in global conventions
+- [x] Memory section added to global conventions with promotion guidance
+- [x] Global permissions allowlist/denylist managed by install script
+- [x] Pre-push hook: bypass marker consumed after successful push; "push now" bypass for trivial changes
+- [x] Hero image updated (iPhone with tmux via ShellFish)
 
 ### Next up
 

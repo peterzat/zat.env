@@ -140,7 +140,8 @@ based on the current codebase state (read relevant code and tests). Then:
      3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
      4. Tell the user: "Proposal written. Run `/spec` to start the next turn."
    - If criteria remain unmet: report progress and ask the user whether to continue
-     with the current spec or revise it.
+     with the current spec or revise it. To revise, the user can run
+     `/spec <revised description>` or `/spec new`.
 
 ## Step 3d: Propose Mode (Generate Proposal)
 
@@ -149,7 +150,8 @@ memory. This mode is invoked directly via `/spec propose` or called internally b
 evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
 
 1. Read current SPEC.md to understand the prior turn: goal, criteria (met and unmet),
-   context section, SPEC_META date.
+   context section, SPEC_META date. If no SPEC.md exists, there is nothing to propose
+   from; interview mode (Step 3a) activates instead via Step 2's routing.
 2. Run `git log --oneline` since the SPEC_META date to see what was built. Commit
    messages are the primary signal for what happened.
 3. Read any working documents referenced in SPEC.md's Context section (e.g., TESTING.md,
