@@ -130,15 +130,13 @@ based on the current codebase state (read relevant code and tests). Then:
 2. Then:
    - If all criteria are met: summarize completion, then run the **turn-boundary
      transition**:
-     1. Ask a retrospective: "Before we move on: what did you learn during this
-        turn that should carry forward? Rejected approaches, surprises, shifted
-        priorities?" This is inviting, not mandatory. If the user says "nothing"
-        or equivalent, skip to the next step without pressing.
-     2. Generate a proposal (same logic as Step 3d). If the user provided a
-        retrospective, include it as a `### Retrospective` subsection within
-        the proposal section.
-     3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
-     4. Tell the user: "Proposal written. Run `/spec` to start the next turn."
+     1. Generate a proposal (same logic as Step 3d) immediately. Do not wait
+        for user input first.
+     2. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
+     3. Present the proposal and ask: "Anything from this turn you'd add or
+        correct?" This is inviting, not mandatory. If the user says "nothing"
+        or equivalent, move on. If the user adds context, append it as a
+        `### Retrospective` subsection within the proposal section.
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it. To revise, the user can run
      `/spec <revised description>` or `/spec new`.
@@ -167,8 +165,6 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    - **Questions and directions:** key questions or directions for the next turn.
      Specific enough to drive discussion, not so prescriptive that they lock in an
      approach.
-   - If called from evolve mode and the user provided a retrospective, include it as
-     a `### Retrospective` subsection before the questions/directions.
 6. Write the proposal under a `### Proposal (YYYY-MM-DD)` heading in SPEC.md. Place
    it after the `---` separator and prior-spec summary, before the `<!-- SPEC_META`
    comment. If there is no separator, add one.
@@ -246,8 +242,8 @@ Rules for writing acceptance criteria:
 Show the user the spec you wrote. End with a one-line summary:
 - **New spec:** "Spec written: [title] with N acceptance criteria."
 - **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
-- **Evolved (complete):** "Turn complete: [title]. Proposal written. Run `/spec` to
-  start the next turn."
+- **Evolved (complete):** "Turn complete: [title]. Proposal written. Anything from
+  this turn you'd add or correct?"
 - **Proposal:** "Proposal written for next turn. Run `/spec` to start."
 
 Note: This skill does not generate code, write tests, or run the test suite. It
