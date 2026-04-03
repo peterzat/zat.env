@@ -58,6 +58,8 @@ When editing acceptance criteria outside `/spec`, apply the same pressure-test r
 - Before switching tasks or when context grows large, write key decisions and current
   state to a file (commit message, README, or project-specific doc). Prefer restarting
   with a written plan over continuing with a long, stale context.
+- Do not push, open PRs, or modify remote state unless explicitly asked. Committing
+  is local and reversible; pushing is a shared-state action for the user to decide.
 
 ## Writing Style
 

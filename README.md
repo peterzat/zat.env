@@ -408,6 +408,7 @@ These instructions are embedded in [`claude/global-claude.md`](claude/global-cla
 - If a change causes previously passing tests to fail, revert it and try a different approach. Do not modify tests to accommodate a regression.
 - If two consecutive fix attempts fail, stop, revert to the last working state, and re-evaluate the approach.
 - Before switching tasks or when context grows large, write key decisions and current state to a file (commit message, README, or project-specific doc). Prefer restarting with a written plan over continuing with a long, stale context.
+- Do not push, open PRs, or modify remote state unless explicitly asked. Committing is local and reversible; pushing is a shared-state action for the user to decide.
 
 
 These practices are deliberately minimal. Shorter, more specific instructions outperform comprehensive ones for AI agents: as instruction volume grows, compliance with any single instruction drops (instruction dilution). Each bullet targets a specific failure mode that agents cannot reliably self-correct without explicit guidance. If a practice can be enforced by tooling (linting, hooks, tests), it belongs in tooling, not here.
@@ -922,6 +923,8 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Global permissions allowlist/denylist managed by install script
 - [x] Pre-push hook: bypass marker consumed after successful push; "push now" bypass for trivial changes
 - [x] Hero image updated (iPhone with tmux via ShellFish)
+- [x] Pre-push hook skips codereview gate for tag-only pushes
+- [x] Coding practice: do not push or modify remote state without explicit user instruction
 
 ### Next up
 
