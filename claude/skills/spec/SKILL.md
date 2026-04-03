@@ -112,11 +112,15 @@ description. Present the proposed criteria to the user for confirmation before
 writing SPEC.md.
 
 **When entering via proposal detection** (no `$ARGUMENTS`, but a `### Proposal`
-section exists in SPEC.md): use the proposal content as the input brief. Read the
-proposal's "What happened" summary and questions/directions, then proceed as normal:
-read the codebase, propose acceptance criteria based on the proposal, and present
-them for confirmation. When writing the new spec entry (Step 4), remove the consumed
-`### Proposal` section from SPEC.md.
+section exists in SPEC.md): use the proposal content as the input brief. Read all
+proposal subsections: "What happened," "Questions and directions," and
+"Retrospective" (if present). The retrospective contains user corrections or
+context from the prior turn and must inform the new criteria. Proceed as normal:
+read the codebase, propose acceptance criteria, and present them for confirmation.
+When writing the new spec entry (Step 4), carry relevant details from the
+proposal's "What happened" section into the new spec's Context section so the
+coding agent has concrete prior-turn context. Remove the consumed `### Proposal`
+section from SPEC.md.
 
 ## Step 3c: Evolve Mode (Existing Spec)
 
@@ -138,8 +142,10 @@ based on the current codebase state (read relevant code and tests). Then:
         or equivalent, move on. If the user adds context, append it as a
         `### Retrospective` subsection within the proposal section.
    - If criteria remain unmet: report progress and ask the user whether to continue
-     with the current spec or revise it. To revise, the user can run
-     `/spec <revised description>` or `/spec new`.
+     with the current spec or revise it. Options: continue working, `/spec <revised
+     description>` or `/spec new` to start fresh, or `/spec propose` to abandon
+     remaining criteria and generate a proposal for a new direction based on what
+     was accomplished so far.
 
 ## Step 3d: Propose Mode (Generate Proposal)
 
@@ -149,7 +155,10 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
 
 1. Read current SPEC.md to understand the prior turn: goal, criteria (met and unmet),
    context section, SPEC_META date. If no SPEC.md exists, there is nothing to propose
-   from; interview mode (Step 3a) activates instead via Step 2's routing.
+   from; interview mode (Step 3a) activates instead via Step 2's routing. If criteria
+   are partially met, note which were completed and which were abandoned. The proposal
+   should acknowledge both: what was accomplished and why the remaining work is being
+   set aside in favor of a new direction.
 2. Run `git log --oneline` since the SPEC_META date to see what was built. Commit
    messages are the primary signal for what happened.
 3. Read any working documents referenced in SPEC.md's Context section (e.g., TESTING.md,
