@@ -5,7 +5,7 @@ description: >-
   for a unit of work. Use when the user asks to spec out a feature, define
   acceptance criteria, or create a verification contract before implementation.
   Manual invocation only via /spec.
-argument-hint: [new | description]
+argument-hint: [new | propose | description]
 disable-model-invocation: true
 context: fork
 effort: high
@@ -77,11 +77,18 @@ as acceptance criteria.
 
 ## Step 2: Determine Mode
 
-Parse `$ARGUMENTS` and project state:
+Parse `$ARGUMENTS` and project state. Order matters: check in this sequence.
 
 - **`new` or no SPEC.md exists:** Interview mode (Step 3a)
+- **`propose`:** Propose mode (Step 3d)
 - **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b)
-- **No arguments, SPEC.md exists:** Evolve mode (Step 3c)
+- **No arguments, SPEC.md exists with a `### Proposal` section:** Direct spec mode
+  (Step 3b), using the proposal as the input brief. **Stale proposal guard:** run
+  `git log --oneline` since the proposal date. If there are 5 or more commits after
+  that date, flag it to the user: "This proposal is from YYYY-MM-DD and there have
+  been N commits since. Still want to use it, or re-propose?" Wait for confirmation
+  before proceeding.
+- **No arguments, SPEC.md exists, no proposal:** Evolve mode (Step 3c)
 
 ## Step 3a: Interview Mode (New Spec)
 
@@ -104,6 +111,13 @@ to understand the current state, then propose acceptance criteria based on the
 description. Present the proposed criteria to the user for confirmation before
 writing SPEC.md.
 
+**When entering via proposal detection** (no `$ARGUMENTS`, but a `### Proposal`
+section exists in SPEC.md): use the proposal content as the input brief. Read the
+proposal's "What happened" summary and questions/directions, then proceed as normal:
+read the codebase, propose acceptance criteria based on the proposal, and present
+them for confirmation. When writing the new spec entry (Step 4), remove the consumed
+`### Proposal` section from SPEC.md.
+
 ## Step 3c: Evolve Mode (Existing Spec)
 
 Read the current SPEC.md entry. Assess which acceptance criteria appear to be met
@@ -114,12 +128,52 @@ based on the current codebase state (read relevant code and tests). Then:
    evolve mode regardless of whether all criteria are met or some remain.
 
 2. Then:
-   - If all criteria are met: summarize completion and ask the user what the next unit
-     of work is. Remind the user to start their reply with `/spec` so the response
-     is handled by this skill (e.g. "/spec [description of next unit of work]").
-     Write a new spec entry (current entry becomes the prior summary).
+   - If all criteria are met: summarize completion, then run the **turn-boundary
+     transition**:
+     1. Ask a retrospective: "Before we move on: what did you learn during this
+        turn that should carry forward? Rejected approaches, surprises, shifted
+        priorities?" This is inviting, not mandatory. If the user says "nothing"
+        or equivalent, skip to the next step without pressing.
+     2. Generate a proposal (same logic as Step 3d). If the user provided a
+        retrospective, include it as a `### Retrospective` subsection within
+        the proposal section.
+     3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
+     4. Tell the user: "Proposal written. Run `/spec` to start the next turn."
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it.
+
+## Step 3d: Propose Mode (Generate Proposal)
+
+Generate a proposal for the next turn, grounded in artifacts rather than conversation
+memory. This mode is invoked directly via `/spec propose` or called internally by
+evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
+
+1. Read current SPEC.md to understand the prior turn: goal, criteria (met and unmet),
+   context section, SPEC_META date.
+2. Run `git log --oneline` since the SPEC_META date to see what was built. Commit
+   messages are the primary signal for what happened.
+3. Read any working documents referenced in SPEC.md's Context section (e.g., TESTING.md,
+   CODEREVIEW.md, project-specific files). These are optional enrichment; the proposal
+   must work from git history and SPEC.md alone as the universal baseline.
+4. If a `### Proposal` section already exists in SPEC.md, flag it: "There is an
+   existing proposal from YYYY-MM-DD. Regenerate from current state?" Wait for yes/no.
+   If no, stop.
+5. Generate a concise proposal (under 40 lines) containing:
+   - **What happened:** what was built, what was learned, what changed. Grounded in
+     git history and file state, not conversation memory. This is the key section: it
+     gives the next spec generation concrete context rather than abstract goals.
+   - **Questions and directions:** key questions or directions for the next turn.
+     Specific enough to drive discussion, not so prescriptive that they lock in an
+     approach.
+   - If called from evolve mode and the user provided a retrospective, include it as
+     a `### Retrospective` subsection before the questions/directions.
+6. Write the proposal under a `### Proposal (YYYY-MM-DD)` heading in SPEC.md. Place
+   it after the `---` separator and prior-spec summary, before the `<!-- SPEC_META`
+   comment. If there is no separator, add one.
+7. Present the proposal to the user for discussion. Do not proceed to write a new
+   spec entry. The proposal is a conversation starter, not a finished spec.
+
+Propose mode skips Step 3.5 (pressure test) since proposals are not acceptance criteria.
 
 ## Step 3.5: Pressure Test
 
@@ -169,6 +223,10 @@ non-obvious to say.]
 ---
 *Prior spec (YYYY-MM-DD): [one sentence summary]*
 
+### Proposal (YYYY-MM-DD)
+[Only present when generated by propose mode or evolve completion.
+Consumed and removed when the next spec entry is written.]
+
 <!-- SPEC_META: {"date":"YYYY-MM-DD","title":"...","criteria_total":N,"criteria_met":0} -->
 ```
 
@@ -185,8 +243,10 @@ Rules for writing acceptance criteria:
 
 Show the user the spec you wrote. End with a one-line summary:
 - **New spec:** "Spec written: [title] with N acceptance criteria."
-- **Evolved:** "Spec updated: N/M criteria met. [title] continues." or
-  "Spec completed: [old title]. New spec: [new title] with N criteria."
+- **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
+- **Evolved (complete):** "Turn complete: [title]. Proposal written. Run `/spec` to
+  start the next turn."
+- **Proposal:** "Proposal written for next turn. Run `/spec` to start."
 
 Note: This skill does not generate code, write tests, or run the test suite. It
 defines the verification contract. After writing the spec, STOP and wait for the

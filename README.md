@@ -16,15 +16,16 @@ Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare
 
 <a id="spec-driven-iteration"></a>
 
-**Spec-driven iteration.** Agents without concrete acceptance criteria drift. They optimize for making tests pass rather than solving the problem, and "works but not good enough" stays vague indefinitely. The spec is what keeps the agent (and the human) oriented: it defines what done looks like, gives review skills something to verify against, and lets a fresh session re-orient from disk without stale context. This loop is how you actually build things with zat.env, whether supervised or autonomous:
+**Spec-driven iteration.** Agents without concrete acceptance criteria drift. They optimize for making tests pass rather than solving the problem, and "works but not good enough" stays vague indefinitely. The spec is what keeps the agent (and the human) oriented: it defines what done looks like, gives review skills something to verify against, and lets a fresh session re-orient from disk without stale context. A **turn** is one pass through the spec-implement-evaluate loop. Here is how you build things with zat.env:
 
 1. `/spec` (or `/spec <description>`) to define acceptance criteria
-2. "Implement the spec" and let Claude work. Intervene with manual direction as needed.
-3. `/spec` again to check off completed criteria (evolve mode)
+2. Implement. Intervene with manual direction as needed.
+3. `/spec` to check off completed criteria (evolve mode)
 4. Repeat 2-3 until all criteria are met
-5. `/spec` again to define the next unit of work. If the result works but quality is not where you want it, say so: "/spec the feature is complete but the output is still rough, build a plan to improve quality over time." This produces a new SPEC.md with criteria targeting specific quality dimensions, and the cycle repeats.
+5. `/spec` to close the turn: evolve checks off final criteria, asks a retrospective ("what did you learn?"), and writes a proposal for the next turn
+6. `/spec` to start the next turn (detects the proposal and uses it as the input brief automatically)
 
-Each pass through the loop tightens quality. The spec is what prevents drift across sessions, what gives review skills a contract to verify against, and what makes "improve quality" a concrete, trackable activity rather than a vague aspiration. (See [Philosophy](#philosophy) for the design principles behind this.)
+Each turn tightens quality. The spec prevents drift across sessions, gives review skills a contract to verify against, and makes "improve quality" a concrete, trackable activity rather than a vague aspiration. When a turn completes, evolve writes a proposal grounded in git history and current state, so the next turn starts with context instead of a blank slate. (See [Philosophy](#philosophy) for the design principles behind this.)
 
 ## Contents
 
@@ -197,10 +198,11 @@ Beyond content-level instructions, skills use Claude Code's `effort` frontmatter
 
 Defines what done looks like before implementation begins. The output is `SPEC.md`: a verification contract with concrete acceptance criteria that an agent or human can check off. The value of a spec is the acceptance criteria. Everything else (numbered requirements, phased task lists, Given/When/Then ceremony) is optional and only added if the user asks for it.
 
-Three modes:
+Four modes:
 - **Interview mode** (`/spec new` or first run): asks the user focused questions about goals and acceptance criteria, then writes SPEC.md
-- **Direct mode** (`/spec <description>`): reads the codebase, proposes acceptance criteria for the described feature, confirms with the user
-- **Evolve mode** (`/spec` with existing SPEC.md): assesses progress against current criteria, reports which are met, and helps define the next unit of work
+- **Direct mode** (`/spec <description>`): reads the codebase, proposes acceptance criteria for the described feature, confirms with the user. Also activates automatically when SPEC.md contains a proposal section (see propose mode), using the proposal as the input brief.
+- **Evolve mode** (`/spec` with existing SPEC.md): assesses progress against current criteria, checks off met criteria, and reports progress. When all criteria are met, runs the turn-boundary transition: asks a retrospective ("what did you learn during this turn?"), then generates a proposal for the next turn grounded in git history and current state.
+- **Propose mode** (`/spec propose`): reads the current spec and git history, generates a proposal for the next turn (what happened, key questions, suggested directions), and writes it to SPEC.md for discussion. Useful when evolve was skipped or when pivoting mid-turn.
 
 `SPEC.md` uses the same rolling format as other persistent files: current entry, one-line prior summary, structured metadata footer (`<!-- SPEC_META: {...} -->`). Each entry covers one unit of work, not the entire project.
 
@@ -213,8 +215,11 @@ Three modes:
 **Typical workflow:**
 1. Run `/spec` (or `/spec <description>`) to define acceptance criteria before starting work
 2. Implement normally. `/codereview` checks spec alignment as part of its review.
-3. When you think you're done, run `/spec` again. It enters evolve mode: reads the codebase, assesses which criteria are met, checks them off in SPEC.md, and updates the metadata footer.
-4. When all criteria are met, `/spec` summarizes completion and asks what the next unit of work is. The cycle repeats.
+3. When you think you're done, run `/spec` again. Evolve mode reads the codebase, checks off met criteria, and updates the metadata footer.
+4. When all criteria are met, evolve asks a retrospective, then writes a proposal for the next turn.
+5. Run `/spec` again. It detects the proposal and enters direct mode, using the proposal as the input brief. The cycle repeats.
+
+You can also run `/spec propose` at any time to generate a proposal without waiting for all criteria to be met. This is useful for pivoting mid-turn or generating a status snapshot.
 
 For external or cloned projects, SPEC.md describes what you are building or changing right now, not what the project is (that's README territory).
 
@@ -420,11 +425,11 @@ These practices are deliberately minimal. Shorter, more specific instructions ou
 
 **Verification over prompting.** The quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt. See [The Carlini Principle](#the-carlini-principle) for the background.
 
-**Spec is code.** For agentic coding, a spec is not documentation. It is the verification contract that defines what done looks like. Without acceptance criteria, agents optimize for passing tests rather than solving the problem. A well-written acceptance criterion is worth more than a well-written prompt, because it tells the agent (and the review loop) what to verify. SPEC.md sits upstream of all review skills: codereview checks spec alignment, tester checks criteria coverage, architect evaluates whether the architecture serves the spec's goals. In autonomous loops, the spec is what lets a fresh agent session re-orient from disk and pick up where the last session left off.
+**Spec is code.** For agentic coding, a spec is not documentation. It is the verification contract that defines what done looks like. Without acceptance criteria, agents optimize for passing tests rather than solving the problem. A well-written acceptance criterion is worth more than a well-written prompt, because it tells the agent (and the review loop) what to verify. SPEC.md sits upstream of all review skills: codereview checks spec alignment, tester checks criteria coverage, architect evaluates whether the architecture serves the spec's goals. In autonomous loops, the spec is what lets a fresh agent session re-orient from disk and pick up where the last session left off. When a turn completes, the spec skill writes a proposal grounded in git history and current state, so the next turn inherits concrete context rather than starting cold.
 
 **Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
 
-**Elements of autonomy.** Four things work together to enable long-running coding loops without human intervention per-cycle: adaptive reasoning effort (`effort: high` frontmatter on review and spec skills ensures deep analysis at critical decision points), spec-driven development (concrete acceptance criteria that tell the agent what to build and when it is done), role-based agents (skills with distinct personas that review, verify, and gate each other's work), and artifact-based memory (SPEC.md, CODEREVIEW.md, SECURITY.md, TESTING.md are checked into git and survive across sessions, so a fresh agent can re-orient from disk). Remove any one element and the loop degrades: without specs, agents drift; without review agents, quality drops; without artifacts, sessions lose continuity; without effort control, critical analysis is shallow.
+**Elements of autonomy.** Four things work together to enable long-running coding loops without human intervention per-cycle: adaptive reasoning effort (`effort: high` frontmatter on review and spec skills ensures deep analysis at critical decision points), spec-driven development (concrete acceptance criteria that tell the agent what to build and when it is done, with turn-boundary proposals that carry context forward), role-based agents (skills with distinct personas that review, verify, and gate each other's work), and artifact-based memory (SPEC.md, CODEREVIEW.md, SECURITY.md, TESTING.md are checked into git and survive across sessions, so a fresh agent can re-orient from disk). Remove any one element and the loop degrades: without specs, agents drift; without review agents, quality drops; without artifacts, sessions lose continuity; without effort control, critical analysis is shallow.
 
 **Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
 
@@ -498,6 +503,8 @@ The current system is at **Gated**. The skills and persistent files are the foun
 **Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary.
 
 **Spec-less loops.** Agent loops without acceptance criteria optimize for test-passing rather than problem-solving. The agent may write code that satisfies the test suite but misses the actual goal, or drift away from the original intent over multiple iterations. Countered by: SPEC.md with concrete acceptance criteria that define what done looks like; codereview checks spec alignment; fresh agent sessions re-orient from the spec rather than relying on stale context.
+
+**Context loss at turn boundaries.** A turn completes, the agent says "done," and the next session starts with no memory of what was learned. Rejected approaches get re-tried, surprises get re-discovered, shifted priorities get forgotten. Countered by: evolve mode's retrospective prompt captures learnings while the conversation is still live, and the proposal carries forward a grounded summary of what happened and what to tackle next. The proposal lives in SPEC.md on disk, so a fresh session inherits it without depending on conversation memory.
 
 **Placeholder implementations.** Agent writes code that compiles and passes type checks but does not implement the actual logic (empty function bodies, hardcoded return values, `TODO` stubs). Common in self-healing loops where the agent optimizes for "make the tests pass" rather than "solve the problem." Countered by: test suites that verify behavior (not just compilation), baseline snapshot diffing to catch suspiciously small deltas, and human checkpoint intervals in loop orchestration.
 
