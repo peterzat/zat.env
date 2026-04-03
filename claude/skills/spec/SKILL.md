@@ -138,9 +138,9 @@ based on the current codebase state (read relevant code and tests). Then:
         for user input first.
      2. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
      3. Present the proposal and ask: "Anything from this turn you'd add or
-        correct?" This is inviting, not mandatory. If the user says "nothing"
-        or equivalent, move on. If the user adds context, append it as a
-        `### Retrospective` subsection within the proposal section.
+        correct?" This is inviting, not mandatory. If the user adds context,
+        append it as a `### Retrospective` subsection within the proposal
+        section. Either way, end with: "Run `/spec` to start the next turn."
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it. Options: continue working, `/spec <revised
      description>` or `/spec new` to start fresh, or `/spec propose` to abandon
