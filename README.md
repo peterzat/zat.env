@@ -95,7 +95,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 
 **Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
-- `~/.claude/settings.json` gets a pre-push hook entry with the path to `hooks/pre-push-codereview.sh`
+- `~/.claude/settings.json` gets hook entries for `hooks/pre-push-codereview.sh` (codereview gate) and `hooks/allow-venv-source.sh` (venv activation auto-approve)
 - `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, deny list for dangerous patterns). This block is replaced on each install to prevent session-accumulated cruft.
 
 **Re-run `zat.env-install.sh` when:**
@@ -829,6 +829,7 @@ Post-install layout (annotated):
 │       │   └── ignore-global         # Global gitignore, referenced via ~/.gitconfig
 │       ├── hooks/
 │       │   ├── README.md             # Hook documentation
+│       │   ├── allow-venv-source.sh  # Auto-approves venv activation past safety prompt
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
@@ -837,7 +838,7 @@ Post-install layout (annotated):
 │
 ├── .claude/
 │   ├── CLAUDE.md -> ~/src/zat.env/claude/global-claude.md   # Symlink: machine-wide conventions
-│   ├── settings.json                 # Global Claude Code permissions + pre-push hook
+│   ├── settings.json                 # Global Claude Code permissions + hooks
 │   └── skills/                       # Symlinks to skill directories in this repo
 │       ├── spec       -> ~/src/zat.env/claude/skills/spec/
 │       ├── codereview -> ~/src/zat.env/claude/skills/codereview/
