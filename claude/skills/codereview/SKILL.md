@@ -9,7 +9,7 @@ description: >-
   PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8) &&
   touch /tmp/.claude-codereview-skip-$PROJ_HASH && git push
 context: fork
-effort: high
+effort: max
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 ---
 

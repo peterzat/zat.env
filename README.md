@@ -188,7 +188,7 @@ All skills share a set of prompt design principles informed by community researc
 
 These principles address the most common failure mode of AI review agents: generating noise that erodes trust. Industry experience with AI code review tools consistently shows that precision-biased instructions (focus on logic and security, not style) dramatically improve developer action rates on AI-generated findings.
 
-Beyond content-level instructions, skills use Claude Code's `effort` frontmatter field to match reasoning depth to task criticality. `/spec`, `/codereview`, `/security`, and `/architect` all set `effort: high` in their frontmatter, which tells the harness to use high-effort adaptive reasoning for the entire skill execution. Each of these skills also includes a structured pressure-test step after analysis but before writing findings, verifying that conclusions are grounded and severity levels are calibrated. Convention files like `global-claude.md` describe the same analytical rigor as a behavioral norm, so routine turns outside skills are not over-indexed.
+Beyond content-level instructions, skills use Claude Code's `effort` frontmatter field to match reasoning depth to task criticality. `/spec`, `/codereview`, `/security`, and `/architect` all set `effort: max` in their frontmatter, which tells the harness to use high-effort adaptive reasoning for the entire skill execution. Each of these skills also includes a structured pressure-test step after analysis but before writing findings, verifying that conclusions are grounded and severity levels are calibrated. Convention files like `global-claude.md` describe the same analytical rigor as a behavioral norm, so routine turns outside skills are not over-indexed.
 
 ### [`/spec`](claude/skills/spec/SKILL.md): Specification
 
@@ -210,7 +210,7 @@ Four modes:
 
 **Framework-informed context.** `/spec` reads the zat.env README in addition to the project's own files. Relevant philosophy, coding practices, anti-patterns, and design principles are extracted and carried into SPEC.md's Context section, so the coding agent has them available during implementation without needing to read zat.env itself. This is selective, not wholesale: only points relevant to the specific unit of work are included.
 
-**Pressure test.** When writing new acceptance criteria (interview, direct, or post-completion evolve mode), a structured pressure-test checkpoint reviews drafted criteria for missing edge cases, unstated assumptions, unspecified failure behavior, and over-specification before writing SPEC.md. This step is skipped for routine evolve-mode check-offs where criteria are unchanged. The skill runs at `effort: high` via frontmatter to ensure deep reasoning across all steps.
+**Pressure test.** When writing new acceptance criteria (interview, direct, or post-completion evolve mode), a structured pressure-test checkpoint reviews drafted criteria for missing edge cases, unstated assumptions, unspecified failure behavior, and over-specification before writing SPEC.md. This step is skipped for routine evolve-mode check-offs where criteria are unchanged. The skill runs at `effort: max` via frontmatter to ensure deep reasoning across all steps.
 
 **What it does NOT do:** generate code, write tests, or run the test suite. It defines the contract. Implementation follows separately.
 
@@ -248,7 +248,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 11. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
 12. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
 
-**Pressure test (full review only).** After evaluating all review dimensions and before writing findings, a structured pressure-test checkpoint verifies bugs are confirmed rather than suspected, checks that regression risk claims trace actual callers, filters style-as-substance false positives, and reconsiders solution approach. Skipped for light reviews. The skill runs at `effort: high` via frontmatter.
+**Pressure test (full review only).** After evaluating all review dimensions and before writing findings, a structured pressure-test checkpoint verifies bugs are confirmed rather than suspected, checks that regression risk claims trace actual callers, filters style-as-substance false positives, and reconsiders solution approach. Skipped for light reviews. The skill runs at `effort: max` via frontmatter.
 
 **Key guard:** Never deletes, skips, or weakens existing tests to make them pass. Fixes the code, not the tests.
 
@@ -267,7 +267,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 4. Reports findings with concrete attack vectors. "An attacker could theoretically..." without specifying how they reach the code path is not a finding.
 5. Updates `SECURITY.md` with dated findings, resolved/open status, and accepted risks
 
-**Pressure test.** Before writing findings, a structured pressure-test verifies attack vectors are reachable (not assumed), rechecks dimensions where nothing was found, calibrates severity levels, and confirms git history was checked for leaked secrets. The skill runs at `effort: high` via frontmatter.
+**Pressure test.** Before writing findings, a structured pressure-test verifies attack vectors are reachable (not assumed), rechecks dimensions where nothing was found, calibrates severity levels, and confirms git history was checked for leaked secrets. The skill runs at `effort: max` via frontmatter.
 
 ### [`/architect`](claude/skills/architect/SKILL.md): Architecture Review
 
@@ -285,7 +285,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 5. Produces a Strategic Summary with a board recommendation: HEALTHY / WATCH / ACT
 6. Produces no persistent file (terminal node; see [Cross-Skill Reading DAG](#cross-skill-reading-dag))
 
-**Pressure test.** Six pressure-test questions recalibrate assessments against the project's actual scale and goals, verify that complexity concerns name concrete costs, check extensibility recommendations against evidence of anticipated changes, distinguish transitional inconsistency from architectural drift, require evidence of friction before recommending technology changes, and calibrate operational expectations to the deployment model. The skill runs at `effort: high` via frontmatter.
+**Pressure test.** Six pressure-test questions recalibrate assessments against the project's actual scale and goals, verify that complexity concerns name concrete costs, check extensibility recommendations against evidence of anticipated changes, distinguish transitional inconsistency from architectural drift, require evidence of friction before recommending technology changes, and calibrate operational expectations to the deployment model. The skill runs at `effort: max` via frontmatter.
 
 **"No strategic concerns at this time"** is a valid and expected outcome. Most codebases have sound architecture.
 
@@ -427,7 +427,7 @@ These practices are deliberately minimal. Shorter, more specific instructions ou
 
 **Precision over recall.** False positives erode trust in automated review faster than false negatives. Every review skill is designed to stay silent when it has nothing to say. "No issues found" is the correct and expected outcome for quality code.
 
-**Elements of autonomy.** Four things work together to enable long-running coding loops without human intervention per-cycle: adaptive reasoning effort (`effort: high` frontmatter on review and spec skills ensures deep analysis at critical decision points), spec-driven development (concrete acceptance criteria that tell the agent what to build and when it is done, with turn-boundary proposals that carry context forward), role-based agents (skills with distinct personas that review, verify, and gate each other's work), and artifact-based memory (SPEC.md, CODEREVIEW.md, SECURITY.md, TESTING.md are checked into git and survive across sessions, so a fresh agent can re-orient from disk). Remove any one element and the loop degrades: without specs, agents drift; without review agents, quality drops; without artifacts, sessions lose continuity; without effort control, critical analysis is shallow.
+**Elements of autonomy.** Four things work together to enable long-running coding loops without human intervention per-cycle: adaptive reasoning effort (`effort: max` frontmatter on review and spec skills ensures deep analysis at critical decision points), spec-driven development (concrete acceptance criteria that tell the agent what to build and when it is done, with turn-boundary proposals that carry context forward), role-based agents (skills with distinct personas that review, verify, and gate each other's work), and artifact-based memory (SPEC.md, CODEREVIEW.md, SECURITY.md, TESTING.md are checked into git and survive across sessions, so a fresh agent can re-orient from disk). Remove any one element and the loop degrades: without specs, agents drift; without review agents, quality drops; without artifacts, sessions lose continuity; without effort control, critical analysis is shallow.
 
 **Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
 

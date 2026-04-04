@@ -7,7 +7,7 @@ description: >-
 argument-hint: [branch | status | number | merge | list]
 disable-model-invocation: true
 context: fork
-effort: high
+effort: max
 allowed-tools: Bash(*), Read, Grep, Glob
 ---
 

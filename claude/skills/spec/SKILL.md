@@ -8,7 +8,7 @@ description: >-
 argument-hint: [new | propose | description]
 disable-model-invocation: true
 context: fork
-effort: high
+effort: max
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 ---
 

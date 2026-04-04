@@ -7,7 +7,7 @@ description: >-
   path to review specific files, or no argument for a full repository audit.
 argument-hint: [changes-only | path/to/file]
 context: fork
-effort: high
+effort: max
 allowed-tools: Bash(*), Read, Grep, Glob
 ---
 
