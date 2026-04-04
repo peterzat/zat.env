@@ -155,6 +155,23 @@ jq --arg cmd "${HOOK_COMMAND}" '
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Added pre-push hook"
 
+# Remove any existing allow-venv-source entry, then add the current version.
+VENV_HOOK_COMMAND="bash ${REPO_DIR}/hooks/allow-venv-source.sh"
+jq --arg cmd "${VENV_HOOK_COMMAND}" '
+  .hooks //= {} |
+  .hooks.PreToolUse //= [] |
+  .hooks.PreToolUse = [.hooks.PreToolUse[] | select(.hooks | map(.command // "" | test("allow-venv-source")) | any | not)] |
+  .hooks.PreToolUse += [{
+    "matcher": "Bash",
+    "hooks": [{
+      "type": "command",
+      "command": $cmd,
+      "timeout": 5
+    }]
+  }]
+' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    Added venv-source auto-approve hook"
+
 echo "==> Done"
 echo
 echo "Verify:"
