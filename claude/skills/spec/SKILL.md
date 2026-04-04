@@ -140,7 +140,9 @@ based on the current codebase state (read relevant code and tests). Then:
      3. Present the proposal and ask: "Anything from this turn you'd add or
         correct?" This is inviting, not mandatory. If the user adds context,
         append it as a `### Retrospective` subsection within the proposal
-        section. Either way, end with: "Run `/spec` to start the next turn."
+        section. Either way, end with: "Run `/spec` to start the next turn.
+        You can also ask this conversation to review and enrich the proposal
+        with context from this session."
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it. Options: continue working, `/spec <revised
      description>` or `/spec new` to start fresh, or `/spec propose` to abandon
@@ -255,7 +257,8 @@ Show the user the spec you wrote. End with a one-line summary:
 - **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
 - **Evolved (complete):** "Turn complete: [title]. Proposal written. Anything from
   this turn you'd add or correct?"
-- **Proposal:** "Proposal written for next turn. Run `/spec` to start."
+- **Proposal:** "Proposal written for next turn. Run `/spec` to start. You can also
+  ask this conversation to review and enrich the proposal with context from this session."
 
 Note: This skill does not generate code, write tests, or run the test suite. It
 defines the verification contract. After writing the spec, STOP and wait for the
