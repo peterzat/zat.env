@@ -1,16 +1,17 @@
 ---
 name: codereview
 description: >-
-  Adversarial code review of uncommitted or staged changes. Use when the user asks
-  to review code, check changes before pushing, or run a code review. Also use
-  automatically before any git push, unless the diff contains only documentation
-  and configuration files (.md, .json, .yaml, .txt, etc.), in which case skip
-  codereview and create the bypass marker before pushing:
+  Adversarial code review of uncommitted or staged changes. Includes a security
+  scan via /security for full-tier reviews (skipped for docs-only changes). Use
+  when the user asks to review code, check changes before pushing, or run a code
+  review. Also use automatically before any git push, unless the diff contains
+  only documentation and configuration files (.md, .json, .yaml, .txt, etc.),
+  in which case skip codereview and create the bypass marker before pushing:
   PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8) &&
   touch /tmp/.claude-codereview-skip-$PROJ_HASH && git push
 context: fork
 effort: max
-allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
+allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Skill(security), Skill(security *)
 ---
 
 # Adversarial Code Review

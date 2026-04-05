@@ -8,7 +8,7 @@ description: >-
 argument-hint: [changes-only | path/to/file]
 context: fork
 effort: max
-allowed-tools: Bash(*), Read, Grep, Glob
+allowed-tools: Bash(*), Read, Write, Grep, Glob
 ---
 
 # Security Review
