@@ -970,4 +970,4 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 ---
 
-Copyright 2026 Peter Zatloukal - All Rights Reserved
+Copyright 2026 Peter Zatloukal. Licensed under the [Apache License, Version 2.0](LICENSE).
