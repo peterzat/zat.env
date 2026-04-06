@@ -82,8 +82,8 @@ fi
 cat >&2 <<EOF
 Pre-push gate: /codereview has not been run on the current changes.
 
-Run /codereview first. After the review passes (all BLOCK and WARN items
-resolved and tests stable), retry the push.
+Run /codereview first. After the review passes (all BLOCK items resolved
+and tests stable), retry the push.
 
 To skip codereview for this push (e.g. docs-only changes), the user can
 say "push now". If they do, create the bypass marker then push (two

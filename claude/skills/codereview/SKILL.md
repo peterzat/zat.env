@@ -43,10 +43,13 @@ Read these from the project root if they exist. Focus on: most recent entry,
 unresolved BLOCK items, and metadata footer. Skip historical entries older than
 the current branch's base commit.
 
-- `CODEREVIEW.md` — your own prior findings. If a finding from the most recent
-  entry is still present in the code (same file, same pattern) and was not auto-fixed,
-  treat it as "human reviewed and accepted." Downgrade it to NOTE and do not
-  auto-fix it. This prevents re-flagging issues the human chose to keep.
+- `CODEREVIEW.md` — your own prior findings. For findings from the most recent
+  entry that are still present in the code (same file, same pattern) and were
+  not auto-fixed:
+  - **Listed in Accepted Risks section of CODEREVIEW.md:** downgrade to NOTE.
+    Do not auto-fix. This is an explicit human decision.
+  - **Not listed in Accepted Risks:** re-report at original severity. Do not
+    auto-downgrade. Unreviewed findings must not silently lose severity.
 - `SECURITY.md` — known security issues and accepted risks
 - `TESTING.md` — current test strategy assessment
 - `SPEC.md` — current acceptance criteria (if it exists). Read the current entry
@@ -212,14 +215,22 @@ current state:
    Carry forward the existing SECURITY.md findings into the report, noting:
    "Security: no code changes since last scan (commit abc1234), N BLOCK /
    N WARN / N NOTE carried forward." Use the counts from SECURITY_META.
-4. **If there are code changes:** invoke `/security changes-only` to perform a
-   focused security review of the current diff. For refresh reviews where all
-   incremental changes are already committed (no uncommitted/staged changes),
-   invoke `/security <focus-set files>` instead so the security review covers
-   the right files. Incorporate its findings into the final report.
-5. **If SECURITY.md does not exist, has no SECURITY_META, or the commit cannot
-   be resolved:** fall through to a normal `/security changes-only` invocation.
-   Do not fail or skip silently.
+4. **If there are code changes, or no valid SECURITY_META exists:** compute the
+   files that need scanning:
+   ```bash
+   # All files changed since last security scan (committed + uncommitted).
+   # git diff <ref> includes both committed and working-tree changes.
+   # If no prior scan, scope to all files changed vs upstream.
+   if [valid SECURITY_META commit]; then
+     SCAN_FILES=$(git diff --name-only <meta-commit> -- ':!*.md')
+   else
+     SCAN_FILES=$(git diff --name-only "${UPSTREAM}" -- ':!*.md')
+   fi
+   ```
+   Invoke `/security $SCAN_FILES` with the computed file list. This covers
+   both committed and uncommitted changes since the last scan without
+   re-scanning files the prior review already covered. Incorporate its
+   findings into the final report.
 
 ## Step 6: Report
 
@@ -296,6 +307,10 @@ Update (or create) `CODEREVIEW.md` in the project root. Keep only:
 - The current entry
 - A one-paragraph summary of the previous entry (if one exists)
 
+Carry forward the Accepted Risks section from the prior entry. Remove entries
+whose code is no longer present in the diff. If the human added new entries
+between reviews, preserve them.
+
 Format:
 ```markdown
 ## Review — YYYY-MM-DD (commit: abc1234)
@@ -309,6 +324,10 @@ Format:
 ### Fixes Applied
 
 [list of auto-fixes, or "None."]
+
+### Accepted Risks
+
+[carried-forward findings the human has explicitly accepted, or "None."]
 
 ---
 *Prior review (YYYY-MM-DD): [one sentence summary of prior findings and status]*

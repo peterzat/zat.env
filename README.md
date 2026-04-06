@@ -241,7 +241,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 4. Classifies review tier (light or full)
 5. Runs the project's test suite (if one exists) to capture a baseline
 6. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
-7. Chains to `/security changes-only` for a focused security review of the same diff. If no code files changed since the prior security scan, carries forward existing findings instead of re-invoking the security skill.
+7. Chains to `/security` scoped to files changed since the last security scan (or since upstream if no prior scan). If no code files changed since the prior scan, carries forward existing findings instead of re-invoking.
 8. Reports findings as BLOCK / WARN / NOTE with evidence citations
 9. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
 10. Re-runs tests after fixing; reverts any fix that causes test regression
@@ -343,15 +343,17 @@ in the reading DAG: reads review metadata, produces no persistent file.
 
 A Claude Code `PreToolUse` hook (configured in `~/.claude/settings.json`) intercepts every `git push` command. The push is blocked unless `/codereview` has been run and passed on the current diff.
 
+**Gate condition:** all BLOCK items resolved and tests have not regressed. Unresolved WARNs are reported but do not block the push.
+
 **Flow:**
 1. Claude attempts `git push`
 2. Hook reads the JSON payload from stdin and checks if the command is `git push`
 3. Hook checks for a marker file at `/tmp/.claude-codereview-<project-hash>`
-4. Marker contains the diff hash (first 16 chars of `git diff HEAD | sha256sum`) from the passing review. This makes the marker content-addressed: it's tied to the exact diff that was reviewed, not just "some review happened."
-5. If marker exists and hash matches current diff, push proceeds; marker is deleted
-6. Otherwise, push blocked; Claude instructed to run `/codereview`
+4. Marker contains a diff hash from the passing review: `sha256sum` of `git diff <upstream>` (excluding review output files), truncated to 16 hex chars. This makes the marker content-addressed: tied to the exact diff that was reviewed, not just "some review happened."
+5. If marker exists and hash matches current diff, push proceeds
+6. Otherwise, push is blocked; Claude is instructed to run `/codereview`
 
-The marker is per-project (scoped by git root path hash) and single-use. Making new changes after a passing review requires a new review before the next push.
+The marker is per-project (scoped by git root path hash) and content-addressed. It persists after a successful push so that a network error or remote rejection does not force a full re-review. Making any code change after a passing review invalidates the hash and requires a new review.
 
 **"Push now" bypass.** Say "push now" to skip codereview for a single push. Claude creates a one-time bypass marker and pushes immediately. Useful for docs-only or trivial changes where the full review pipeline is overkill.
 
@@ -359,11 +361,13 @@ The marker is per-project (scoped by git root path hash) and single-use. Making 
 
 All skills use a consistent three-level severity model:
 
-| Level | Meaning | Action |
-|-------|---------|--------|
-| **BLOCK** | Must fix before pushing / shipping | Auto-fixed by codereview; others report to human |
-| **WARN** | Should fix; significant gap | Auto-fixed by codereview; others report to human |
-| **NOTE** | Informational; improvement opportunity | Reported only, never auto-fixed |
+| Level | Meaning | Gates push? | Action |
+|-------|---------|-------------|--------|
+| **BLOCK** | Must fix before pushing | Yes | Auto-fixed by codereview; others report to human |
+| **WARN** | Should fix; significant gap | No | Auto-fixed by codereview; others report to human |
+| **NOTE** | Informational; improvement opportunity | No | Reported only, never auto-fixed |
+
+The pre-push gate passes when all BLOCKs are resolved and tests have not regressed. Unresolved WARNs are reported but do not block the push. Findings carried forward from a prior review retain their original severity unless the human explicitly adds them to the Accepted Risks section of CODEREVIEW.md.
 
 ### Persistent Review Files
 
