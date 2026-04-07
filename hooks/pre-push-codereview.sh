@@ -88,7 +88,7 @@ and tests stable), retry the push.
 To skip codereview for this push, the user can say "push now". If they
 do, create the bypass marker then push (two separate commands, not
 combined, so the hook sees the marker before the push re-runs):
-  touch ${SKIP_MARKER}
+  codereview-skip
   git push
 EOF
 

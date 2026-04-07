@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Create a one-time bypass marker so the next git push skips the
+# codereview pre-push gate. The marker is consumed by the hook on
+# the next push attempt.
+#
+# Usage: codereview-skip && git push
+
+PROJ_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "codereview-skip: not in a git repository" >&2
+  exit 1
+}
+
+PROJ_HASH=$(echo "${PROJ_ROOT}" | md5sum | cut -c1-8)
+touch "/tmp/.claude-codereview-skip-${PROJ_HASH}"
