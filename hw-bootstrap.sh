@@ -189,7 +189,7 @@ set -g window-size latest
 bind r source-file ~/.tmux.conf \; display-message "tmux config reloaded"
 EOF
 
-echo "==> Helper scripts (ccproj, newproj, etc.) are installed by zat.env-install.sh"
+echo "==> Helper scripts (zatmux, etc.) are installed by zat.env-install.sh"
 
 echo "==> Configuring shell environment"
 if ! grep -q 'export PATH="$HOME/bin:$HOME/.local/bin:$PATH"' "${HOME_DIR}/.bashrc"; then
@@ -218,10 +218,8 @@ echo "  4. Install zat.env config (repo should already be cloned at ~/src/zat.en
 echo "       ~/src/zat.env/zat.env-install.sh"
 echo "  5. Authenticate Claude Code:"
 echo "       claude"
-echo "  6. Start a new project:"
-echo "       newproj scratchpad"
-echo "  7. Clone/open an existing repo:"
-echo "       ccproj myrepo git@github.com:peterzat/myrepo.git"
+echo "  6. Start working on a project:"
+echo "       cd ~/src/myrepo && zatmux"
 echo
 echo "GPU notes:"
 echo "  - Docker GPU runs: docker run --rm --gpus all --shm-size=8g <image>"

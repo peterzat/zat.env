@@ -123,25 +123,10 @@ ssh peter@dev
 
 ### Starting a project
 ```bash
-# Clone an existing repo and open a persistent claude session
-ccproj myrepo git@github.com:peterzat/myrepo.git
-
-# Create a new project from scratch
-newproj my-new-thing
-```
-
-### tmux and persistent sessions
-`~/src/` is just a directory. You can clone or create repos there however you like. `ccproj` and `newproj` are specifically for when you want a **persistent named terminal session** tied to a project.
-
-When you run `ccproj ranking ...`:
-1. The repo is cloned to `~/src/ranking`
-2. A tmux session named `ranking` is created with `claude` running inside it
-3. If you disconnect (SSH drop, laptop closes), the session keeps running. Claude keeps coding.
-
-Come back later with:
-```bash
-projattach ranking      # reattach to the ranking session
-projls                  # see all running sessions
+# Clone a repo and start a tmux session for it
+git clone git@github.com:peterzat/myrepo.git ~/src/myrepo
+cd ~/src/myrepo
+zatmux
 ```
 
 ### zatmux
@@ -158,7 +143,9 @@ zatmux                  # attach or create a "ranking" session
 zatmux                  # (inside tmux) detach
 ```
 
-Designed around ShellFish (iOS SSH client), which auto-creates a tmux session called `shellfish-1`. Running `zatmux` from `~/` gets you into that session whether it already exists or not. Running it again from inside any tmux session detaches cleanly without killing the session. New sessions get a plain shell (use `ccproj`/`newproj` if you want Claude to launch automatically).
+Designed around ShellFish (iOS SSH client), which auto-creates a tmux session called `shellfish-1`. Running `zatmux` from `~/` gets you into that session whether it already exists or not. Running it again from inside any tmux session detaches cleanly without killing the session.
+
+If you disconnect (SSH drop, laptop closes), the tmux session keeps running. Come back later with `zatmux` from the same directory, or use `tmux attach -t <name>` and `tmux list-sessions` directly.
 
 ---
 
@@ -788,7 +775,7 @@ claude
 Follow the browser-based auth flow. Once authenticated, exit and start a new session to pick up the installed skills:
 
 ```bash
-newproj scratchpad
+mkdir -p ~/src/scratchpad && cd ~/src/scratchpad && zatmux
 ```
 
 ### Directory Overview
@@ -797,13 +784,9 @@ Post-install layout (annotated):
 
 ```
 ~/
-├── bin/                              # Project management helper scripts (symlinked by install)
-│   ├── ccproj                        # Clone a repo and open a tmux/claude session
+├── bin/                              # Helper scripts (symlinked into ~/bin by install)
 │   ├── claude-fixed-reasoning         # Launch claude with fixed thinking budget (no adaptive)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
-│   ├── newproj                       # Init a new project and open a tmux/claude session
-│   ├── projattach                    # Reattach to an existing project tmux session
-│   ├── projls                        # List all running tmux sessions
 │   └── zatmux                        # Attach/create tmux session based on current dir
 │
 ├── data/                             # Shared large datasets and model files (not in git)

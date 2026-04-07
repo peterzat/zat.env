@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-tmux list-sessions 2>/dev/null || echo "No tmux sessions"
