@@ -799,6 +799,7 @@ Post-install layout (annotated):
 ~/
 ├── bin/                              # Project management helper scripts (symlinked by install)
 │   ├── ccproj                        # Clone a repo and open a tmux/claude session
+│   ├── claude-fixed-reasoning         # Launch claude with fixed thinking budget (no adaptive)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── newproj                       # Init a new project and open a tmux/claude session
 │   ├── projattach                    # Reattach to an existing project tmux session
