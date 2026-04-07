@@ -330,11 +330,11 @@ SECURITY.md, TESTING.md, and SPEC.md to populate a review status table and spec 
 in the PR body. Review files written by other skills become the PR description with no
 extra work.
 
-**Review gate on merge.** `/pr merge` performs the same diff-hash check as the pre-push
-hook, then verifies GitHub merge readiness: CI checks must pass, the PR must be
-mergeable (no conflicts), and no reviews with changes-requested status. A PR cannot
-be merged through this skill without passing both the local review gate and remote
-checks.
+**Review gate on merge.** `/pr merge` verifies that CODEREVIEW.md shows a passing review
+(`block: 0`) covering the current code, then checks GitHub merge readiness: CI checks
+must pass, the PR must be mergeable (no conflicts), and no pending or change-requested
+reviews. A PR cannot be merged through this skill without passing both the review gate
+and remote checks.
 
 **Design intent.** Right now, `/pr` is primarily a convenience for composing PR descriptions
 and running `gh pr create`. Direct-to-main remains the default solo workflow, and PRs are

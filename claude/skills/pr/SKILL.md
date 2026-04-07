@@ -177,23 +177,21 @@ Display the PR details and summarize any review comments.
 
 ### Mode: merge
 
-**Verify review gate.** Check that the codereview marker is valid for the current diff,
-using the same logic as the pre-push hook:
+**Verify review gate.** Check that a passing codereview covers the current code by
+reading REVIEW_META from CODEREVIEW.md:
 
 ```bash
-PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
-MARKER_FILE="/tmp/.claude-codereview-${PROJ_HASH}"
-UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
-if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
-  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
-else
-  EMPTY_TREE=$(git hash-object -t tree /dev/null)
-  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
-fi
+REVIEW_BLOCKS=$(grep -oP '"block"\s*:\s*\K[0-9]+' CODEREVIEW.md 2>/dev/null)
+REVIEWED_UP_TO=$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)
 ```
 
-If the marker file does not exist or its content does not match the current diff hash,
-report that `/codereview` must be run first and stop. Do not merge without a passing review.
+The review gate passes if ALL of these hold:
+1. CODEREVIEW.md exists and has REVIEW_META
+2. `REVIEW_BLOCKS` equals `0`
+3. `REVIEWED_UP_TO` is non-empty and `git merge-base --is-ancestor "${REVIEWED_UP_TO}" HEAD`
+
+If any condition fails, report that `/codereview` must be run first and stop.
+Do not merge without a passing review.
 
 **Verify GitHub merge readiness.** After the local gate passes, check the PR's remote state:
 
@@ -209,7 +207,7 @@ Block the merge and report the reason if any of these hold:
 - `mergeable` is not `MERGEABLE` (conflicts, branch protection rules, etc.)
 - `statusCheckRollup` contains any check with `conclusion` of `FAILURE` or
   `status` not `COMPLETED`
-- `reviewDecision` is `CHANGES_REQUESTED`
+- `reviewDecision` is `CHANGES_REQUESTED` or `REVIEW_REQUIRED`
 
 If no CI checks are configured, that is not a blocker (many repos have none).
 If `reviewDecision` is empty or `APPROVED`, proceed.

@@ -216,8 +216,9 @@ current state:
    - Prior scope is `"full"`, or `NEEDED` is empty: skip.
    - Prior scope is `"paths"` with `scanned_files` in SECURITY_META: skip only
      if every file in `NEEDED` appears in `scanned_files`.
-   - Otherwise (`"changes-only"`, or `scanned_files` missing): fall through to
-     item 4 and re-run on `NEEDED`.
+   - Otherwise (`"changes-only"`, or `scanned_files` missing): invoke
+     `/security $NEEDED` to cover the full security surface. Incorporate
+     findings into the final report.
 
    When skipping, carry forward existing findings, noting:
    "Security: no code changes since last scan (commit abc1234), N BLOCK /
