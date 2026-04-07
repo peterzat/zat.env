@@ -840,6 +840,7 @@ Post-install layout (annotated):
 │       │   ├── allow-venv-source.sh  # Auto-approves venv activation past safety prompt
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/
+│       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
 │       │   └── lint-skills.sh          # Structural lint for skills and hooks (44 checks)
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV

@@ -1,55 +1,27 @@
-## Test Strategy — 2026-04-07
+## Test Strategy Review -- 2026-04-06
 
-**Summary:** Structural lint script (`tests/lint-skills.sh`) checks cross-skill consistency, gate condition alignment, and frontmatter validity. Manual scenario traces cover flow-level correctness that grep cannot catch. Run the lint after any skill or hook change.
+**Summary:** The repo now has a structural lint suite (`tests/lint-skills.sh`, 161 lines, 44 checks) that verifies cross-skill META field consistency, gate condition alignment, PR merge logic, security chain coverage, accepted risks sections, and skill frontmatter. Shellcheck is included but skipped because it is not installed. The suite is documented but runs manually only.
 
-### Automated: `tests/lint-skills.sh`
+**Test infrastructure found:** `tests/lint-skills.sh` (bash, grep-based structural checks). No CI/CD. No coverage tools. Pre-push hook gates on `/codereview` (LLM review), not on lint-skills.sh.
 
-44 checks across 7 categories:
+### Findings
 
-| Category | What it catches |
-|----------|----------------|
-| META field cross-references | Field read by one skill missing from the writing skill's template |
-| Gate condition alignment | Hook, skill, and README disagreeing on what blocks a push |
-| PR merge gate | Regression to marker-file check (broken post-push), missing GitHub state checks |
-| Security chain coverage | Missing coverage verification before skipping /security |
-| Codereview bypass removed | Bypass instructions reappearing in skill frontmatter |
-| Accepted Risks consistency | Missing Accepted Risks section in codereview or security templates |
-| Skill frontmatter | Missing required fields (name, description, context) |
-| Shellcheck | Static analysis of all .sh files (when shellcheck is installed) |
+[NOTE] automatic test execution -- lint-skills.sh is manual only
+  Current state: CLAUDE.md instructs "run `tests/lint-skills.sh` after modifying any skill or hook." The pre-push hook gates on `/codereview`, not on lint-skills.sh. A skill change could pass codereview but fail structural lint. In practice, `/codereview` catches many of the same issues because it reads skill files, but the grep-based structural checks (META field cross-references, gate condition alignment) are more reliable for these specific concerns.
+  Recommendation: Wire lint-skills.sh into the pre-push hook or add a PreToolUse hook that runs it before git push. This would catch structural regressions automatically. Low urgency: the repo has one contributor and the CLAUDE.md convention works as a reminder.
 
-### Manual: scenario traces after skill changes
+[NOTE] missing test categories -- shellcheck not installed
+  Current state: lint-skills.sh includes a shellcheck section (lines 136-151) that analyzes all scripts in `hooks/` and `bin/`. It degrades gracefully ("skip (shellcheck not installed)"). The repo has 837 lines of shell across 11 scripts (5 .sh files + 6 bin scripts). Static analysis would catch common shell pitfalls.
+  Recommendation: Install shellcheck (`apt install shellcheck`) so the existing test infrastructure can use it. The code to run it is already written.
 
-These flows have had bugs and cannot be verified by grep. Walk through them mentally or on paper after changing skill logic.
+### Status of Prior Recommendations
 
-**Push flow (pre-push hook):**
-1. Hook receives JSON, extracts command, identifies git push
-2. Checks skip marker (consumed on use) and codereview marker (content-addressed, persists)
-3. Marker hash uses `git diff <upstream>`, not `git diff HEAD`
-4. Marker persists after push (network retry safe)
+Both NOTEs from the prior review (2026-04-01, commit e2df013) have been partially addressed:
 
-**Security chain (codereview Step 5):**
-1. No code changes + full scope = skip (safe)
-2. No code changes + paths scope + scanned_files covers NEEDED = skip (safe)
-3. No code changes + insufficient coverage = invoke /security on NEEDED (not fall through to item 4)
-4. Code changes exist = compute SCAN_FILES from meta-commit and invoke /security
-5. No valid META = compute SCAN_FILES from upstream and invoke /security
-
-**PR merge (pr merge mode):**
-1. Gate uses REVIEW_META from CODEREVIEW.md (not marker file, which is invalidated by pushing)
-2. block: 0 and reviewed_up_to is ancestor of HEAD
-3. Then checks GitHub: mergeable, statusCheckRollup, reviewDecision
-4. Blocks on: not MERGEABLE, CI failure, CHANGES_REQUESTED, REVIEW_REQUIRED
-
-**Carry-forward severity (codereview Step 1):**
-1. Finding in Accepted Risks = downgrade to NOTE
-2. Finding NOT in Accepted Risks = re-report at original severity
-3. Accepted Risks section carried forward across reviews
-
-### Prior assessment
-
-Two NOTEs from /tester (2026-04-01): shellcheck as pre-commit gate, and install script idempotency smoke test. Both remain open as future considerations.
+1. **Shell script static analysis gate** -- Addressed in code: lint-skills.sh now includes a shellcheck section. Not fully resolved because shellcheck is not installed on the machine, so the checks are skipped at runtime.
+2. **Idempotency smoke test for install script** -- Remains open. Still a future consideration, not needed yet.
 
 ---
-*Prior review (2026-04-01): No test infrastructure. Two NOTEs: shellcheck gate, idempotency smoke test.*
+*Prior review (2026-04-01): No test infrastructure existed. Two NOTEs: add shellcheck as a pre-commit check, and consider Docker-based idempotency smoke test for install script. Both deferred as future considerations.*
 
-<!-- TESTING_META: {"date":"2026-04-07","commit":"93ba4e6","block":0,"warn":0,"note":2} -->
+<!-- TESTING_META: {"date":"2026-04-06","commit":"fce3f77","block":0,"warn":0,"note":2} -->
