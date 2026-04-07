@@ -195,7 +195,26 @@ fi
 If the marker file does not exist or its content does not match the current diff hash,
 report that `/codereview` must be run first and stop. Do not merge without a passing review.
 
-If the marker is valid:
+**Verify GitHub merge readiness.** After the local gate passes, check the PR's remote state:
+
+```bash
+gh pr view --json mergeable,reviewDecision,statusCheckRollup --jq '{
+  mergeable: .mergeable,
+  reviewDecision: .reviewDecision,
+  checks: [.statusCheckRollup[]? | {name: .name, status: .status, conclusion: .conclusion}]
+}'
+```
+
+Block the merge and report the reason if any of these hold:
+- `mergeable` is not `MERGEABLE` (conflicts, branch protection rules, etc.)
+- `statusCheckRollup` contains any check with `conclusion` of `FAILURE` or
+  `status` not `COMPLETED`
+- `reviewDecision` is `CHANGES_REQUESTED`
+
+If no CI checks are configured, that is not a blocker (many repos have none).
+If `reviewDecision` is empty or `APPROVED`, proceed.
+
+If all checks pass:
 ```bash
 gh pr merge --squash --delete-branch
 git checkout main

@@ -230,7 +230,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Trigger:** Runs automatically before any `git push` (via the pre-push hook gate). Also invocable manually.
 
-**Tiered review.** After gathering the diff, the skill classifies changes as **light** (docs/config only: `.md`, `.json`, `.yaml`, etc.) or **full** (any code files). Light review skips the test suite, security chain, auto-fix loop, and fix verification. This keeps doc-only pushes fast while maintaining the full pipeline for code changes.
+**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md`, `.txt`, `.gitignore`, `.gitconfig`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live. Light review skips the test suite, security chain, auto-fix loop, and fix verification. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
 
 **Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0` and the reviewed commit is an ancestor of HEAD, the skill performs an incremental review scoped to files changed since the prior review. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
 
@@ -331,7 +331,10 @@ in the PR body. Review files written by other skills become the PR description w
 extra work.
 
 **Review gate on merge.** `/pr merge` performs the same diff-hash check as the pre-push
-hook. A PR cannot be merged through this skill without a passing `/codereview`.
+hook, then verifies GitHub merge readiness: CI checks must pass, the PR must be
+mergeable (no conflicts), and no reviews with changes-requested status. A PR cannot
+be merged through this skill without passing both the local review gate and remote
+checks.
 
 **Design intent.** Right now, `/pr` is primarily a convenience for composing PR descriptions
 and running `gh pr create`. Direct-to-main remains the default solo workflow, and PRs are
@@ -355,7 +358,7 @@ A Claude Code `PreToolUse` hook (configured in `~/.claude/settings.json`) interc
 
 The marker is per-project (scoped by git root path hash) and content-addressed. It persists after a successful push so that a network error or remote rejection does not force a full re-review. Making any code change after a passing review invalidates the hash and requires a new review.
 
-**"Push now" bypass.** Say "push now" to skip codereview for a single push. Claude creates a one-time bypass marker and pushes immediately. Useful for docs-only or trivial changes where the full review pipeline is overkill.
+**"Push now" bypass.** Say "push now" to skip codereview for a single push. Claude creates a one-time bypass marker and pushes immediately. This is a human escape valve for when the full review pipeline is not needed.
 
 ### Severity Model
 

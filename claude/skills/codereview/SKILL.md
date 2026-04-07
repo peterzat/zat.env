@@ -4,11 +4,7 @@ description: >-
   Adversarial code review of uncommitted or staged changes. Includes a security
   scan via /security for full-tier reviews (skipped for docs-only changes). Use
   when the user asks to review code, check changes before pushing, or run a code
-  review. Also use automatically before any git push, unless the diff contains
-  only documentation and configuration files (.md, .json, .yaml, .txt, etc.),
-  in which case skip codereview and create the bypass marker before pushing:
-  PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8) &&
-  touch /tmp/.claude-codereview-skip-$PROJ_HASH && git push
+  review. Also use automatically before any git push.
 context: fork
 effort: max
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Skill(security), Skill(security *)
@@ -74,10 +70,11 @@ If there is truly nothing to review, report that and stop.
 
 **Classify the review tier** based on the files changed:
 
-- **Light review**: the diff touches ONLY documentation and configuration files
-  (`.md`, `.txt`, `.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`, `.gitignore`,
-  `.gitconfig`). No code files (`.py`, `.js`, `.ts`, `.rs`, `.go`, `.sh`, `.bash`,
-  `.sql`, `.html`, `.css`, `.jsx`, `.tsx`, etc.) are modified.
+- **Light review**: the diff touches ONLY plain documentation files (`.md`, `.txt`,
+  `.gitignore`, `.gitconfig`). No code or configuration files are modified.
+  Configuration formats (`.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`) get
+  full review because they are often operationally live (CI, deployment, permissions,
+  dependencies, feature flags).
 - **Full review**: any code file is modified, or you are uncertain.
 
 If light review: skip Steps 3, 5, 7, and 8 (no test suite run, no security chain,
