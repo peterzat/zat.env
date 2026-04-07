@@ -1,24 +1,55 @@
-## Test Strategy Review — 2026-04-01
+## Test Strategy — 2026-04-07
 
-**Summary:** No test infrastructure exists. The repo contains 8 shell scripts (613 lines total) and Markdown configuration/prompt files. No code has changed since the prior review. The project remains a personal dev-environment repo with no application logic. No test infrastructure is warranted at this stage.
+**Summary:** Structural lint script (`tests/lint-skills.sh`) checks cross-skill consistency, gate condition alignment, and frontmatter validity. Manual scenario traces cover flow-level correctness that grep cannot catch. Run the lint after any skill or hook change.
 
-**Test infrastructure found:** None (no test files, frameworks, CI/CD, coverage tools, or test targets). The pre-push hook (`hooks/pre-push-codereview.sh`) gates pushes on a passing `/codereview`, providing LLM-based review but not deterministic test execution.
+### Automated: `tests/lint-skills.sh`
 
-### Findings
+44 checks across 7 categories:
 
-[NOTE] automatic test execution — Shell scripts have no static analysis gate
-  Current state: All 8 shell scripts use `set -euo pipefail` and guard clauses. No `shellcheck` or other static analysis runs automatically. The pre-push hook gates on `/codereview` (LLM review), not script correctness.
-  Recommendation: When scripts grow more complex or a second contributor appears, add `shellcheck` as a pre-commit or pre-push check. Not needed yet.
+| Category | What it catches |
+|----------|----------------|
+| META field cross-references | Field read by one skill missing from the writing skill's template |
+| Gate condition alignment | Hook, skill, and README disagreeing on what blocks a push |
+| PR merge gate | Regression to marker-file check (broken post-push), missing GitHub state checks |
+| Security chain coverage | Missing coverage verification before skipping /security |
+| Codereview bypass removed | Bypass instructions reappearing in skill frontmatter |
+| Accepted Risks consistency | Missing Accepted Risks section in codereview or security templates |
+| Skill frontmatter | Missing required fields (name, description, context) |
+| Shellcheck | Static analysis of all .sh files (when shellcheck is installed) |
 
-[NOTE] missing test categories — No smoke test for install script idempotency
-  Current state: `zat.env-install.sh` (164 lines) is idempotent by inspection. The permissions section uses a clean-slate replacement strategy (always overwrites `.permissions`), which is inherently idempotent. No automated verification exists.
-  Recommendation: If the install script grows significantly, consider a Docker-based smoke test that runs it twice and asserts exit 0 both times. Not needed yet.
+### Manual: scenario traces after skill changes
 
-### Status of Prior Recommendations
+These flows have had bugs and cannot be verified by grep. Walk through them mentally or on paper after changing skill logic.
 
-Both NOTEs from the prior review (2026-03-31, commit e2df013) remain open. No code has changed since that review. No change in risk profile warrants escalation.
+**Push flow (pre-push hook):**
+1. Hook receives JSON, extracts command, identifies git push
+2. Checks skip marker (consumed on use) and codereview marker (content-addressed, persists)
+3. Marker hash uses `git diff <upstream>`, not `git diff HEAD`
+4. Marker persists after push (network retry safe)
+
+**Security chain (codereview Step 5):**
+1. No code changes + full scope = skip (safe)
+2. No code changes + paths scope + scanned_files covers NEEDED = skip (safe)
+3. No code changes + insufficient coverage = invoke /security on NEEDED (not fall through to item 4)
+4. Code changes exist = compute SCAN_FILES from meta-commit and invoke /security
+5. No valid META = compute SCAN_FILES from upstream and invoke /security
+
+**PR merge (pr merge mode):**
+1. Gate uses REVIEW_META from CODEREVIEW.md (not marker file, which is invalidated by pushing)
+2. block: 0 and reviewed_up_to is ancestor of HEAD
+3. Then checks GitHub: mergeable, statusCheckRollup, reviewDecision
+4. Blocks on: not MERGEABLE, CI failure, CHANGES_REQUESTED, REVIEW_REQUIRED
+
+**Carry-forward severity (codereview Step 1):**
+1. Finding in Accepted Risks = downgrade to NOTE
+2. Finding NOT in Accepted Risks = re-report at original severity
+3. Accepted Risks section carried forward across reviews
+
+### Prior assessment
+
+Two NOTEs from /tester (2026-04-01): shellcheck as pre-commit gate, and install script idempotency smoke test. Both remain open as future considerations.
 
 ---
-*Prior review (2026-03-31): No test infrastructure, two NOTEs (shellcheck, idempotency smoke test). Both appropriate as future considerations. No code changes since.*
+*Prior review (2026-04-01): No test infrastructure. Two NOTEs: shellcheck gate, idempotency smoke test.*
 
-<!-- TESTING_META: {"date":"2026-04-01","commit":"e2df013","block":0,"warn":0,"note":2} -->
+<!-- TESTING_META: {"date":"2026-04-07","commit":"93ba4e6","block":0,"warn":0,"note":2} -->

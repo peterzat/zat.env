@@ -26,6 +26,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - Each skill is a self-contained prompt; starts with YAML frontmatter then Markdown instructions
 - Skills must be self-sufficient — they start with empty context and gather their own information
 - Keep each SKILL.md under ~500 lines; use `references/` subdirectory if details grow
+- After modifying any skill or hook, run `tests/lint-skills.sh` to check structural consistency
 
 **Hook scripts** (`hooks/*.sh`):
 - Must be idempotent and have no side effects other than blocking/allowing the action
