@@ -39,6 +39,7 @@ sudo apt-get install -y \
   build-essential \
   ripgrep \
   fd-find \
+  shellcheck \
   tmux \
   unzip \
   zip \
