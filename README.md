@@ -49,7 +49,7 @@ Each turn tightens quality. The spec prevents drift across sessions, gives revie
   - [Pre-Push Gate](#pre-push-gate)
   - [Severity Model](#severity-model)
   - [Persistent Review Files](#persistent-review-files)
-  - [Cross-Skill Reading DAG](#cross-skill-reading-dag)
+  - [Cross-Skill Context Graph](#cross-skill-context-graph)
 - [Coding Practices](#coding-practices)
 - [Philosophy](#philosophy)
 - [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
@@ -283,7 +283,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
    - **Strategic Fitness:** consistency, business goal alignment, technology selection, operational fitness, developer experience
 4. Reports per dimension with HIGH / MEDIUM / LOW priority, or "Nothing to flag"
 5. Produces a Strategic Summary with a board recommendation: HEALTHY / WATCH / ACT
-6. Produces no persistent file (terminal node; see [Cross-Skill Reading DAG](#cross-skill-reading-dag))
+6. Produces no persistent file (terminal node; see [Cross-Skill Context Graph](#cross-skill-context-graph))
 
 **Pressure test.** Six pressure-test questions recalibrate assessments against the project's actual scale and goals, verify that complexity concerns name concrete costs, check extensibility recommendations against evidence of anticipated changes, distinguish transitional inconsistency from architectural drift, require evidence of friction before recommending technology changes, and calibrate operational expectations to the deployment model. The skill runs at `effort: max` via frontmatter.
 
@@ -337,7 +337,7 @@ hook. A PR cannot be merged through this skill without a passing `/codereview`.
 and running `gh pr create`. Direct-to-main remains the default solo workflow, and PRs are
 opt-in. The longer-term purpose is to establish PRs as the coordination primitive for
 autonomous agent loops (see [The Carlini Principle](#the-carlini-principle)). Terminal node
-in the reading DAG: reads review metadata, produces no persistent file.
+in the context graph: reads review metadata, produces no persistent file.
 
 ### Pre-Push Gate
 
@@ -380,9 +380,9 @@ Four skills write per-project files to the project root. These files are working
 | `SECURITY.md` | `/security` | Security findings, resolved issues, accepted risks |
 | `TESTING.md` | `/tester` | Test strategy assessment, recommendation status |
 
-### Cross-Skill Reading DAG
+### Cross-Skill Context Graph
 
-Skills read each other's persistent files in a directed acyclic graph to prevent amplification loops:
+Skills read each other's persistent files to share context. The reading graph has cycles (e.g., /spec reads CODEREVIEW.md while /codereview reads SPEC.md), but amplification is bounded by three mechanisms: (1) scoped reads (most recent entry, unresolved BLOCKs, and metadata footer only, not full history), (2) terminal nodes (architect and pr produce no persistent files, breaking feedback loops), and (3) independent severity assessment (each skill evaluates from its own analysis, not by inheriting other skills' findings).
 
 ```
                     SPEC.md (upstream of all review skills)
@@ -498,7 +498,7 @@ The current system is at **Gated**. The skills and persistent files are the foun
 
 **Context exhaustion.** Agents that read too much and degrade quality as context fills. Countered by: scoped persistent file reads (most recent entry + BLOCKs + metadata footer only), prioritization of high-risk files for large diffs.
 
-**Circular amplification.** A NOTE becomes a BLOCK through cross-skill contamination (codereview flags something, security escalates it, architect recommends refactor, codereview flags code for not following the recommendation). Countered by: directed acyclic reading DAG, architect produces no persistent file.
+**Circular amplification.** A NOTE becomes a BLOCK through cross-skill contamination (codereview flags something, security escalates it, architect recommends refactor, codereview flags code for not following the recommendation). Countered by: scoped reads (most recent entry only), terminal nodes (architect produces no persistent file), independent severity assessment.
 
 **Auto-fix oscillation.** Fix A breaks B, fix B reintroduces A. Countered by: escalating conservatism on iterations 2-3, one-issue-per-fix cap, 20-line-per-fix cap, stop after 3 attempts.
 
@@ -901,8 +901,8 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Test strategy review (`/tester`) with persistent `TESTING.md`
 - [x] Content-addressed push gate (diff hash + project hash)
 - [x] Auto-fix with escalating conservatism and 3-iteration cap
-- [x] Spec-driven development (`/spec`) with persistent `SPEC.md` and DAG integration
-- [x] Cross-skill reading DAG with circular amplification prevention
+- [x] Spec-driven development (`/spec`) with persistent `SPEC.md` and cross-skill integration
+- [x] Cross-skill context graph with bounded amplification prevention
 - [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
 - [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
 

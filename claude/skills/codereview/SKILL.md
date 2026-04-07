@@ -211,8 +211,18 @@ current state:
    git log --oneline <meta-commit>..HEAD -- ':!*.md'
    git diff --name-only -- ':!*.md'
    ```
-3. **If no code changes since the last scan:** skip the `/security` invocation.
-   Carry forward the existing SECURITY.md findings into the report, noting:
+3. **If no code changes since the last scan:** verify the prior scan covers the
+   current security surface before skipping:
+   ```bash
+   NEEDED=$(git diff --name-only "${UPSTREAM}" -- ':!*.md')
+   ```
+   - Prior scope is `"full"`, or `NEEDED` is empty: skip.
+   - Prior scope is `"paths"` with `scanned_files` in SECURITY_META: skip only
+     if every file in `NEEDED` appears in `scanned_files`.
+   - Otherwise (`"changes-only"`, or `scanned_files` missing): fall through to
+     item 4 and re-run on `NEEDED`.
+
+   When skipping, carry forward existing findings, noting:
    "Security: no code changes since last scan (commit abc1234), N BLOCK /
    N WARN / N NOTE carried forward." Use the counts from SECURITY_META.
 4. **If there are code changes, or no valid SECURITY_META exists:** compute the

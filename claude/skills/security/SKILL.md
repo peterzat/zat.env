@@ -151,9 +151,13 @@ Update (or create) `SECURITY.md` in the project root. Keep only:
 - The current entry
 - A one-paragraph summary of the previous entry (if one exists)
 
+Set the `scope` field in SECURITY_META to the actual review scope: `"full"`,
+`"changes-only"`, or `"paths"`. For path-scoped runs, include `"scanned_files"`
+with the sorted file list so downstream tools can verify coverage.
+
 Format:
 ```markdown
-## Security Review — YYYY-MM-DD (scope: full|changes-only)
+## Security Review — YYYY-MM-DD (scope: full|changes-only|paths)
 
 **Summary:** [1-2 sentence summary]
 
@@ -168,8 +172,11 @@ Format:
 ---
 *Prior review (YYYY-MM-DD): [one sentence summary]*
 
-<!-- SECURITY_META: {"date":"YYYY-MM-DD","commit":"abc1234","scope":"full","block":N,"warn":N,"note":N} -->
+<!-- SECURITY_META: {"date":"YYYY-MM-DD","commit":"<full-HEAD-sha>","scope":"full|changes-only|paths","block":N,"warn":N,"note":N} -->
 ```
+
+For path-scoped runs, add `"scanned_files"` (sorted) to the META JSON:
+`{"scope":"paths","scanned_files":["file1.py","file2.py"],...}`
 
 ## Summary
 
