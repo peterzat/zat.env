@@ -82,12 +82,12 @@ fi
 cat >&2 <<EOF
 Pre-push gate: /codereview has not been run on the current changes.
 
-Run /codereview first. After the review passes (all BLOCK items resolved
-and tests stable), retry the push.
+Run /codereview now. After the review passes (all BLOCK items resolved
+and tests stable), retry the push. Do not offer to skip the review.
 
-To skip codereview for this push, the user can say "push now". If they
-do, create the bypass marker then push (two separate commands, not
-combined, so the hook sees the marker before the push re-runs):
+If the user explicitly says "push now", create the
+bypass marker then push (two separate commands, not combined, so the
+hook sees the marker before the push re-runs):
   codereview-skip
   git push
 EOF
