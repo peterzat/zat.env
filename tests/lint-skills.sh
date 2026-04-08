@@ -258,6 +258,16 @@ else
   fail "marker: exclusion mismatch -- skill=[${SKILL_EXCL% }] hook=[${HOOK_EXCL% }]"
 fi
 
+# Marker hash algorithm must match between skill and hook.
+# Both must use sha256sum truncated to 16 chars with the same diff command.
+SKILL_HASH_CMD=$(grep 'sha256sum.*cut' "${SKILLS}/codereview/SKILL.md" | head -1 | sed 's/.*|//' | xargs)
+HOOK_HASH_CMD=$(grep 'sha256sum.*cut' "${HOOK}" | head -1 | sed 's/.*|//' | xargs)
+if [[ "${SKILL_HASH_CMD}" == "${HOOK_HASH_CMD}" ]] && [[ -n "${SKILL_HASH_CMD}" ]]; then
+  pass "marker: skill and hook use identical hash truncation (${SKILL_HASH_CMD})"
+else
+  fail "marker: hash computation mismatch -- skill=[${SKILL_HASH_CMD}] hook=[${HOOK_HASH_CMD}]"
+fi
+
 # Hook blocks when marker missing or mismatched
 has "${HOOK}" "exit 2" \
   "hook: exits non-zero to block push"
@@ -276,6 +286,55 @@ has "${HOOK}" 'rm.*SKIP_MARKER' \
 # The only rm in the hook should be for SKIP_MARKER, not MARKER.
 has "${HOOK}" "Marker is kept" \
   "hook: codereview marker persists after push (documented)"
+
+# --- Agent boundary risks ---
+# Guards against LLM non-determinism at the prompt/infrastructure boundary.
+# These catch regressions where prompt changes could let the agent bypass
+# hard-coded safety gates or violate role separation.
+
+echo ""
+echo "==> Agent boundary risks"
+
+# Risk: codereview has Bash(*) and could modify source via sed/cat/echo.
+# The "Never fix" principle is the only guard. It must be in the Prompt
+# Design Principles section (read first, before steps) not buried in a step.
+has "${SKILLS}/codereview/SKILL.md" "Prompt Design Principles" \
+  "codereview: has Prompt Design Principles section"
+# The never-fix rule must appear BEFORE the first step (i.e., in the principles,
+# not just somewhere in the file). Extract line numbers and compare.
+NEVER_FIX_LINE=$(grep -n "Never fix code yourself" "${SKILLS}/codereview/SKILL.md" | head -1 | cut -d: -f1)
+FIRST_STEP_LINE=$(grep -n "^## Step 1" "${SKILLS}/codereview/SKILL.md" | head -1 | cut -d: -f1)
+if [[ -n "${NEVER_FIX_LINE}" ]] && [[ -n "${FIRST_STEP_LINE}" ]] && [[ "${NEVER_FIX_LINE}" -lt "${FIRST_STEP_LINE}" ]]; then
+  pass "codereview: never-fix rule appears before Step 1 (line ${NEVER_FIX_LINE} < ${FIRST_STEP_LINE})"
+else
+  fail "codereview: never-fix rule must appear before Step 1 to be read early"
+fi
+
+# Risk: codefix has Bash(*) and could modify CODEREVIEW.md via shell redirect.
+# The "do not modify" list must name all review state files explicitly.
+for f in CODEREVIEW.md SECURITY.md TESTING.md SPEC.md; do
+  has "${SKILLS}/codefix/SKILL.md" "${f}" \
+    "codefix: explicitly names ${f} in do-not-modify list"
+done
+
+# Risk: hook stderr tells the agent how to bypass the gate. The message
+# must say "Do not offer to skip" to prevent autonomous bypass.
+has "${HOOK}" "Do not offer to skip" \
+  "hook: stderr instructs agent not to offer skip"
+has "${HOOK}" "user explicitly says" \
+  "hook: bypass requires explicit user instruction"
+
+# Risk: codereview writes marker via a bash snippet the LLM interprets.
+# If the PROJ_HASH computation drifts between skill and hook, hashes diverge
+# silently (review passes but push is blocked). Both must use the same formula.
+# Compare the hash derivation core (md5sum + cut), ignoring error handling.
+SKILL_PROJ_HASH=$(grep "PROJ_HASH=" "${SKILLS}/codereview/SKILL.md" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+')
+HOOK_PROJ_HASH=$(grep "PROJ_HASH=" "${HOOK}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+')
+if [[ "${SKILL_PROJ_HASH}" == "${HOOK_PROJ_HASH}" ]] && [[ -n "${SKILL_PROJ_HASH}" ]]; then
+  pass "marker: skill and hook use identical PROJ_HASH derivation (${SKILL_PROJ_HASH})"
+else
+  fail "marker: PROJ_HASH derivation mismatch -- skill=[${SKILL_PROJ_HASH}] hook=[${HOOK_PROJ_HASH}]"
+fi
 
 # --- Output verdicts ---
 
