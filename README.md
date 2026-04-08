@@ -836,8 +836,9 @@ Post-install layout (annotated):
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/
 │       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
-│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (75 checks)
-│       │   └── test-review-external.sh # Guard logic and output contract tests for review-external.sh
+│       │   ├── run-all.sh              # Run all test suites with combined summary
+│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (195 checks)
+│       │   └── test-review-external.sh # Guard logic and output contract tests (20 checks)
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering

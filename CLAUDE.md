@@ -27,7 +27,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - Each skill is a self-contained prompt; starts with YAML frontmatter then Markdown instructions
 - Skills must be self-sufficient — they start with empty context and gather their own information
 - Keep each SKILL.md under ~500 lines; use `references/` subdirectory if details grow
-- After modifying any skill or hook, run `tests/lint-skills.sh` to check structural consistency
+- After modifying any skill or hook, run `tests/run-all.sh` to check structural consistency
 
 **Hook scripts** (`hooks/*.sh`):
 - Must be idempotent and have no side effects other than blocking/allowing the action
@@ -49,7 +49,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - **Skip marker path.** The `codereview-skip` script and the pre-push hook must use identical path templates and PROJ_HASH derivation. Lint checks compare these.
 - **Builder/verifier tool boundary.** Codereview cannot Edit/Write (enforced by allowed-tools), but has Bash(*). The "Never fix code yourself" instruction is the only guard against `sed -i`. It is positioned in Prompt Design Principles (before Step 1) so the LLM reads it early. Codefix similarly has Bash(*) and could modify CODEREVIEW.md via shell redirects; the do-not-modify list names each file explicitly.
 
-When editing any skill, hook, or bin script, run `tests/lint-skills.sh` afterward. The structural checks verify these contracts have not drifted. If you add a new contract point (new marker, new cross-skill field, new shared path), add a corresponding lint check.
+When editing any skill, hook, or bin script, run `tests/run-all.sh` afterward. The structural checks verify these contracts have not drifted. If you add a new contract point (new marker, new cross-skill field, new shared path), add a corresponding lint check.
 
 **Upstream fix pattern** — when an issue is discovered while working on a downstream project (skill produces wrong output, convention is missing, prompt needs adjustment), the fix is made in the zat.env repo, never patched locally in a downstream project. Changes to skills, hooks, and global-claude.md affect every project on the machine, so always confirm the intended change with the user before editing. Test the fix by re-running the skill or checking global-claude.md in a downstream project session. The goal is that improvements compound: every fix benefits all future projects.
 

@@ -17,11 +17,13 @@ fail() { TOTAL=$((TOTAL + 1)); FAILS=$((FAILS + 1)); printf '  FAIL %s\n' "$1"; 
 
 has() {
   # has <file> <pattern> <label> — pass if pattern found
+  if [[ ! -f "$1" ]]; then fail "$3 [FILE MISSING: $1]"; return; fi
   if grep -qE "$2" "$1" 2>/dev/null; then pass "$3"; else fail "$3"; fi
 }
 
 hasnt() {
   # hasnt <file> <pattern> <label> — pass if pattern NOT found
+  if [[ ! -f "$1" ]]; then fail "$3 [FILE MISSING: $1]"; return; fi
   if grep -qE "$2" "$1" 2>/dev/null; then fail "$3"; else pass "$3"; fi
 }
 
