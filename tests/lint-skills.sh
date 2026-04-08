@@ -82,16 +82,51 @@ has "${SKILLS}/pr/SKILL.md" "CHANGES_REQUESTED" \
 
 # --- Security chain coverage ---
 # Codereview must verify coverage before skipping /security.
+# The chain has three paths: skip (cached + coverage), file-scoped invoke,
+# and upstream-scoped invoke. Both skills must agree on META fields and
+# invocation contract.
 
 echo ""
 echo "==> Security chain coverage"
 
+# Delegation exists
+has "${SKILLS}/codereview/SKILL.md" "Skill\(security\)" \
+  "codereview: has Skill(security) in allowed-tools"
+
+# Codereview reads SECURITY_META to decide skip-vs-invoke
+has "${SKILLS}/codereview/SKILL.md" "SECURITY_META" \
+  "codereview: reads SECURITY_META"
 has "${SKILLS}/codereview/SKILL.md" "NEEDED" \
   "codereview: computes NEEDED files vs upstream"
 has "${SKILLS}/codereview/SKILL.md" "scanned_files" \
   "codereview: checks scanned_files for coverage"
+has "${SKILLS}/codereview/SKILL.md" "SCAN_FILES" \
+  "codereview: computes SCAN_FILES for scoped invocation"
+
+# Three distinct invocation paths
+has "${SKILLS}/codereview/SKILL.md" "no code changes since last scan" \
+  "codereview: skip path carries forward existing findings"
+has "${SKILLS}/codereview/SKILL.md" "/security.*SCAN_FILES" \
+  "codereview: file-scoped invocation path"
+has "${SKILLS}/codereview/SKILL.md" "no prior scan" \
+  "codereview: upstream-scoped fallback path"
+
+# Skip for light review
+has "${SKILLS}/codereview/SKILL.md" "Skipped for light review" \
+  "codereview: security chain skipped for light review"
+
+# Security accepts file paths as arguments
 has "${SKILLS}/security/SKILL.md" "scope.*paths" \
   "security: supports paths scope"
+has "${SKILLS}/security/SKILL.md" "changes-only" \
+  "security: supports changes-only scope"
+
+# Security severity format matches codereview
+# Security must define all three severity levels
+for sev in BLOCK WARN NOTE; do
+  has "${SKILLS}/security/SKILL.md" "\*\*${sev}\*\*" \
+    "security: defines ${sev} severity"
+done
 
 # --- Builder/verifier separation ---
 # Codereview must not have tools that modify source code.
