@@ -107,17 +107,19 @@ After the user responds, write SPEC.md (Step 4).
 ## Step 3b: Direct Spec Mode (Feature Described in Arguments)
 
 The user provided a description of what to build in `$ARGUMENTS`. Read the codebase
-to understand the current state, then propose acceptance criteria based on the
-description. Present the proposed criteria to the user for confirmation before
-writing SPEC.md.
+to understand the current state, then draft acceptance criteria based on the
+description. Pressure-test them (Step 3.5), then write SPEC.md (Step 4). Present
+the result in Step 5. Do not ask for confirmation before writing; the user expressed
+intent by providing the description, and this skill runs in a forked context that
+cannot do multi-turn confirmation. The user can adjust the spec after seeing it.
 
 **When entering via proposal detection** (no `$ARGUMENTS`, but a `### Proposal`
 section exists in SPEC.md): use the proposal content as the input brief. Read all
 proposal subsections: "What happened," "Questions and directions," and
 "Retrospective" (if present). The retrospective contains user corrections or
 context from the prior turn and must inform the new criteria. Proceed as normal:
-read the codebase, propose acceptance criteria, and present them for confirmation.
-When writing the new spec entry (Step 4), carry relevant details from the
+read the codebase, draft acceptance criteria, pressure-test (Step 3.5), and write
+SPEC.md (Step 4). When writing the new spec entry, carry relevant details from the
 proposal's "What happened" section into the new spec's Context section so the
 coding agent has concrete prior-turn context. Remove the consumed `### Proposal`
 section from SPEC.md.
