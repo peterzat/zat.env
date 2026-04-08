@@ -88,6 +88,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 - `~/.claude/CLAUDE.md` -> `claude/global-claude.md`
 - `~/.claude/skills/spec/` -> `claude/skills/spec/`
 - `~/.claude/skills/codereview/` -> `claude/skills/codereview/`
+- `~/.claude/skills/codefix/` -> `claude/skills/codefix/`
 - `~/.claude/skills/security/` -> `claude/skills/security/`
 - `~/.claude/skills/architect/` -> `claude/skills/architect/`
 - `~/.claude/skills/tester/` -> `claude/skills/tester/`
@@ -217,7 +218,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Trigger:** Runs automatically before any `git push` (via the pre-push hook gate). Also invocable manually.
 
-**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md`, `.txt`, `.gitignore`, `.gitconfig`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live. Light review skips the test suite, security chain, auto-fix loop, and fix verification. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
+**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md`, `.txt`, `.gitignore`, `.gitconfig`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live. Light review skips the test suite, security chain, external reviewers, and fix loop. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
 
 **Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0` and the reviewed commit is an ancestor of HEAD, the skill performs an incremental review scoped to files changed since the prior review. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
 
@@ -933,6 +934,13 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Hero image updated (iPhone with tmux via ShellFish)
 - [x] Pre-push hook skips codereview gate for tag-only pushes
 - [x] Coding practice: do not push or modify remote state without explicit user instruction
+
+### Done (v1.3)
+
+- [x] Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
+- [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google, called synchronously by `/codereview`, fail-open
+- [x] Structural lint checks enforce builder/verifier separation (61 checks total)
+- [x] `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
 
 ### Next up
 
