@@ -133,6 +133,7 @@ jq '
       "Bash(make *)",
       "Bash(. .venv/bin/activate && *)",
       "Skill(codereview)",
+      "Skill(codefix)",
       "Skill(security)"
     ],
     "deny": [
@@ -204,7 +205,7 @@ echo
 echo "Verify:"
 echo "  git st                                    # should work (alias from gitconfig)"
 echo "  ls -la ~/.claude/CLAUDE.md               # should be a symlink"
-echo "  ls -la ~/.claude/skills/                 # should show spec, codereview, security, architect, tester, pr"
+echo "  ls -la ~/.claude/skills/                 # should show spec, codereview, codefix, security, architect, tester, pr"
 echo "  cat ~/.claude/skills/codereview/SKILL.md # should resolve through symlink"
 echo "  ls -la ~/bin/                            # should show symlinks to repo bin/"
 echo "  jq .permissions ~/.claude/settings.json   # should show allow/deny lists

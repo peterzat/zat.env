@@ -1,6 +1,6 @@
 ## Security Review — 2026-04-08 (scope: paths)
 
-**Summary:** Reviewed bin/zatmux, a 36-line tmux session toggle script. Session names are derived from a constrained regex match on $PWD (only single path components under ~/src/), with dots replaced by underscores. No secrets, no external inputs beyond the working directory, no network activity, no injection paths. No findings.
+**Summary:** Reviewed six files: the external reviewer script, install script, test infrastructure (lint, runner, external reviewer tests), and .gitignore. No secrets in source or git history. Config sourcing in review-external.sh reads only from user-controlled paths. LLM response output is regex-filtered before reaching stdout. All temp files use mktemp. No findings.
 
 ### Findings
 
@@ -12,6 +12,6 @@ No security issues identified.
 - **Tag-bypass regex in pre-push hook** (hooks/pre-push-codereview.sh:34): Combined branch+tag push could skip codereview gate. Defense-in-depth gap, not actively exploitable since the hook is advisory and user-controlled. Previously flagged as WARN.
 
 ---
-*Prior review (2026-04-08, scope: paths): Reviewed five scripts (post-hook, lint-skills, install, review-external, orchestrator). No secrets or exploitable issues.*
+*Prior review (2026-04-08, scope: paths): Reviewed bin/zatmux. No secrets or exploitable issues.*
 
-<!-- SECURITY_META: {"date":"2026-04-08","commit":"7b901704bfd96abcbdd070cbbfe4de53076178ce","scope":"paths","scanned_files":["bin/zatmux"],"block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-04-08","commit":"2ae4a3afa2328444fac3f76ea220947ec488943d","scope":"paths","scanned_files":[".gitignore","bin/review-external.sh","tests/lint-skills.sh","tests/run-all.sh","tests/test-review-external.sh","zat.env-install.sh"],"block":0,"warn":0,"note":0} -->
