@@ -42,6 +42,15 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 
 **Coding Practices sync** — the `## Coding Practices` section in `README.md` is a verbatim copy of the bullet points in `claude/global-claude.md`. Whenever `global-claude.md`'s Coding Practices section changes, update `README.md` to match.
 
+**Prompt/infrastructure boundary** — this repo has two kinds of logic: deterministic (hook scripts, helper scripts, marker files) and instructed (skill prompts interpreted by the LLM). These interact at specific contract points that must stay in sync:
+
+- **Marker hash computation.** The codereview skill (Step 8) contains a bash snippet the LLM executes to write the push marker. The pre-push hook recomputes the same hash independently. If the PROJ_HASH derivation, sha256 truncation, or file exclusion list drifts between them, the review passes but the push is blocked. `tests/lint-skills.sh` extracts and compares these values.
+- **REVIEW_META field names.** Codereview writes the JSON footer, refresh detection (Step 2) and /pr merge grep for specific field names. A renamed field breaks the readers silently. Lint checks verify field name identity across all three consumers.
+- **Skip marker path.** The `codereview-skip` script and the pre-push hook must use identical path templates and PROJ_HASH derivation. Lint checks compare these.
+- **Builder/verifier tool boundary.** Codereview cannot Edit/Write (enforced by allowed-tools), but has Bash(*). The "Never fix code yourself" instruction is the only guard against `sed -i`. It is positioned in Prompt Design Principles (before Step 1) so the LLM reads it early. Codefix similarly has Bash(*) and could modify CODEREVIEW.md via shell redirects; the do-not-modify list names each file explicitly.
+
+When editing any skill, hook, or bin script, run `tests/lint-skills.sh` afterward. The structural checks verify these contracts have not drifted. If you add a new contract point (new marker, new cross-skill field, new shared path), add a corresponding lint check.
+
 **Upstream fix pattern** — when an issue is discovered while working on a downstream project (skill produces wrong output, convention is missing, prompt needs adjustment), the fix is made in the zat.env repo, never patched locally in a downstream project. Changes to skills, hooks, and global-claude.md affect every project on the machine, so always confirm the intended change with the user before editing. Test the fix by re-running the skill or checking global-claude.md in a downstream project session. The goal is that improvements compound: every fix benefits all future projects.
 
 ## What NOT to put here
