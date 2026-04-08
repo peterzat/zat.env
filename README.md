@@ -74,7 +74,7 @@ git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
 # Restart Claude Code to pick up skills and hooks
 ```
 
-This installs on any machine with git, jq, and Claude Code. It symlinks skills into `~/.claude/skills/`, wires the pre-push hook into `~/.claude/settings.json`, and sets up git config. Safe to re-run at any time.
+This installs on any machine with git, jq, and Claude Code. It symlinks skills into `~/.claude/skills/`, registers hooks in `~/.claude/settings.json`, prunes stale hook entries, sets up git config, and symlinks helper scripts into `~/bin/`. Safe to re-run at any time.
 
 **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
 
@@ -96,7 +96,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 
 **Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
-- `~/.claude/settings.json` gets hook entries for `hooks/pre-push-codereview.sh` (codereview gate) and `hooks/allow-venv-source.sh` (venv activation auto-approve)
+- `~/.claude/settings.json` gets hook entries for `hooks/pre-push-codereview.sh` (codereview gate) and `hooks/allow-venv-source.sh` (venv activation auto-approve). Stale hook entries (pointing at scripts removed from the repo) are pruned automatically.
 - `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, deny list for dangerous patterns). This block is replaced on each install to prevent session-accumulated cruft.
 
 **Re-run `zat.env-install.sh` when:**
@@ -190,7 +190,7 @@ Defines what done looks like before implementation begins. The output is `SPEC.m
 
 Four modes:
 - **Interview mode** (`/spec new` or first run): asks the user focused questions about goals and acceptance criteria, then writes SPEC.md
-- **Direct mode** (`/spec <description>`): reads the codebase, proposes acceptance criteria for the described feature, confirms with the user. Also activates automatically when SPEC.md contains a proposal section (see propose mode), using the proposal as the input brief.
+- **Direct mode** (`/spec <description>`): reads the codebase, drafts acceptance criteria for the described feature, pressure-tests them, and writes SPEC.md. Also activates automatically when SPEC.md contains a proposal section (see propose mode), using the proposal as the input brief.
 - **Evolve mode** (`/spec` with existing SPEC.md): assesses progress against current criteria, checks off met criteria, and reports progress. When all criteria are met, runs the turn-boundary transition: asks a retrospective ("what did you learn during this turn?"), then generates a proposal for the next turn grounded in git history and current state.
 - **Propose mode** (`/spec propose`): reads the current spec and git history, generates a proposal for the next turn (what happened, key questions, suggested directions), and writes it to SPEC.md for discussion. Useful when evolve was skipped or when pivoting mid-turn.
 
@@ -933,7 +933,7 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Shared system boundary and upstream fix pattern documented in global conventions
 - [x] Memory section added to global conventions with promotion guidance
 - [x] Global permissions allowlist/denylist managed by install script
-- [x] Pre-push hook: bypass marker consumed after successful push; "push now" bypass for trivial changes
+- [x] Pre-push hook: bypass marker consumed on use; "push now" bypass for trivial changes
 - [x] Hero image updated (iPhone with tmux via ShellFish)
 - [x] Pre-push hook skips codereview gate for tag-only pushes
 - [x] Coding practice: do not push or modify remote state without explicit user instruction
@@ -942,8 +942,11 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 - [x] Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
 - [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google, called synchronously by `/codereview`, fail-open
-- [x] Structural lint checks enforce builder/verifier separation (61 checks total)
+- [x] Structural lint suite (215 checks across 21 categories) covering builder/verifier separation, marker contracts, agent boundary risks, concurrency safety, and cross-skill field identity
 - [x] `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
+- [x] Install script prunes stale hook entries from settings.json on re-run
+- [x] Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
+- [x] Test runner (`tests/run-all.sh`) with combined summary across all suites
 
 ### Next up
 
