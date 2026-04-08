@@ -254,9 +254,10 @@ If `review-external.sh` is on PATH, run it synchronously with the diff:
 
 ```bash
 UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
-EXTERNAL_FINDINGS=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>/tmp/.claude-external-cost.log)
-EXTERNAL_COST=$(cat /tmp/.claude-external-cost.log 2>/dev/null)
-rm -f /tmp/.claude-external-cost.log
+COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
+EXTERNAL_FINDINGS=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
+EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
+rm -f "${COST_LOG}"
 ```
 
 If the script is not on PATH, or produces no output, skip silently. If it

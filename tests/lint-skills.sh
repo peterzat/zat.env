@@ -248,17 +248,34 @@ has "${SKILLS}/codereview/SKILL.md" "Do NOT write the marker.*BLOCK.*remain" \
 has "${SKILLS}/codereview/SKILL.md" "Do NOT write the marker.*tests regressed" \
   "codereview: no marker when tests regressed"
 
-# Marker hash exclusions must match between skill and hook
-has "${SKILLS}/codereview/SKILL.md" ':!CODEREVIEW.*:!SECURITY.*:!TESTING.*:!SPEC.*sha256sum' \
-  "codereview: marker hash excludes review files"
-has "${HOOK}" ':!CODEREVIEW.*:!SECURITY.*:!TESTING.*:!SPEC.*sha256sum' \
-  "hook: marker hash excludes same review files as skill"
+# Marker hash exclusions must be identical between skill and hook.
+# Extract the exclusion patterns and compare them directly.
+SKILL_EXCL=$(grep -oP ":![A-Z_.]+" "${SKILLS}/codereview/SKILL.md" | sort -u | tr '\n' ' ')
+HOOK_EXCL=$(grep -oP ":![A-Z_.]+" "${HOOK}" | sort -u | tr '\n' ' ')
+if [[ "${SKILL_EXCL}" == "${HOOK_EXCL}" ]] && [[ -n "${SKILL_EXCL}" ]]; then
+  pass "marker: skill and hook exclude identical review files (${SKILL_EXCL% })"
+else
+  fail "marker: exclusion mismatch -- skill=[${SKILL_EXCL% }] hook=[${HOOK_EXCL% }]"
+fi
 
 # Hook blocks when marker missing or mismatched
 has "${HOOK}" "exit 2" \
   "hook: exits non-zero to block push"
 has "${HOOK}" 'STORED_HASH.*DIFF_HASH' \
   "hook: compares stored marker hash against current diff"
+
+# Hook: tag-only pushes bypass gate
+has "${HOOK}" "TAG_PATTERN" \
+  "hook: tag-only pushes skip codereview gate"
+
+# Hook: skip marker consumed on use (rm before exit 0)
+has "${HOOK}" 'rm.*SKIP_MARKER' \
+  "hook: skip marker consumed on use"
+
+# Hook: codereview marker persists after push (NOT consumed).
+# The only rm in the hook should be for SKIP_MARKER, not MARKER.
+has "${HOOK}" "Marker is kept" \
+  "hook: codereview marker persists after push (documented)"
 
 # --- Output verdicts ---
 
@@ -281,6 +298,68 @@ for field in date commit reviewed_up_to base tier block warn note; do
   has "${SKILLS}/codereview/SKILL.md" "\"${field}\"" \
     "codereview: REVIEW_META has '${field}' field"
 done
+
+# --- Carry-forward severity ---
+# Codereview Step 1 must handle prior findings correctly.
+
+echo ""
+echo "==> Carry-forward severity"
+
+has "${SKILLS}/codereview/SKILL.md" "Listed in Accepted Risks.*downgrade to NOTE" \
+  "codereview: Accepted Risks findings downgrade to NOTE"
+has "${SKILLS}/codereview/SKILL.md" "Not listed in Accepted Risks.*re-report at original severity" \
+  "codereview: non-accepted findings re-report at original severity"
+has "${SKILLS}/codereview/SKILL.md" "Do not auto-fix.*explicit human decision" \
+  "codereview: Accepted Risks findings are not auto-fixed"
+has "${SKILLS}/codereview/SKILL.md" "Unreviewed findings must not silently lose severity" \
+  "codereview: unreviewed findings must not silently lose severity"
+has "${SKILLS}/codereview/SKILL.md" "Carry forward the Accepted Risks section" \
+  "codereview: Accepted Risks carried forward across reviews"
+
+# --- Cross-skill context graph ---
+# Structural enforcement of the DAG: who reads what, terminal nodes.
+
+echo ""
+echo "==> Cross-skill context graph"
+
+# Codereview reads SPEC.md for spec alignment
+has "${SKILLS}/codereview/SKILL.md" "SPEC.md.*acceptance criteria" \
+  "codereview: reads SPEC.md for spec alignment"
+has "${SKILLS}/codereview/SKILL.md" "Spec alignment" \
+  "codereview: spec alignment is a review dimension"
+has "${SKILLS}/codereview/SKILL.md" "no SPEC.md.*skip silently" \
+  "codereview: no SPEC.md does not nag"
+
+# Architect is a terminal node (no persistent output file)
+has "${SKILLS}/architect/SKILL.md" "does not produce a persistent" \
+  "architect: terminal node (no persistent output file)"
+
+# NOTE severity is never auto-fixed (codereview declares it, codefix enforces it)
+has "${SKILLS}/codereview/SKILL.md" "Do not auto-fix these" \
+  "codereview: NOTE findings not auto-fixed"
+
+# --- Pressure test existence ---
+# Review skills must have a pressure-test step to catch false positives.
+
+echo ""
+echo "==> Pressure test existence"
+
+has "${SKILLS}/codereview/SKILL.md" "Step 4.5.*Pressure Test" \
+  "codereview: has pressure test step"
+has "${SKILLS}/security/SKILL.md" "Step 3.5.*Pressure Test" \
+  "security: has pressure test step"
+
+# --- Codefix additional constraints ---
+
+echo ""
+echo "==> Codefix constraints"
+
+has "${SKILLS}/codefix/SKILL.md" "One fix at a time" \
+  "codefix: one-fix-at-a-time constraint"
+has "${SKILLS}/codefix/SKILL.md" "No self-evaluation" \
+  "codefix: no self-evaluation principle"
+has "${SKILLS}/codefix/SKILL.md" "Do not.*re-run the review" \
+  "codefix: does not re-run review"
 
 # --- External reviewer integration ---
 # Codereview Step 5.5 must call review-external.sh correctly.
@@ -311,6 +390,10 @@ has "${SKILLS}/codereview/SKILL.md" "2>" \
   "codereview: captures external stderr separately"
 has "${SKILLS}/codereview/SKILL.md" "cost log" \
   "codereview: routes cost log to CODEREVIEW.md"
+
+# Cost log uses mktemp, not a fixed global path (prevents concurrent collision)
+has "${SKILLS}/codereview/SKILL.md" "mktemp.*/tmp/.*cost" \
+  "codereview: cost log uses mktemp (no fixed /tmp path)"
 
 # CODEREVIEW.md template covers all exit states
 has "${SKILLS}/codereview/SKILL.md" "External reviewers:" \
