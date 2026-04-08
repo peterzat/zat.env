@@ -144,6 +144,25 @@ jq '
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Set permissions (defaultMode, allow list, deny list)"
 
+# Prune hooks that point at zat.env scripts that no longer exist on disk.
+# This cleans up after hooks are removed from the repo (e.g., external reviewer hooks).
+STALE_HOOKS=""
+for event in PreToolUse PostToolUse; do
+  for cmd in $(jq -r ".hooks.${event} // [] | .[].hooks[]? | .command // empty" "${SETTINGS_FILE}" 2>/dev/null); do
+    # Extract the script path from "bash /path/to/script.sh"
+    script="${cmd#bash }"
+    if [[ "${script}" == "${REPO_DIR}/hooks/"* ]] && [[ ! -f "${script}" ]]; then
+      STALE_HOOKS="${STALE_HOOKS} ${script}"
+      basename_script="$(basename "${script}")"
+      jq --arg pattern "${basename_script}" "
+        .hooks.${event} = [.hooks.${event}[] | select(.hooks | map(.command // \"\" | test(\$pattern)) | any | not)] |
+        if (.hooks.${event} // []) == [] then del(.hooks.${event}) else . end
+      " "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+      echo "    Removed stale hook: ${basename_script}"
+    fi
+  done
+done
+
 # Remove any existing pre-push-codereview entry (may be old format without "if" field),
 # then add the current version. This keeps the hook config up to date on re-runs.
 HOOK_COMMAND="bash ${REPO_DIR}/hooks/pre-push-codereview.sh"
