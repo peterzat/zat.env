@@ -8,7 +8,7 @@
 
 <br>
 
-Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get specification, adversarial code review, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation and optional multi-model reviewers (OpenAI, Google), security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
@@ -230,12 +230,17 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 6. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
 7. Chains to `/security` scoped to files changed since the last security scan (or since upstream if no prior scan). If no code files changed since the prior scan, carries forward existing findings instead of re-invoking.
 8. Reports findings as BLOCK / WARN / NOTE with evidence citations
-9. Auto-fixes BLOCK and WARN items with **escalating conservatism**: iteration 1 fixes normally (one issue at a time, max 20 lines per fix); iteration 2 requires explaining why the prior fix failed before retrying; iteration 3 stops and reports to the human
-10. Re-runs tests after fixing; reverts any fix that causes test regression
-11. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
-12. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
+9. Runs optional external reviewers (OpenAI, Google) via `review-external.sh` if configured; findings tagged with provider name
+10. Delegates BLOCK/WARN fixes to `/codefix`, a separate skill that runs in its own forked context (builder/verifier separation, up to 3 fix/re-review cycles)
+11. Re-runs tests after each fix cycle; stops if tests regress
+12. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
+13. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
 
 **Pressure test (full review only).** After evaluating all review dimensions and before writing findings, a structured pressure-test checkpoint verifies bugs are confirmed rather than suspected, checks that regression risk claims trace actual callers, filters style-as-substance false positives, and reconsiders solution approach. Skipped for light reviews. The skill runs at `effort: max` via frontmatter.
+
+**Builder/verifier separation.** The reviewer never fixes code itself. When BLOCK or WARN findings exist, it writes CODEREVIEW.md and delegates to `/codefix`, a separate skill that runs in its own forked context with no memory of the review's reasoning. Codefix reads findings as a spec and applies minimal fixes. The reviewer then re-evaluates independently. No agent grades its own work.
+
+**External reviewers (optional).** When API keys are configured in `~/.config/claude-reviewers/.env`, the codereview skill pipes the diff through `review-external.sh` to get independent findings from OpenAI and/or Google models. Findings are tagged with the provider name. External reviewers fail open: missing config, empty input, or API errors produce no findings. Runs once at initial review, not during fix/re-review cycles.
 
 **Key guard:** Never deletes, skips, or weakens existing tests to make them pass. Fixes the code, not the tests.
 
@@ -353,8 +358,8 @@ All skills use a consistent three-level severity model:
 
 | Level | Meaning | Gates push? | Action |
 |-------|---------|-------------|--------|
-| **BLOCK** | Must fix before pushing | Yes | Auto-fixed by codereview; others report to human |
-| **WARN** | Should fix; significant gap | No | Auto-fixed by codereview; others report to human |
+| **BLOCK** | Must fix before pushing | Yes | Auto-fixed by /codefix; others report to human |
+| **WARN** | Should fix; significant gap | No | Auto-fixed by /codefix; others report to human |
 | **NOTE** | Informational; improvement opportunity | No | Reported only, never auto-fixed |
 
 The pre-push gate passes when all BLOCKs are resolved and tests have not regressed. Unresolved WARNs are reported but do not block the push. Findings carried forward from a prior review retain their original severity unless the human explicitly adds them to the Accepted Risks section of CODEREVIEW.md.
@@ -490,7 +495,7 @@ The current system is at **Gated**. The skills and persistent files are the foun
 
 **Circular amplification.** A NOTE becomes a BLOCK through cross-skill contamination (codereview flags something, security escalates it, architect recommends refactor, codereview flags code for not following the recommendation). Countered by: scoped reads (most recent entry only), terminal nodes (architect produces no persistent file), independent severity assessment.
 
-**Auto-fix oscillation.** Fix A breaks B, fix B reintroduces A. Countered by: escalating conservatism on iterations 2-3, one-issue-per-fix cap, 20-line-per-fix cap, stop after 3 attempts.
+**Auto-fix oscillation.** Fix A breaks B, fix B reintroduces A. Countered by: builder/verifier separation (codefix runs in a separate forked context from the reviewer), one-issue-per-fix cap, 20-line-per-fix cap, 3-cycle limit, independent re-review after each fix cycle.
 
 **Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary.
 
@@ -787,6 +792,7 @@ Post-install layout (annotated):
 ├── bin/                              # Helper scripts (symlinked into ~/bin by install)
 │   ├── claude-fixed-reasoning         # Launch claude with fixed thinking budget (no adaptive)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
+│   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
 │   └── zatmux                        # Attach/create tmux session based on current dir
 │
 ├── data/                             # Shared large datasets and model files (not in git)
@@ -808,6 +814,8 @@ Post-install layout (annotated):
 │       │       │   └── SKILL.md
 │       │       ├── codereview/       # /codereview: adversarial code review
 │       │       │   └── SKILL.md
+│       │       ├── codefix/         # /codefix: fix review findings (invoked by codereview)
+│       │       │   └── SKILL.md
 │       │       ├── security/         # /security: security audit
 │       │       │   └── SKILL.md
 │       │       ├── architect/        # /architect: architecture review
@@ -825,7 +833,8 @@ Post-install layout (annotated):
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/
 │       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
-│       │   └── lint-skills.sh          # Structural lint for skills and hooks (44 checks)
+│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (61 checks)
+│       │   └── test-review-external.sh # Guard logic and output contract tests for review-external.sh
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering
@@ -837,6 +846,7 @@ Post-install layout (annotated):
 │   └── skills/                       # Symlinks to skill directories in this repo
 │       ├── spec       -> ~/src/zat.env/claude/skills/spec/
 │       ├── codereview -> ~/src/zat.env/claude/skills/codereview/
+│       ├── codefix    -> ~/src/zat.env/claude/skills/codefix/
 │       ├── security   -> ~/src/zat.env/claude/skills/security/
 │       ├── architect  -> ~/src/zat.env/claude/skills/architect/
 │       ├── tester     -> ~/src/zat.env/claude/skills/tester/

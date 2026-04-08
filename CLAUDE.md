@@ -10,7 +10,8 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks, skills, hooks)
 - `claude/global-claude.md` — machine-wide Claude conventions
 - `claude/references/` — detailed reference docs (networking, ML/GPU) read on demand
-- `claude/skills/` — global Claude Code skills: `/spec`, `/codereview`, `/security`, `/architect`, `/tester`, `/pr`
+- `claude/skills/` — global Claude Code skills: `/spec`, `/codereview`, `/codefix`, `/security`, `/architect`, `/tester`, `/pr`
+- `bin/review-external.sh` — optional external multi-model reviewer (stdin diff, stdout findings)
 - `gitconfig/` — versioned git aliases and global gitignore, included via `~/.gitconfig`
 - `hooks/` — Claude Code hooks; `pre-push-codereview.sh` gates git push on passing `/codereview`
 
