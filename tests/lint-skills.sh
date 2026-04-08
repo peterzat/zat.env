@@ -128,6 +128,32 @@ for sev in BLOCK WARN NOTE; do
     "security: defines ${sev} severity"
 done
 
+# --- Codereview flow gating ---
+# Entry paths, tier classification, and early exits.
+
+echo ""
+echo "==> Codereview flow gating"
+
+# Early exit: nothing to review
+has "${SKILLS}/codereview/SKILL.md" "nothing to review.*stop" \
+  "codereview: early exit when nothing to review"
+
+# Light review skip list names all skipped steps
+for step in 3 5 5.5 6.5 7; do
+  has "${SKILLS}/codereview/SKILL.md" "skip Steps.*${step}" \
+    "codereview: light review skips Step ${step}"
+done
+
+# Refresh review detection
+has "${SKILLS}/codereview/SKILL.md" "refresh detection" \
+  "codereview: documents refresh review detection"
+has "${SKILLS}/codereview/SKILL.md" "refresh review.*compute.*file sets" \
+  "codereview: refresh review computes focus and already-reviewed sets"
+
+# Config format extensions (.json, .yaml etc.) get full review
+has "${SKILLS}/codereview/SKILL.md" 'json.*yaml.*toml' \
+  "codereview: config formats get full review (not light)"
+
 # --- Builder/verifier separation ---
 # Codereview must not have tools that modify source code.
 # Codefix must have tools to modify code but must not invoke skills.
@@ -158,19 +184,41 @@ has "${SKILLS}/codereview/SKILL.md" "Never fix code yourself" \
 echo ""
 echo "==> Codereview/codefix handoff contracts"
 
-# Step 6.5 must write CODEREVIEW.md before invoking codefix
+# --- Step 6.5: preliminary write gating ---
 has "${SKILLS}/codereview/SKILL.md" "Step 6.5.*Preliminary CODEREVIEW" \
   "codereview: Step 6.5 writes preliminary CODEREVIEW.md before codefix"
 has "${SKILLS}/codereview/SKILL.md" "findings must be on disk before.*invoked" \
   "codereview: documents why preliminary write is needed"
+has "${SKILLS}/codereview/SKILL.md" "no BLOCK.WARN findings exist.*skip" \
+  "codereview: Step 6.5 skipped when no BLOCK/WARN findings"
 
-# Step 7 delegates to codefix with a cycle limit
+# --- Step 7: fix loop structure ---
 has "${SKILLS}/codereview/SKILL.md" "Step 7.*Fix.*Loop" \
   "codereview: Step 7 is the fix/re-review loop"
 has "${SKILLS}/codereview/SKILL.md" "Cycle limit: 3" \
   "codereview: 3-cycle cap on fix loop"
+has "${SKILLS}/codereview/SKILL.md" "without updating CODEREVIEW.md first" \
+  "codereview: must update CODEREVIEW.md before re-invoking codefix"
 
-# Codefix reads the same severity tags that codereview writes
+# Terminal states: fix success vs. failure
+has "${SKILLS}/codereview/SKILL.md" "requires manual intervention" \
+  "codereview: escalates to human after cycle limit"
+has "${SKILLS}/codereview/SKILL.md" "tests regressed.*fix cycle fails" \
+  "codereview: test regression fails the fix cycle"
+has "${SKILLS}/codereview/SKILL.md" "attempt further fixes" \
+  "codereview: stops after cycle limit (no infinite loop)"
+
+# Re-review after codefix
+has "${SKILLS}/codereview/SKILL.md" "After codefix completes.*re-review" \
+  "codereview: re-reviews after each codefix pass"
+has "${SKILLS}/codereview/SKILL.md" "re-run it after each codefix" \
+  "codereview: re-runs tests after each codefix pass"
+
+# Codereview must not re-run external reviewers during fix cycles
+has "${SKILLS}/codereview/SKILL.md" "Do NOT re-run" \
+  "codereview: no external reviewers during fix/re-review cycles"
+
+# --- Finding format contract ---
 has "${SKILLS}/codefix/SKILL.md" "BLOCK.*WARN" \
   "codefix: parses BLOCK and WARN severities"
 has "${SKILLS}/codereview/SKILL.md" '^\[SEVERITY\]' \
@@ -178,13 +226,61 @@ has "${SKILLS}/codereview/SKILL.md" '^\[SEVERITY\]' \
 has "${SKILLS}/codefix/SKILL.md" "file.*line" \
   "codefix: parses file and line from findings"
 
-# Codefix must not modify review state files
+# --- Codefix constraints ---
 has "${SKILLS}/codefix/SKILL.md" "Modify CODEREVIEW.md" \
   "codefix: explicitly told not to modify CODEREVIEW.md"
+has "${SKILLS}/codefix/SKILL.md" "Ignore NOTE" \
+  "codefix: does not auto-fix NOTE findings"
+has "${SKILLS}/codefix/SKILL.md" "more than 20 lines" \
+  "codefix: 20-line-per-fix cap"
+has "${SKILLS}/codefix/SKILL.md" "syntax.check" \
+  "codefix: syntax-checks after each fix"
 
-# Codereview must not re-run external reviewers during fix cycles
-has "${SKILLS}/codereview/SKILL.md" "Do NOT re-run" \
-  "codereview: no external reviewers during fix/re-review cycles"
+# --- Marker file gating (Step 8) ---
+
+echo ""
+echo "==> Marker file gating"
+
+has "${SKILLS}/codereview/SKILL.md" "all BLOCKs are resolved AND tests did not regress" \
+  "codereview: marker requires BLOCKs resolved AND tests stable"
+has "${SKILLS}/codereview/SKILL.md" "Do NOT write the marker.*BLOCK.*remain" \
+  "codereview: no marker when BLOCKs remain"
+has "${SKILLS}/codereview/SKILL.md" "Do NOT write the marker.*tests regressed" \
+  "codereview: no marker when tests regressed"
+
+# Marker hash exclusions must match between skill and hook
+has "${SKILLS}/codereview/SKILL.md" ':!CODEREVIEW.*:!SECURITY.*:!TESTING.*:!SPEC.*sha256sum' \
+  "codereview: marker hash excludes review files"
+has "${HOOK}" ':!CODEREVIEW.*:!SECURITY.*:!TESTING.*:!SPEC.*sha256sum' \
+  "hook: marker hash excludes same review files as skill"
+
+# Hook blocks when marker missing or mismatched
+has "${HOOK}" "exit 2" \
+  "hook: exits non-zero to block push"
+has "${HOOK}" 'STORED_HASH.*DIFF_HASH' \
+  "hook: compares stored marker hash against current diff"
+
+# --- Output verdicts ---
+
+echo ""
+echo "==> Output verdicts"
+
+has "${SKILLS}/codereview/SKILL.md" "Changes are ready to push" \
+  "codereview: success verdict documented"
+has "${SKILLS}/codereview/SKILL.md" "BLOCKED.*require manual intervention" \
+  "codereview: failure verdict documented"
+
+# CODEREVIEW.md template completeness
+has "${SKILLS}/codereview/SKILL.md" "No issues found" \
+  "codereview: template covers clean-review state"
+has "${SKILLS}/codereview/SKILL.md" "Fixes Applied" \
+  "codereview: template has Fixes Applied section"
+has "${SKILLS}/codereview/SKILL.md" "REVIEW_META" \
+  "codereview: template has REVIEW_META footer"
+for field in date commit reviewed_up_to base tier block warn note; do
+  has "${SKILLS}/codereview/SKILL.md" "\"${field}\"" \
+    "codereview: REVIEW_META has '${field}' field"
+done
 
 # --- External reviewer integration ---
 # Codereview Step 5.5 must call review-external.sh correctly.
