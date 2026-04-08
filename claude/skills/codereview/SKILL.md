@@ -82,8 +82,9 @@ If there is truly nothing to review, report that and stop.
   dependencies, feature flags).
 - **Full review**: any code file is modified, or you are uncertain.
 
-If light review: skip Steps 3, 5, 6.5, and 7 (no test suite run, no security
-chain, no fix loop). Proceed directly to Step 4 (Review) with a reduced scope:
+If light review: skip Steps 3, 5, 5.5, 6.5, and 7 (no test suite run, no
+security chain, no external reviewers, no fix loop). Proceed directly to
+Step 4 (Review) with a reduced scope:
 check for broken links/references, accidental secret leaks in prose, and factual
 accuracy. Then skip to Step 6 (Report), Step 8 (Marker), and Step 9 (Update
 CODEREVIEW.md).
@@ -245,6 +246,27 @@ current state:
    re-scanning files the prior review already covered. Incorporate its
    findings into the final report.
 
+## Step 5.5: External Reviewers (optional)
+
+*Skipped for light review.*
+
+If `review-external.sh` is on PATH, run it synchronously with the diff:
+
+```bash
+UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
+EXTERNAL_FINDINGS=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>/tmp/.claude-external-cost.log)
+EXTERNAL_COST=$(cat /tmp/.claude-external-cost.log 2>/dev/null)
+rm -f /tmp/.claude-external-cost.log
+```
+
+If the script is not on PATH, or produces no output, skip silently. If it
+produces findings, include them in your report (Step 6) with provider tags
+preserved. Include the cost log lines in the "External reviewers" section
+of CODEREVIEW.md (Step 9).
+
+External reviewers run once at initial review. Do NOT re-run them during
+fix/re-review cycles (Step 7).
+
 ## Step 6: Report
 
 For refresh reviews, begin the report with a scope line:
@@ -339,13 +361,18 @@ Format:
 
 **Summary:** [1-2 sentence summary of what was reviewed]
 
+**External reviewers:**
+[Cost log lines from Step 5.5, or "None configured." or "Skipped (light review)."]
+
 ### Findings
 
-[findings list, or "No issues found."]
+[findings list, or "No issues found."
+Preserve the (provider) tag on any external reviewer findings.]
 
 ### Fixes Applied
 
-[list of auto-fixes, or "None."]
+[list of auto-fixes with provider attribution if the finding came from an
+external reviewer, or "None."]
 
 ### Accepted Risks
 
