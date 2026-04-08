@@ -4,6 +4,9 @@
 *.key
 *.secret
 
+# Local working notes
+TODO.md
+
 # Editor / OS junk
 .DS_Store
 *~
