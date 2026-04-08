@@ -629,7 +629,9 @@ echo ""
 echo "==> Shellcheck"
 
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in "${REPO_DIR}/hooks"/*.sh "${REPO_DIR}/bin"/*; do
+  for script in "${REPO_DIR}/hooks"/*.sh "${REPO_DIR}/bin"/* \
+                "${REPO_DIR}/hw-bootstrap.sh" "${REPO_DIR}/zat.env-install.sh" \
+                "${REPO_DIR}/tests"/*.sh; do
     [[ -f "${script}" ]] || continue
     name="$(basename "${script}")"
     if shellcheck -S warning "${script}" >/dev/null 2>&1; then

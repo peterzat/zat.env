@@ -66,7 +66,7 @@ echo ""
 echo "==> Empty config: exits 0, no output"
 # ============================================================
 
-> "${REVIEWER_ENV}"
+true > "${REVIEWER_ENV}"
 STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>/dev/null)
 EXIT_CODE=$?
 if [[ "${EXIT_CODE}" -eq 0 ]]; then
@@ -226,7 +226,7 @@ echo "==> Script reads from stdin (not arguments)"
 
 # Verify the script does not require positional arguments.
 # With no config, it should exit 0 regardless of args.
-> "${REVIEWER_ENV}"
+true > "${REVIEWER_ENV}"
 STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>/dev/null)
 EXIT_CODE=$?
 if [[ "${EXIT_CODE}" -eq 0 ]]; then
