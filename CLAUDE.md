@@ -38,7 +38,7 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - `gitconfig/aliases.gitconfig` uses `[alias]` block — plain git alias syntax
 - `gitconfig/ignore-global` is a plain gitignore file (no ini sections)
 
-**README.md** — keep the directory overview section updated whenever the repo structure changes.
+**README.md vs. CLAUDE.md audience split** — CLAUDE.md is for developers working on this repo: what to check, what must stay in sync, how to test. README.md is for downstream users: how the system works, the design philosophy, what to expect. They serve different purposes and should not repeat each other. Operational guidance (contract points, lint instructions) goes in CLAUDE.md. Conceptual explanations (enforcement model, trade-offs) go in README.md. Keep the directory overview section in README.md updated whenever the repo structure changes.
 
 **Coding Practices sync** — the `## Coding Practices` section in `README.md` is a verbatim copy of the bullet points in `claude/global-claude.md`. Whenever `global-claude.md`'s Coding Practices section changes, update `README.md` to match.
 
