@@ -166,11 +166,81 @@ fi
 
 # ============================================================
 echo ""
+echo "==> Invalid GEMINI_EFFORT: exits 0, error on stderr"
+# ============================================================
+
+cat > "${REVIEWER_ENV}" <<'EOF'
+GEMINI_API_KEY=fake-google-key
+GEMINI_EFFORT=high
+EOF
+
+STDERR_FILE=$(mktemp)
+STDOUT=$(echo "--- a/test.sh\n+++ b/test.sh\n@@ -1 +1 @@\n-old\n+new" | bash "${SCRIPT}" 2>"${STDERR_FILE}")
+EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "invalid effort: exit code 0 (fail-open)"
+else
+  fail "invalid effort: exit code ${EXIT_CODE}"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "invalid effort: no findings on stdout"
+else
+  fail "invalid effort: unexpected stdout: ${STDOUT}"
+fi
+if [[ "${STDERR}" == *"not a valid number"* ]]; then
+  pass "invalid effort: descriptive error on stderr"
+else
+  fail "invalid effort: expected validation error on stderr: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> Both providers invalid: exits 0, both get stderr errors"
+# ============================================================
+
+cat > "${REVIEWER_ENV}" <<'EOF'
+OPENAI_API_KEY=sk-invalid-test-key
+GEMINI_API_KEY=fake-google-key
+EOF
+
+STDERR_FILE=$(mktemp)
+STDOUT=$(echo "--- a/test.sh\n+++ b/test.sh\n@@ -1 +1 @@\n-old\n+new" | bash "${SCRIPT}" 2>"${STDERR_FILE}")
+EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "both invalid: exit code 0 (fail-open)"
+else
+  fail "both invalid: exit code ${EXIT_CODE}"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "both invalid: no findings on stdout"
+else
+  fail "both invalid: unexpected stdout: ${STDOUT}"
+fi
+if [[ "${STDERR}" == *"[openai]"* ]]; then
+  pass "both invalid: openai error on stderr"
+else
+  fail "both invalid: missing openai error on stderr"
+fi
+if [[ "${STDERR}" == *"[google]"* ]]; then
+  pass "both invalid: google error on stderr"
+else
+  fail "both invalid: missing google error on stderr"
+fi
+
+# ============================================================
+echo ""
 echo "==> Script reads from stdin (not arguments)"
 # ============================================================
 
 # Verify the script does not require positional arguments.
 # With no config, it should exit 0 regardless of args.
+> "${REVIEWER_ENV}"
 STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>/dev/null)
 EXIT_CODE=$?
 if [[ "${EXIT_CODE}" -eq 0 ]]; then

@@ -192,16 +192,62 @@ has "${SKILLS}/codereview/SKILL.md" "Do NOT re-run" \
 echo ""
 echo "==> External reviewer integration"
 
+# Skill step exists and references the script
 has "${SKILLS}/codereview/SKILL.md" "Step 5.5.*External" \
   "codereview: Step 5.5 is external reviewer step"
 has "${SKILLS}/codereview/SKILL.md" "review-external.sh" \
   "codereview: references review-external.sh by name"
+
+# Gating: when it runs vs. when it's skipped
 has "${SKILLS}/codereview/SKILL.md" "Skipped for light review" \
   "codereview: external reviewers skipped for light review"
 has "${SKILLS}/codereview/SKILL.md" "External reviewers.*once.*initial review" \
   "codereview: external reviewers run once only"
+has "${SKILLS}/codereview/SKILL.md" "not on PATH.*skip silently" \
+  "codereview: silent skip when script missing or no output"
+
+# Diff excludes review files (same exclusions as marker hash)
+has "${SKILLS}/codereview/SKILL.md" ":!CODEREVIEW.*review-external" \
+  "codereview: diff piped to external excludes review files"
+
+# Stderr capture and cost log routing
+has "${SKILLS}/codereview/SKILL.md" "2>" \
+  "codereview: captures external stderr separately"
+has "${SKILLS}/codereview/SKILL.md" "cost log" \
+  "codereview: routes cost log to CODEREVIEW.md"
+
+# CODEREVIEW.md template covers all exit states
+has "${SKILLS}/codereview/SKILL.md" "External reviewers:" \
+  "codereview: CODEREVIEW.md template has External reviewers section"
+has "${SKILLS}/codereview/SKILL.md" "None configured" \
+  "codereview: template covers no-providers-configured state"
+has "${SKILLS}/codereview/SKILL.md" 'Skipped.*light review' \
+  "codereview: template covers light-review skip state"
+
+# Provider tag preservation through to findings and fixes
 has "${SKILLS}/codereview/SKILL.md" "provider.*tag" \
   "codereview: preserves provider tags in findings"
+has "${SKILLS}/codereview/SKILL.md" "provider attribution" \
+  "codereview: fixes section attributes external findings to provider"
+
+# Script-level contracts (structural, not runtime)
+SCRIPT="${REPO_DIR}/bin/review-external.sh"
+has "${SCRIPT}" "REVIEW_TIMEOUT" \
+  "script: configurable per-provider timeout"
+has "${SCRIPT}" 'max-time.*TIMEOUT' \
+  "script: timeout applied to curl calls"
+has "${SCRIPT}" "GEMINI_EFFORT.*not a valid" \
+  "script: validates GEMINI_EFFORT is numeric"
+has "${SCRIPT}" 'BLOCK.WARN.NOTE' \
+  "script: output format uses BLOCK/WARN/NOTE severity tags"
+has "${SCRIPT}" 'sed.*openai' \
+  "script: tags openai findings with provider name"
+has "${SCRIPT}" 'sed.*google' \
+  "script: tags google findings with provider name"
+has "${SCRIPT}" "exit 0" \
+  "script: always exits 0 (fail-open)"
+hasnt "${SCRIPT}" "exit 1" \
+  "script: never exits non-zero on provider failure"
 
 # --- Codereview bypass ---
 # Skill description must not contain bypass instructions.
