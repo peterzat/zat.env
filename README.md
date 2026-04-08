@@ -834,7 +834,7 @@ Post-install layout (annotated):
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/
 │       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
-│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (61 checks)
+│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (75 checks)
 │       │   └── test-review-external.sh # Guard logic and output contract tests for review-external.sh
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV

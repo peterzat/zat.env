@@ -117,6 +117,57 @@ hasnt "${SKILLS}/codereview/SKILL.md" "^allowed-tools:.*Write" \
 has "${SKILLS}/codereview/SKILL.md" "Never fix code yourself" \
   "codereview: explicit no-fix principle"
 
+# --- Codereview/codefix handoff contracts ---
+# The two skills must agree on formats, steps, and cycle limits.
+
+echo ""
+echo "==> Codereview/codefix handoff contracts"
+
+# Step 6.5 must write CODEREVIEW.md before invoking codefix
+has "${SKILLS}/codereview/SKILL.md" "Step 6.5.*Preliminary CODEREVIEW" \
+  "codereview: Step 6.5 writes preliminary CODEREVIEW.md before codefix"
+has "${SKILLS}/codereview/SKILL.md" "findings must be on disk before.*invoked" \
+  "codereview: documents why preliminary write is needed"
+
+# Step 7 delegates to codefix with a cycle limit
+has "${SKILLS}/codereview/SKILL.md" "Step 7.*Fix.*Loop" \
+  "codereview: Step 7 is the fix/re-review loop"
+has "${SKILLS}/codereview/SKILL.md" "Cycle limit: 3" \
+  "codereview: 3-cycle cap on fix loop"
+
+# Codefix reads the same severity tags that codereview writes
+has "${SKILLS}/codefix/SKILL.md" "BLOCK.*WARN" \
+  "codefix: parses BLOCK and WARN severities"
+has "${SKILLS}/codereview/SKILL.md" '^\[SEVERITY\]' \
+  "codereview: finding format template matches codefix expectation"
+has "${SKILLS}/codefix/SKILL.md" "file.*line" \
+  "codefix: parses file and line from findings"
+
+# Codefix must not modify review state files
+has "${SKILLS}/codefix/SKILL.md" "Modify CODEREVIEW.md" \
+  "codefix: explicitly told not to modify CODEREVIEW.md"
+
+# Codereview must not re-run external reviewers during fix cycles
+has "${SKILLS}/codereview/SKILL.md" "Do NOT re-run" \
+  "codereview: no external reviewers during fix/re-review cycles"
+
+# --- External reviewer integration ---
+# Codereview Step 5.5 must call review-external.sh correctly.
+
+echo ""
+echo "==> External reviewer integration"
+
+has "${SKILLS}/codereview/SKILL.md" "Step 5.5.*External" \
+  "codereview: Step 5.5 is external reviewer step"
+has "${SKILLS}/codereview/SKILL.md" "review-external.sh" \
+  "codereview: references review-external.sh by name"
+has "${SKILLS}/codereview/SKILL.md" "Skipped for light review" \
+  "codereview: external reviewers skipped for light review"
+has "${SKILLS}/codereview/SKILL.md" "External reviewers.*once.*initial review" \
+  "codereview: external reviewers run once only"
+has "${SKILLS}/codereview/SKILL.md" "provider.*tag" \
+  "codereview: preserves provider tags in findings"
+
 # --- Codereview bypass ---
 # Skill description must not contain bypass instructions.
 
