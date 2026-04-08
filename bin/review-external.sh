@@ -27,7 +27,7 @@ fi
 
 # --- Load config ---
 
-REVIEWER_ENV="${HOME}/.config/claude-reviewers/.env"
+REVIEWER_ENV="${CLAUDE_REVIEWER_ENV:-${HOME}/.config/claude-reviewers/.env}"
 if [[ -f "${REVIEWER_ENV}" ]]; then
   set -a
   # shellcheck source=/dev/null
@@ -72,7 +72,7 @@ Do not comment on formatting, naming, or style unless they indicate a functional
 
 # Build prompt with diff in a temp file (avoids ARG_MAX limits).
 PROMPT_FILE=$(mktemp)
-trap 'rm -f "${PROMPT_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}"' EXIT
+trap 'wait 2>/dev/null; rm -f "${PROMPT_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}"' EXIT
 {
   printf '%s\n\n' "${REVIEW_PROMPT}"
   echo "=== DIFF ==="

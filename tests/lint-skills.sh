@@ -551,6 +551,41 @@ has "${SCRIPT}" "exit 0" \
 hasnt "${SCRIPT}" "exit 1" \
   "script: never exits non-zero on provider failure"
 
+# --- Concurrency safety ---
+# Temp files must use mktemp (not fixed paths). Background processes must
+# be waited on before cleanup. Config must be overridable for test isolation.
+
+echo ""
+echo "==> Concurrency safety"
+
+# review-external.sh: all temp files use mktemp
+for varname in PROMPT_FILE OPENAI_OUT GOOGLE_OUT; do
+  has "${SCRIPT}" "${varname}=.\(mktemp" \
+    "script: ${varname} uses mktemp"
+done
+
+# review-external.sh: EXIT trap waits for background jobs before cleanup
+has "${SCRIPT}" "trap.*wait.*rm" \
+  "script: EXIT trap waits for background jobs before cleanup"
+
+# review-external.sh: background job PIDs captured and waited on
+has "${SCRIPT}" 'OPENAI_PID=\$!' \
+  "script: captures openai background PID"
+has "${SCRIPT}" 'GOOGLE_PID=\$!' \
+  "script: captures google background PID"
+has "${SCRIPT}" "wait.*OPENAI_PID" \
+  "script: waits for openai background job"
+has "${SCRIPT}" "wait.*GOOGLE_PID" \
+  "script: waits for google background job"
+
+# review-external.sh: config path overridable for test isolation
+has "${SCRIPT}" "CLAUDE_REVIEWER_ENV" \
+  "script: config path overridable via CLAUDE_REVIEWER_ENV"
+
+# Codereview skill: no fixed /tmp paths (all use mktemp or project-scoped hash)
+hasnt "${SKILLS}/codereview/SKILL.md" '/tmp/\.claude-external-cost\.log' \
+  "codereview: no fixed /tmp cost log path (must use mktemp)"
+
 # --- Codereview bypass ---
 # Skill description must not contain bypass instructions.
 

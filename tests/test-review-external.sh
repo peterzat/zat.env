@@ -13,19 +13,13 @@ TOTAL=0
 pass() { TOTAL=$((TOTAL + 1)); printf '  ok   %s\n' "$1"; }
 fail() { TOTAL=$((TOTAL + 1)); FAILS=$((FAILS + 1)); printf '  FAIL %s\n' "$1"; }
 
-# Save and clear any real config so tests run in isolation.
-REVIEWER_ENV="${HOME}/.config/claude-reviewers/.env"
-SAVED_ENV=""
-if [[ -f "${REVIEWER_ENV}" ]]; then
-  SAVED_ENV=$(cat "${REVIEWER_ENV}")
-  > "${REVIEWER_ENV}"
-fi
-restore_env() {
-  if [[ -n "${SAVED_ENV}" ]]; then
-    echo "${SAVED_ENV}" > "${REVIEWER_ENV}"
-  fi
-}
-trap restore_env EXIT
+# Use a temp directory for config so tests never touch the real config.
+# The script respects CLAUDE_REVIEWER_ENV for testability.
+TEST_DIR=$(mktemp -d)
+REVIEWER_ENV="${TEST_DIR}/.env"
+export CLAUDE_REVIEWER_ENV="${REVIEWER_ENV}"
+cleanup() { rm -rf "${TEST_DIR}"; }
+trap cleanup EXIT
 
 # Unset any API keys that might be in the shell environment.
 unset OPENAI_API_KEY GEMINI_API_KEY 2>/dev/null || true
@@ -52,11 +46,8 @@ echo ""
 echo "==> No config file: exits 0, no output"
 # ============================================================
 
-# Temporarily remove config
-if [[ -f "${REVIEWER_ENV}" ]]; then
-  mv "${REVIEWER_ENV}" "${REVIEWER_ENV}.test-bak"
-fi
-
+# Config file does not exist in the temp directory (nothing to remove).
+rm -f "${REVIEWER_ENV}"
 STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>/dev/null)
 EXIT_CODE=$?
 if [[ "${EXIT_CODE}" -eq 0 ]]; then
@@ -68,11 +59,6 @@ if [[ -z "${STDOUT}" ]]; then
   pass "no config: no stdout"
 else
   fail "no config: unexpected stdout: ${STDOUT}"
-fi
-
-# Restore empty config
-if [[ -f "${REVIEWER_ENV}.test-bak" ]]; then
-  mv "${REVIEWER_ENV}.test-bak" "${REVIEWER_ENV}"
 fi
 
 # ============================================================
