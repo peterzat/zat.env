@@ -17,8 +17,9 @@ if [[ "$PWD" == "$HOME" ]]; then
   SESSION="shellfish-1"
   WORK_DIR="$HOME"
 elif [[ "$PWD" =~ ^"$HOME"/src/([^/]+)(/.*)?$ ]]; then
-  SESSION="${BASH_REMATCH[1]}"
-  WORK_DIR="$HOME/src/$SESSION"
+  PROJECT="${BASH_REMATCH[1]}"
+  SESSION="${PROJECT//\./_}"
+  WORK_DIR="$HOME/src/$PROJECT"
 else
   echo "zatmux: must be run from ~/ or ~/src/<project>"
   echo
