@@ -287,6 +287,70 @@ has "${HOOK}" 'rm.*SKIP_MARKER' \
 has "${HOOK}" "Marker is kept" \
   "hook: codereview marker persists after push (documented)"
 
+# Marker file path format must match between skill and hook.
+# Both must use /tmp/.claude-codereview-${PROJ_HASH} (not skip variant).
+has "${SKILLS}/codereview/SKILL.md" '/tmp/.claude-codereview-' \
+  "codereview: marker path uses expected /tmp/.claude-codereview- prefix"
+has "${HOOK}" '/tmp/.claude-codereview-\$' \
+  "hook: marker path uses expected /tmp/.claude-codereview- prefix"
+
+# Skip marker path must match between codereview-skip script and hook.
+SKIP_SCRIPT="${REPO_DIR}/bin/codereview-skip"
+SKIP_PATH_SCRIPT=$(grep -oP '/tmp/\.claude-codereview-skip-[^"]+' "${SKIP_SCRIPT}" | head -1)
+SKIP_PATH_HOOK=$(grep -oP '/tmp/\.claude-codereview-skip-[^"]+' "${HOOK}" | head -1)
+if [[ "${SKIP_PATH_SCRIPT}" == "${SKIP_PATH_HOOK}" ]] && [[ -n "${SKIP_PATH_SCRIPT}" ]]; then
+  pass "skip marker: script and hook use identical path template"
+else
+  fail "skip marker: path mismatch -- script=[${SKIP_PATH_SCRIPT}] hook=[${SKIP_PATH_HOOK}]"
+fi
+
+# codereview-skip PROJ_HASH must use the same derivation as the hook.
+SKIP_PROJ_HASH=$(grep "PROJ_HASH=" "${SKIP_SCRIPT}" | grep -oP 'md5sum \| cut -c\d+-\d+')
+HOOK_PROJ_HASH_M=$(grep "PROJ_HASH=" "${HOOK}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+')
+if [[ "${SKIP_PROJ_HASH}" == "${HOOK_PROJ_HASH_M}" ]] && [[ -n "${SKIP_PROJ_HASH}" ]]; then
+  pass "skip marker: codereview-skip and hook use identical PROJ_HASH derivation"
+else
+  fail "skip marker: PROJ_HASH mismatch -- script=[${SKIP_PROJ_HASH}] hook=[${HOOK_PROJ_HASH_M}]"
+fi
+
+# --- REVIEW_META field contract ---
+# Fields written by codereview Step 9 must match fields read by
+# codereview refresh detection (Step 2) and /pr merge gate.
+
+echo ""
+echo "==> REVIEW_META field contracts"
+
+# Codereview refresh detection reads: reviewed_up_to, block, base
+# These must exist in the Step 9 template.
+for field in reviewed_up_to block base; do
+  has "${SKILLS}/codereview/SKILL.md" "\"${field}\"" \
+    "REVIEW_META: codereview writes '${field}' (read by refresh detection)"
+done
+
+# PR merge gate reads: block, reviewed_up_to via grep patterns.
+# Verify the grep patterns in /pr match the field names in codereview's template.
+PR_BLOCK_FIELD=$(grep -oP '"block"' "${SKILLS}/pr/SKILL.md" | head -1)
+CR_BLOCK_FIELD=$(grep -oP '"block"' "${SKILLS}/codereview/SKILL.md" | head -1)
+if [[ "${PR_BLOCK_FIELD}" == "${CR_BLOCK_FIELD}" ]] && [[ -n "${PR_BLOCK_FIELD}" ]]; then
+  pass "REVIEW_META: pr and codereview use identical 'block' field name"
+else
+  fail "REVIEW_META: 'block' field name mismatch between pr and codereview"
+fi
+
+PR_REVIEWED_FIELD=$(grep -oP '"reviewed_up_to"' "${SKILLS}/pr/SKILL.md" | head -1)
+CR_REVIEWED_FIELD=$(grep -oP '"reviewed_up_to"' "${SKILLS}/codereview/SKILL.md" | head -1)
+if [[ "${PR_REVIEWED_FIELD}" == "${CR_REVIEWED_FIELD}" ]] && [[ -n "${PR_REVIEWED_FIELD}" ]]; then
+  pass "REVIEW_META: pr and codereview use identical 'reviewed_up_to' field name"
+else
+  fail "REVIEW_META: 'reviewed_up_to' field name mismatch between pr and codereview"
+fi
+
+# PR merge uses REVIEW_META, NOT the marker file. README must agree.
+hasnt "${README}" '/pr merge.*marker\b' \
+  "README: /pr merge does not reference marker file"
+has "${README}" '/pr merge.*REVIEW_META' \
+  "README: /pr merge references REVIEW_META"
+
 # --- Agent boundary risks ---
 # Guards against LLM non-determinism at the prompt/infrastructure boundary.
 # These catch regressions where prompt changes could let the agent bypass

@@ -314,8 +314,8 @@ Five modes dispatched by argument:
   body from review file metadata.
 - `/pr status` -- show the current branch's PR state, CI checks, and merge readiness
 - `/pr <number>` -- inspect a specific PR and summarize review comments
-- `/pr merge` -- verify the codereview marker, then `gh pr merge --squash --delete-branch`
-  and return to main
+- `/pr merge` -- verify REVIEW_META in CODEREVIEW.md (block: 0, reviewed commit is ancestor
+  of HEAD), check GitHub merge readiness, then `gh pr merge --squash --delete-branch`
 - `/pr list` -- list open PRs for the repo
 
 **Auto-composed PR descriptions.** The skill reads metadata footers from CODEREVIEW.md,
