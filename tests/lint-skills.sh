@@ -93,6 +93,30 @@ has "${SKILLS}/codereview/SKILL.md" "scanned_files" \
 has "${SKILLS}/security/SKILL.md" "scope.*paths" \
   "security: supports paths scope"
 
+# --- Builder/verifier separation ---
+# Codereview must not have tools that modify source code.
+# Codefix must have tools to modify code but must not invoke skills.
+
+echo ""
+echo "==> Builder/verifier separation"
+
+has "${SKILLS}/codefix/SKILL.md" "^context: fork" \
+  "codefix: runs in forked context"
+has "${SKILLS}/codefix/SKILL.md" "Edit" \
+  "codefix: has Edit tool (can modify code)"
+hasnt "${SKILLS}/codefix/SKILL.md" "Skill(" \
+  "codefix: no Skill invocations (fixer does not self-review)"
+hasnt "${SKILLS}/codefix/SKILL.md" "CODEREVIEW.md.*update\|update.*CODEREVIEW.md\|Write.*CODEREVIEW" \
+  "codefix: does not update CODEREVIEW.md"
+has "${SKILLS}/codereview/SKILL.md" "Skill\(codefix\)" \
+  "codereview: delegates to codefix"
+hasnt "${SKILLS}/codereview/SKILL.md" "^allowed-tools:.*Edit" \
+  "codereview: no Edit tool (reviewer cannot modify source)"
+hasnt "${SKILLS}/codereview/SKILL.md" "^allowed-tools:.*Write" \
+  "codereview: no Write tool (reviewer cannot modify source)"
+has "${SKILLS}/codereview/SKILL.md" "Never fix code yourself" \
+  "codereview: explicit no-fix principle"
+
 # --- Codereview bypass ---
 # Skill description must not contain bypass instructions.
 

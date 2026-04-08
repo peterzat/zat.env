@@ -7,7 +7,7 @@ description: >-
   review. Also use automatically before any git push.
 context: fork
 effort: max
-allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, Skill(security), Skill(security *)
+allowed-tools: Bash(*), Read, Grep, Glob, Skill(security), Skill(security *), Skill(codefix)
 ---
 
 # Adversarial Code Review
@@ -30,6 +30,11 @@ You start with an empty context — gather everything you need below.
   you are not confident in.
 - **No style policing.** Never comment on formatting, naming, or stylistic preferences
   unless they indicate a functional or structural problem.
+- **Never fix code yourself.** You are the reviewer, not the fixer. Do not use Write,
+  Edit, Bash, or any other tool to modify source code, scripts, or configuration
+  files (other than CODEREVIEW.md, SECURITY.md, and the marker file). When findings
+  need fixing, delegate to `/codefix` via Step 7. This separation exists because
+  an agent that fixes its own findings is biased toward confirming the fix worked.
 
 ---
 
@@ -77,11 +82,11 @@ If there is truly nothing to review, report that and stop.
   dependencies, feature flags).
 - **Full review**: any code file is modified, or you are uncertain.
 
-If light review: skip Steps 3, 5, 7, and 8 (no test suite run, no security chain,
-no auto-fix, no fix verification). Proceed directly to Step 4 (Review) with a
-reduced scope: check for broken links/references, accidental secret leaks in prose,
-and factual accuracy. Then skip to Step 6 (Report), Step 9 (Marker), and Step 10
-(Update CODEREVIEW.md).
+If light review: skip Steps 3, 5, 6.5, and 7 (no test suite run, no security
+chain, no fix loop). Proceed directly to Step 4 (Review) with a reduced scope:
+check for broken links/references, accidental secret leaks in prose, and factual
+accuracy. Then skip to Step 6 (Report), Step 8 (Marker), and Step 9 (Update
+CODEREVIEW.md).
 
 **Check for prior successful review (refresh detection):**
 
@@ -262,36 +267,45 @@ Format each finding:
   Suggested fix: [concrete recommendation]
 ```
 
-## Step 7: Auto-Fix
+## Step 6.5: Write Preliminary CODEREVIEW.md
+
+*Skipped for light review if no BLOCK/WARN findings.*
+
+If BLOCK or WARN findings exist, write (or update) CODEREVIEW.md with the current
+findings NOW, before the fix loop. The `/codefix` skill reads CODEREVIEW.md as its
+input spec, so findings must be on disk before it is invoked. Use the same format
+as Step 9 but mark the entry as preliminary (it will be overwritten with the final
+state after the fix loop completes).
+
+If no BLOCK/WARN findings exist, skip this step. CODEREVIEW.md will be written
+once in Step 9.
+
+## Step 7: Fix/Re-review Loop
 
 *Skipped for light review.*
 
-Fix BLOCK and WARN items with escalating conservatism. Maximum 3 iterations.
+If BLOCK or WARN findings exist (and CODEREVIEW.md has been written in Step 6.5),
+invoke `/codefix` to apply fixes. The codefix skill runs in a separate forked
+context: it reads CODEREVIEW.md findings as a spec and applies minimal fixes
+without self-evaluation.
 
-**Iteration 1:** Fix normally.
-- Fix ONE issue at a time.
-- Each fix should change fewer than 20 lines. If a fix requires more, flag for
-  human review instead of attempting it.
-- NEVER delete, skip, or weaken existing tests to make them pass. Fix the code,
-  not the tests.
-- After each fix, re-read the changed code to verify the fix is correct.
+After codefix completes, re-review the changes. This is a refresh review within
+the current context: re-read the modified files, check whether findings are
+resolved, and check for new issues introduced by the fixes. Do NOT invoke
+`/codefix` again without updating CODEREVIEW.md first.
 
-**Iteration 2:** If iteration 1 did not fully resolve all issues, explain why the
-previous fix didn't work before attempting again. Be more conservative. Prefer
-minimal targeted changes over rewrites.
+If the test suite exists, re-run it after each codefix pass. Compare pass/fail
+counts against the Step 3 baseline. If tests regressed, the fix cycle fails.
 
-**Iteration 3:** STOP. Report remaining issues as "requires manual intervention."
-Do not attempt further fixes.
+If re-review finds remaining or new BLOCK/WARN findings, update CODEREVIEW.md
+with the new findings before invoking `/codefix` again.
 
-## Step 8: Verify Fixes
+**Cycle limit: 3.** Each cycle is one CODEREVIEW.md update, one `/codefix`
+invocation, and one re-review. If BLOCKs remain after 3 cycles, or tests
+regressed, report remaining issues as "requires manual intervention." Do not
+attempt further fixes.
 
-*Skipped for light review.*
-
-If a test suite exists, re-run it. Compare pass/fail counts against the Step 3
-baseline. If tests regressed, revert the fix that caused regression and report it
-as "auto-fix attempted but caused regression — requires manual intervention."
-
-## Step 9: Write Marker File
+## Step 8: Write Marker File
 
 Only if all BLOCKs are resolved AND tests did not regress:
 
@@ -309,7 +323,7 @@ echo "${DIFF_HASH}" > "/tmp/.claude-codereview-${PROJ_HASH}"
 
 Do NOT write the marker if any BLOCK items remain or tests regressed.
 
-## Step 10: Update CODEREVIEW.md
+## Step 9: Update CODEREVIEW.md
 
 Update (or create) `CODEREVIEW.md` in the project root. Keep only:
 - The current entry
