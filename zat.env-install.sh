@@ -89,6 +89,51 @@ for script in "${REPO_DIR}/bin"/*; do
   echo "    ${script_name} -> ${script}"
 done
 
+# --- external reviewer config template ---
+echo "==> Ensuring external reviewer config template"
+REVIEWER_ENV_DIR="${HOME}/.config/claude-reviewers"
+REVIEWER_ENV="${REVIEWER_ENV_DIR}/.env"
+mkdir -p "${REVIEWER_ENV_DIR}"
+
+if [[ ! -f "${REVIEWER_ENV}" ]]; then
+  cat > "${REVIEWER_ENV}" <<'ENVEOF'
+# External code reviewer configuration for review-external.sh
+# Uncomment and fill in keys/paths for providers you want to use.
+
+# --- OpenAI ---
+# OPENAI_API_KEY=sk-...
+# OPENAI_MODEL=o3
+# OPENAI_EFFORT=high
+
+# --- Google ---
+# GEMINI_API_KEY=...
+# GEMINI_MODEL=gemini-2.5-pro
+# GEMINI_EFFORT=32768
+
+# --- Local (qwen) ---
+# Requires: git clone + setup.sh in ~/src/qwen-2.5-localreview/
+# LOCAL_REVIEW_SCRIPT=/home/${USER}/src/qwen-2.5-localreview/review.py
+# LOCAL_REVIEW_VENV=/home/${USER}/src/qwen-2.5-localreview/.venv
+# LOCAL_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-AWQ
+ENVEOF
+  echo "    Created ${REVIEWER_ENV} (all providers commented out)"
+else
+  # Append local section if not already present
+  if ! grep -q 'LOCAL_REVIEW_SCRIPT' "${REVIEWER_ENV}"; then
+    cat >> "${REVIEWER_ENV}" <<'ENVEOF'
+
+# --- Local (qwen) ---
+# Requires: git clone + setup.sh in ~/src/qwen-2.5-localreview/
+# LOCAL_REVIEW_SCRIPT=/home/${USER}/src/qwen-2.5-localreview/review.py
+# LOCAL_REVIEW_VENV=/home/${USER}/src/qwen-2.5-localreview/.venv
+# LOCAL_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-AWQ
+ENVEOF
+    echo "    Appended local reviewer section to ${REVIEWER_ENV}"
+  else
+    echo "    ${REVIEWER_ENV} already has local reviewer section"
+  fi
+fi
+
 # --- merge permissions and hooks into ~/.claude/settings.json ---
 echo "==> Merging permissions and hooks into ${CLAUDE_DIR}/settings.json"
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"

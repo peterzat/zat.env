@@ -110,6 +110,7 @@ echo "==> Invalid API key: exits 0, error on stderr only"
 
 cat > "${REVIEWER_ENV}" <<'EOF'
 OPENAI_API_KEY=sk-invalid-test-key
+REVIEW_TIMEOUT=10
 EOF
 
 STDERR_FILE=$(mktemp)
@@ -132,6 +133,101 @@ if [[ "${STDERR}" == *"[openai]"* ]]; then
   pass "invalid key: error logged to stderr with provider tag"
 else
   fail "invalid key: no provider-tagged error on stderr: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> Local provider: script set but file does not exist"
+# ============================================================
+
+cat > "${REVIEWER_ENV}" <<EOF
+LOCAL_REVIEW_SCRIPT=/tmp/nonexistent-review-script-$$.py
+LOCAL_REVIEW_VENV=/tmp/nonexistent-venv-$$
+EOF
+
+STDERR_FILE=$(mktemp)
+STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>"${STDERR_FILE}")
+EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "local missing script: exit code 0"
+else
+  fail "local missing script: exit code ${EXIT_CODE}"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "local missing script: no stdout"
+else
+  fail "local missing script: unexpected stdout: ${STDOUT}"
+fi
+if [[ -z "${STDERR}" ]]; then
+  pass "local missing script: no stderr"
+else
+  fail "local missing script: unexpected stderr: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> Local provider: both vars empty"
+# ============================================================
+
+cat > "${REVIEWER_ENV}" <<'EOF'
+LOCAL_REVIEW_SCRIPT=
+LOCAL_REVIEW_VENV=
+EOF
+
+STDERR_FILE=$(mktemp)
+STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>"${STDERR_FILE}")
+EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "local empty vars: exit code 0"
+else
+  fail "local empty vars: exit code ${EXIT_CODE}"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "local empty vars: no stdout"
+else
+  fail "local empty vars: unexpected stdout: ${STDOUT}"
+fi
+if [[ -z "${STDERR}" ]]; then
+  pass "local empty vars: no stderr"
+else
+  fail "local empty vars: unexpected stderr: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> Local provider: only script set (missing venv)"
+# ============================================================
+
+cat > "${REVIEWER_ENV}" <<EOF
+LOCAL_REVIEW_SCRIPT=/tmp/nonexistent-review-script-$$.py
+EOF
+
+STDERR_FILE=$(mktemp)
+STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>"${STDERR_FILE}")
+EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "local missing venv var: exit code 0"
+else
+  fail "local missing venv var: exit code ${EXIT_CODE}"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "local missing venv var: no stdout"
+else
+  fail "local missing venv var: unexpected stdout: ${STDOUT}"
+fi
+if [[ -z "${STDERR}" ]]; then
+  pass "local missing venv var: no stderr"
+else
+  fail "local missing venv var: unexpected stderr: ${STDERR}"
 fi
 
 # ============================================================
@@ -190,6 +286,7 @@ echo "==> Both providers invalid: exits 0, both get stderr errors"
 cat > "${REVIEWER_ENV}" <<'EOF'
 OPENAI_API_KEY=sk-invalid-test-key
 GEMINI_API_KEY=fake-google-key
+REVIEW_TIMEOUT=10
 EOF
 
 STDERR_FILE=$(mktemp)
@@ -246,6 +343,7 @@ echo "==> Runs outside a git repo: exits 0, no crash"
 NON_GIT_DIR=$(mktemp -d)
 cat > "${REVIEWER_ENV}" <<'EOF'
 OPENAI_API_KEY=sk-invalid-test-key
+REVIEW_TIMEOUT=10
 EOF
 
 RESULT_FILE=$(mktemp)

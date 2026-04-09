@@ -540,6 +540,8 @@ has "${SCRIPT}" "REVIEW_TIMEOUT" \
   "script: configurable per-provider timeout"
 has "${SCRIPT}" 'max-time.*TIMEOUT' \
   "script: timeout applied to curl calls"
+has "${SCRIPT}" 'LOCAL_REVIEW_SCRIPT.*LOCAL_REVIEW_VENV.*-f' \
+  "script: local provider gates on vars and file existence"
 has "${SCRIPT}" "GEMINI_EFFORT.*not a valid" \
   "script: validates GEMINI_EFFORT is numeric"
 has "${SCRIPT}" 'BLOCK.WARN.NOTE' \
@@ -548,9 +550,11 @@ has "${SCRIPT}" 'sed.*openai' \
   "script: tags openai findings with provider name"
 has "${SCRIPT}" 'sed.*google' \
   "script: tags google findings with provider name"
+has "${SCRIPT}" 'sed.*qwen' \
+  "script: tags local findings with provider name"
 has "${SCRIPT}" "exit 0" \
   "script: always exits 0 (fail-open)"
-hasnt "${SCRIPT}" "exit 1" \
+hasnt "${SCRIPT}" "exit 1[^0-9]|exit 1$" \
   "script: never exits non-zero on provider failure"
 
 # --- Concurrency safety ---
@@ -561,7 +565,7 @@ echo ""
 echo "==> Concurrency safety"
 
 # review-external.sh: all temp files use mktemp
-for varname in SYSTEM_FILE USER_FILE OPENAI_OUT GOOGLE_OUT; do
+for varname in SYSTEM_FILE USER_FILE OPENAI_OUT GOOGLE_OUT LOCAL_OUT; do
   has "${SCRIPT}" "${varname}=.\(mktemp" \
     "script: ${varname} uses mktemp"
 done
@@ -579,6 +583,10 @@ has "${SCRIPT}" "wait.*OPENAI_PID" \
   "script: waits for openai background job"
 has "${SCRIPT}" "wait.*GOOGLE_PID" \
   "script: waits for google background job"
+has "${SCRIPT}" 'LOCAL_PID=\$!' \
+  "script: captures local background PID"
+has "${SCRIPT}" "wait.*LOCAL_PID" \
+  "script: waits for local background job"
 
 # review-external.sh: config path overridable for test isolation
 has "${SCRIPT}" "CLAUDE_REVIEWER_ENV" \

@@ -10,6 +10,7 @@ set -euo pipefail
 # Config: ~/.config/claude-reviewers/.env
 #   OPENAI_API_KEY, OPENAI_MODEL (default: o3), OPENAI_EFFORT (default: high)
 #   GEMINI_API_KEY, GEMINI_MODEL (default: gemini-2.5-pro), GEMINI_EFFORT (default: 32768)
+#   LOCAL_REVIEW_SCRIPT, LOCAL_REVIEW_VENV, LOCAL_MODEL (optional local GPU reviewer)
 #   REVIEW_TIMEOUT (default: 300, per-provider seconds)
 #
 # Output (stdout): [SEVERITY] (provider) file:line -- description
@@ -37,10 +38,14 @@ fi
 
 HAS_OPENAI=false
 HAS_GOOGLE=false
+HAS_LOCAL=false
 [[ -n "${OPENAI_API_KEY:-}" ]] && HAS_OPENAI=true
 [[ -n "${GEMINI_API_KEY:-}" ]] && HAS_GOOGLE=true
+if [[ -n "${LOCAL_REVIEW_SCRIPT:-}" ]] && [[ -n "${LOCAL_REVIEW_VENV:-}" ]] && [[ -f "${LOCAL_REVIEW_SCRIPT:-}" ]]; then
+  HAS_LOCAL=true
+fi
 
-if ! ${HAS_OPENAI} && ! ${HAS_GOOGLE}; then
+if ! ${HAS_OPENAI} && ! ${HAS_GOOGLE} && ! ${HAS_LOCAL}; then
   exit 0
 fi
 
@@ -87,7 +92,7 @@ Do not comment on formatting, naming, or style unless they indicate a functional
 # SYSTEM_FILE: review instructions. USER_FILE: commit context + diff.
 SYSTEM_FILE=$(mktemp)
 USER_FILE=$(mktemp)
-trap 'wait 2>/dev/null; rm -f "${SYSTEM_FILE}" "${USER_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}"' EXIT
+trap 'wait 2>/dev/null; rm -f "${SYSTEM_FILE}" "${USER_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}" "${LOCAL_OUT:-}"' EXIT
 
 printf '%s\n' "${SYSTEM_PROMPT}" > "${SYSTEM_FILE}"
 
@@ -284,12 +289,72 @@ call_google() {
   done
 }
 
+# --- Provider: Local (qwen) ---
+
+call_local() {
+  local script="${LOCAL_REVIEW_SCRIPT}"
+  local venv="${LOCAL_REVIEW_VENV}"
+  local python="${venv}/bin/python3"
+  if [[ ! -x "${python}" ]]; then
+    echo "[qwen] venv python not found at ${python}, skipping" >&2
+    return 0
+  fi
+
+  local stderr_file
+  stderr_file=$(mktemp)
+
+  local output
+  output=$(timeout "${TIMEOUT}" "${python}" "${script}" \
+    --system "${SYSTEM_FILE}" \
+    --input "${USER_FILE}" \
+    2>"${stderr_file}") || {
+    local exit_code=$?
+    local stderr_content
+    stderr_content=$(cat "${stderr_file}")
+    rm -f "${stderr_file}"
+    if [[ ${exit_code} -eq 124 ]]; then
+      echo "[qwen] Timed out after ${TIMEOUT}s, skipping" >&2
+    elif [[ ${exit_code} -eq 137 ]]; then
+      echo "[qwen] Killed by OOM killer (exit 137), skipping" >&2
+    else
+      echo "[qwen] Script failed (exit ${exit_code}), skipping" >&2
+    fi
+    [[ -n "${stderr_content}" ]] && echo "${stderr_content}" >&2
+    return 0
+  }
+
+  # Forward stderr (timing/status info)
+  local stderr_content
+  stderr_content=$(cat "${stderr_file}")
+  rm -f "${stderr_file}"
+  [[ -n "${stderr_content}" ]] && echo "${stderr_content}" >&2
+
+  local model_name="${LOCAL_MODEL:-Qwen2.5-Coder-14B-Instruct-AWQ}"
+  echo "[qwen] ${model_name} -- local inference -- \$0.00" >&2
+
+  if [[ -z "${output}" ]]; then
+    echo "[qwen] Empty response, skipping" >&2
+    return 0
+  fi
+
+  # Tag findings with provider
+  echo "${output}" | while IFS= read -r line; do
+    if [[ "${line}" =~ ^\[(BLOCK|WARN|NOTE)\] ]]; then
+      echo "${line}" | sed -E 's/^\[([A-Z]+)\]/[\1] (qwen)/'
+    elif [[ "${line}" == "No issues found." ]]; then
+      echo "[qwen] No issues found." >&2
+    fi
+  done
+}
+
 # --- Main: run configured providers in parallel ---
 
 OPENAI_OUT=$(mktemp)
 GOOGLE_OUT=$(mktemp)
+LOCAL_OUT=$(mktemp)
 OPENAI_PID=""
 GOOGLE_PID=""
+LOCAL_PID=""
 
 if ${HAS_OPENAI}; then
   call_openai > "${OPENAI_OUT}" 2>&1 &
@@ -301,13 +366,19 @@ if ${HAS_GOOGLE}; then
   GOOGLE_PID=$!
 fi
 
+if ${HAS_LOCAL}; then
+  call_local > "${LOCAL_OUT}" 2>&1 &
+  LOCAL_PID=$!
+fi
+
 [[ -n "${OPENAI_PID}" ]] && wait "${OPENAI_PID}" || true
 [[ -n "${GOOGLE_PID}" ]] && wait "${GOOGLE_PID}" || true
+[[ -n "${LOCAL_PID}" ]] && wait "${LOCAL_PID}" || true
 
 # Separate findings (stdout) from status/cost (stderr).
 # Provider functions write findings to stdout and cost to stderr, but since
 # we captured both with 2>&1 for background jobs, they are mixed.
-for outfile in "${OPENAI_OUT}" "${GOOGLE_OUT}"; do
+for outfile in "${OPENAI_OUT}" "${GOOGLE_OUT}" "${LOCAL_OUT}"; do
   if [[ -s "${outfile}" ]]; then
     while IFS= read -r line; do
       if [[ "${line}" =~ ^\[(BLOCK|WARN|NOTE)\] ]]; then

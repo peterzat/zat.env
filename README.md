@@ -8,7 +8,7 @@
 
 <br>
 
-Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation and optional multi-model reviewers (OpenAI, Google), security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation and optional multi-model reviewers (OpenAI, Google, local GPU), security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
@@ -231,7 +231,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 6. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
 7. Chains to `/security` scoped to files changed since the last security scan (or since upstream if no prior scan). If no code files changed since the prior scan, carries forward existing findings instead of re-invoking.
 8. Reports findings as BLOCK / WARN / NOTE with evidence citations
-9. Runs optional external reviewers (OpenAI, Google) via `review-external.sh` if configured; findings tagged with provider name
+9. Runs optional external reviewers (OpenAI, Google, local GPU) via `review-external.sh` if configured; findings tagged with provider name
 10. Delegates BLOCK/WARN fixes to `/codefix`, a separate skill that runs in its own forked context (builder/verifier separation, up to 3 fix/re-review cycles)
 11. Re-runs tests after each fix cycle; stops if tests regress
 12. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
@@ -241,9 +241,9 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Builder/verifier separation.** The reviewer never fixes code itself. When BLOCK or WARN findings exist, it writes CODEREVIEW.md and delegates to `/codefix`, a separate skill that runs in its own forked context with no memory of the review's reasoning. Codefix reads findings as a spec and applies minimal fixes. The reviewer then re-evaluates independently. No agent grades its own work.
 
-**External reviewers (optional).** When API keys are configured in `~/.config/claude-reviewers/.env`, the codereview skill pipes the diff through `review-external.sh` to get independent findings from OpenAI and/or Google models. Findings are tagged with the provider name. External reviewers fail open: missing config, empty input, or API errors produce no findings. Runs once at initial review, not during fix/re-review cycles.
+**External reviewers (optional).** When API keys are configured in `~/.config/claude-reviewers/.env`, the codereview skill pipes the diff through `review-external.sh` to get independent findings from OpenAI and/or Google models. A local GPU reviewer (Qwen2.5-Coder-14B via [qwen-2.5-localreview](https://github.com/peterzat/qwen-2.5-localreview)) is also supported: useful as a fast second opinion at zero API cost, though the 14B model produces more false positives than cloud models and should not be treated as authoritative. Findings are tagged with the provider name. All external reviewers fail open: missing config, empty input, API errors, or absent local setup produce no findings. Runs once at initial review, not during fix/re-review cycles.
 
-**Review pipeline sequencing.** Claude Code's built-in review runs first (serial), then all configured external API reviewers run in parallel, then findings are merged. The serial-first design is intentional: Claude Code's review consumes the user's Anthropic plan (Pro, Max) without API token costs, but it runs inline and cannot be parallelized with external calls without significant orchestration complexity. Users on direct Claude API tokens (enterprise deployments) could instead add Claude as a peer external reviewer alongside OpenAI and Google in `review-external.sh`, eliminating the serialization delay at the cost of API token consumption. For plan-based subscribers the serial approach is the better trade-off.
+**Review pipeline sequencing.** Claude Code's built-in review runs first (serial), then all configured external reviewers (cloud and local) run in parallel, then findings are merged. The serial-first design is intentional: Claude Code's review consumes the user's Anthropic plan (Pro, Max) without API token costs, but it runs inline and cannot be parallelized with external calls without significant orchestration complexity. Users on direct Claude API tokens (enterprise deployments) could instead add Claude as a peer external reviewer alongside OpenAI and Google in `review-external.sh`, eliminating the serialization delay at the cost of API token consumption. For plan-based subscribers the serial approach is the better trade-off.
 
 **Key guard:** Never deletes, skips, or weakens existing tests to make them pass. Fixes the code, not the tests.
 
@@ -839,8 +839,8 @@ Post-install layout (annotated):
 │       ├── tests/
 │       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
 │       │   ├── run-all.sh              # Run all test suites with combined summary
-│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (195 checks)
-│       │   └── test-review-external.sh # Guard logic and output contract tests (20 checks)
+│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (201 checks)
+│       │   └── test-review-external.sh # Guard logic and output contract tests (35 checks)
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering
@@ -943,7 +943,7 @@ Papers and posts that inform the design of this setup, particularly around long-
 ### Done (v1.3)
 
 - [x] Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
-- [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google, called synchronously by `/codereview`, fail-open
+- [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google/local GPU, called synchronously by `/codereview`, fail-open
 - [x] Structural lint suite (215 checks across 21 categories) covering builder/verifier separation, marker contracts, agent boundary risks, concurrency safety, and cross-skill field identity
 - [x] `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
 - [x] Install script prunes stale hook entries from settings.json on re-run
