@@ -1,27 +1,22 @@
-## Test Strategy Review -- 2026-04-06
+## Test Strategy Review -- 2026-04-09
 
-**Summary:** The repo now has a structural lint suite (`tests/lint-skills.sh`, 161 lines, 44 checks) that verifies cross-skill META field consistency, gate condition alignment, PR merge logic, security chain coverage, accepted risks sections, and skill frontmatter. Shellcheck is included but skipped because it is not installed. The suite is documented but runs manually only.
+**Summary:** The repo has a mature structural lint suite (196 checks) and a behavioral test suite for review-external.sh (26 checks), both passing. Shellcheck is now installed and running. Total suite time is 1.4s. Tests are manual-only; the pre-push hook gates on /codereview, not on the test suite.
 
-**Test infrastructure found:** `tests/lint-skills.sh` (bash, grep-based structural checks). No CI/CD. No coverage tools. Pre-push hook gates on `/codereview` (LLM review), not on lint-skills.sh.
+**Test infrastructure found:** `tests/lint-skills.sh` (bash, grep-based structural lint, 658 lines, 196 checks), `tests/test-review-external.sh` (bash, behavioral tests, 323 lines, 26 checks), `tests/run-all.sh` (runner, combined summary), shellcheck (installed, runs as part of both suites), pre-push hook (`hooks/pre-push-codereview.sh`, gates git push on /codereview). No CI/CD. No coverage tools.
 
 ### Findings
 
-[NOTE] automatic test execution -- lint-skills.sh is manual only
-  Current state: CLAUDE.md instructs "run `tests/lint-skills.sh` after modifying any skill or hook." The pre-push hook gates on `/codereview`, not on lint-skills.sh. A skill change could pass codereview but fail structural lint. In practice, `/codereview` catches many of the same issues because it reads skill files, but the grep-based structural checks (META field cross-references, gate condition alignment) are more reliable for these specific concerns.
-  Recommendation: Wire lint-skills.sh into the pre-push hook or add a PreToolUse hook that runs it before git push. This would catch structural regressions automatically. Low urgency: the repo has one contributor and the CLAUDE.md convention works as a reminder.
-
-[NOTE] missing test categories -- shellcheck not installed
-  Current state: lint-skills.sh includes a shellcheck section (lines 136-151) that analyzes all scripts in `hooks/` and `bin/`. It degrades gracefully ("skip (shellcheck not installed)"). The repo has 837 lines of shell across 11 scripts (5 .sh files + 6 bin scripts). Static analysis would catch common shell pitfalls.
-  Recommendation: Install shellcheck (`apt install shellcheck`) so the existing test infrastructure can use it. The code to run it is already written.
+[NOTE] automatic test execution -- lint-skills.sh and test-review-external.sh are manual only
+  Current state: CLAUDE.md instructs "run `tests/run-all.sh` after modifying any skill or hook." The pre-push hook gates on /codereview (LLM review), not on the test suite. A skill or script change could pass codereview but fail structural lint or behavioral tests. The suite runs in 1.4s, so wiring it into the pre-push hook would add negligible latency.
+  Recommendation: Wire `tests/run-all.sh` into the pre-push hook chain (or add a second PreToolUse hook). This would catch structural regressions and review-external.sh contract violations automatically before any push. Low urgency: single-contributor repo with an effective CLAUDE.md convention.
 
 ### Status of Prior Recommendations
 
-Both NOTEs from the prior review (2026-04-01, commit e2df013) have been partially addressed:
-
-1. **Shell script static analysis gate** -- Addressed in code: lint-skills.sh now includes a shellcheck section. Not fully resolved because shellcheck is not installed on the machine, so the checks are skipped at runtime.
-2. **Idempotency smoke test for install script** -- Remains open. Still a future consideration, not needed yet.
+1. **Wire lint-skills.sh into pre-push hook** (NOTE, 2026-04-06) -- Remains open. Same recommendation persists with expanded scope: the full suite (run-all.sh, 222 checks, 1.4s) would be appropriate.
+2. **Install shellcheck** (NOTE, 2026-04-06) -- Resolved. Shellcheck is installed (`/usr/bin/shellcheck`) and running as part of both lint-skills.sh (11 scripts) and test-review-external.sh (1 script). All pass cleanly.
+3. **Idempotency smoke test for install script** (NOTE, 2026-04-01) -- Remains open. Still a future consideration, not blocking.
 
 ---
-*Prior review (2026-04-01): No test infrastructure existed. Two NOTEs: add shellcheck as a pre-commit check, and consider Docker-based idempotency smoke test for install script. Both deferred as future considerations.*
+*Prior review (2026-04-06): Two NOTEs: wire lint-skills.sh into pre-push hook, install shellcheck. Shellcheck now resolved.*
 
-<!-- TESTING_META: {"date":"2026-04-06","commit":"fce3f77","block":0,"warn":0,"note":2} -->
+<!-- TESTING_META: {"date":"2026-04-09","commit":"55f3570","block":0,"warn":0,"note":1} -->
