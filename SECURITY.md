@@ -12,6 +12,6 @@ No security issues identified.
 - **Tag-bypass regex in pre-push hook** (hooks/pre-push-codereview.sh:34): Combined branch+tag push could skip codereview gate. Defense-in-depth gap, not actively exploitable since the hook is advisory and user-controlled. Previously flagged as WARN.
 
 ---
-*Prior review (2026-04-09, scope: paths): Same four files. No findings.*
+*Prior review (2026-04-09, scope: paths): Same four files. No secrets, no injection paths, no findings.*
 
-<!-- SECURITY_META: {"date":"2026-04-09","commit":"9c7210ce2c07b8064685a74f40ab1d85b55d82b2","scope":"paths","scanned_files":["bin/review-external.sh","tests/lint-skills.sh","tests/test-review-external.sh","zat.env-install.sh"],"block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-04-09","commit":"e3f33b0de067e925f243cad556aa29b9e88ef7db","scope":"paths","scanned_files":["bin/review-external.sh","tests/lint-skills.sh","tests/test-review-external.sh","zat.env-install.sh"],"block":0,"warn":0,"note":0} -->

@@ -30,4 +30,20 @@ Relevant zat.env practices: shell scripts must be idempotent, use `set -euo pipe
 ---
 *Prior spec (2026-04-08): External multi-model code review. 9/9 criteria met.*
 
+### Proposal (2026-04-09)
+
+**What happened:** The local GPU reviewer was integrated into the external review pipeline as a peer to OpenAI and Google. `call_local` in `review-external.sh` invokes `review.py` via the qwen project's venv, runs in parallel with cloud providers, and fails open on all error paths including OOM killer (exit 137). The installer creates or appends the `.env` template idempotently. Nine behavioral tests and five lint checks were added. README updated in six places with a limitations callout for the 14B model.
+
+During live testing, two issues were found and fixed: (1) `call_local` passed `--model` as a CLI argument, but `review.py` reads `LOCAL_MODEL` from the environment; codereview caught this as a BLOCK and codefix resolved it. (2) The synthetic `$0.00` status line masked `review.py`'s more informative timing/token output; fixed by only emitting the fallback when `review.py` didn't produce its own `[qwen]` line. A vLLM OOM was traced to the qwen project's default `max_model_len=32768` and `gpu_memory_utilization=0.95`; fixes shipped in the qwen repo.
+
+**Questions and directions:**
+
+1. **Deterministic marker write.** The highest-value next improvement: moving the push marker write from an LLM-interpreted bash snippet to a `bin/write-review-marker.sh` script. This would eliminate the riskiest prompt/infrastructure boundary (LLM deviation from the snippet breaks the push gate) and remove 5+ structural lint checks that compare bash snippets between skill and hook. The `codereview-skip` script already demonstrates this pattern.
+
+2. **Pre-push hook dry-run testing.** Adding a `--verify` flag to the pre-push hook would enable integration testing of marker matching, hash computation, and skip marker consumption without actually pushing. This would replace several grep-based structural checks with behavioral verification.
+
+3. **Downstream validation.** The full pipeline (install, codereview, codefix, external reviewers, push gate) has been tested within zat.env itself but not yet on a downstream project. Running `/codereview` on a real project would verify the wiring works end-to-end.
+
+4. **v2 direction: /verify or loop orchestrator.** The roadmap lists `/verify` (test suite execution as ground truth) and loop orchestration as next milestones. The marker script (item 1) is a prerequisite for reliable autonomous loops since a flaky push gate would break the loop.
+
 <!-- SPEC_META: {"date":"2026-04-09","title":"Local GPU reviewer integration (qwen)","criteria_total":8,"criteria_met":8} -->
