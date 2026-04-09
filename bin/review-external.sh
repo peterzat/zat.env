@@ -329,8 +329,11 @@ call_local() {
   rm -f "${stderr_file}"
   [[ -n "${stderr_content}" ]] && echo "${stderr_content}" >&2
 
-  local model_name="${LOCAL_MODEL:-Qwen2.5-Coder-14B-Instruct-AWQ}"
-  echo "[qwen] ${model_name} -- local inference -- \$0.00" >&2
+  # Emit a status line only if review.py didn't produce its own.
+  if [[ "${stderr_content}" != *"[qwen]"* ]]; then
+    local model_name="${LOCAL_MODEL:-Qwen2.5-Coder-14B-Instruct-AWQ}"
+    echo "[qwen] ${model_name} -- local inference -- \$0.00" >&2
+  fi
 
   if [[ -z "${output}" ]]; then
     echo "[qwen] Empty response, skipping" >&2
