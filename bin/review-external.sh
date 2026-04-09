@@ -46,17 +46,26 @@ fi
 
 TIMEOUT="${REVIEW_TIMEOUT:-300}"
 
-# --- Review prompt ---
+# --- Commit summary (provides context for the diff) ---
 
-REVIEW_PROMPT='You are a Principal Software Engineer performing an adversarial code review.
+UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || UPSTREAM=""
+COMMIT_SUMMARY=""
+if [[ -n "${UPSTREAM}" ]]; then
+  COMMIT_SUMMARY=$(git log --oneline "${UPSTREAM}..HEAD" 2>/dev/null || true)
+fi
+
+# --- Review prompt (system instructions) ---
+
+SYSTEM_PROMPT='You are a Principal Software Engineer performing an adversarial code review.
 
 Review the provided diff. Report only findings you have high confidence in.
 
 Evaluate against these dimensions:
 1. Correctness: bugs, off-by-one errors, null handling, edge cases, race conditions
-2. Code quality: dead code, duplication, inappropriate abstraction level
-3. Solution approach: is there a simpler or more robust alternative?
-4. Regression risk: could this break existing functionality?
+2. Security: hardcoded secrets, injection vectors, unsafe deserialization, path traversal, unvalidated input at trust boundaries
+3. Code quality: dead code, duplication, inappropriate abstraction level
+4. Solution approach: is there a simpler or more robust alternative?
+5. Regression risk: could this break existing functionality?
 
 Classify every finding:
 - BLOCK: must fix before pushing (bugs, data loss, security vulnerabilities)
@@ -66,18 +75,31 @@ Classify every finding:
 Format each finding EXACTLY as:
 [SEVERITY] file:line -- description
 
+Example:
+[BLOCK] src/auth.py:42 -- token is compared with == instead of constant-time comparison, timing side-channel
+[WARN] lib/config.sh:17 -- TIMEOUT is used unquoted in arithmetic context, will error on empty string
+
 If you find no issues, output exactly: No issues found.
 
-Do not comment on formatting, naming, or style unless they indicate a functional problem. Do not explain your reasoning. Just output the findings.'
+Do not comment on formatting, naming, or style unless they indicate a functional problem. Output only the finding lines. No preamble, no summary, no explanation paragraphs.'
 
-# Build prompt with diff in a temp file (avoids ARG_MAX limits).
-PROMPT_FILE=$(mktemp)
-trap 'wait 2>/dev/null; rm -f "${PROMPT_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}"' EXIT
+# Build prompt files (avoids ARG_MAX limits).
+# SYSTEM_FILE: review instructions. USER_FILE: commit context + diff.
+SYSTEM_FILE=$(mktemp)
+USER_FILE=$(mktemp)
+trap 'wait 2>/dev/null; rm -f "${SYSTEM_FILE}" "${USER_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}"' EXIT
+
+printf '%s\n' "${SYSTEM_PROMPT}" > "${SYSTEM_FILE}"
+
 {
-  printf '%s\n\n' "${REVIEW_PROMPT}"
+  if [[ -n "${COMMIT_SUMMARY}" ]]; then
+    echo "=== COMMITS ==="
+    echo "${COMMIT_SUMMARY}"
+    echo ""
+  fi
   echo "=== DIFF ==="
   echo "${DIFF}"
-} > "${PROMPT_FILE}"
+} > "${USER_FILE}"
 
 # --- Cost calculation ---
 
@@ -101,12 +123,14 @@ call_openai() {
   jq -n \
     --arg model "${model}" \
     --arg effort "${effort}" \
-    --rawfile prompt "${PROMPT_FILE}" \
+    --rawfile system "${SYSTEM_FILE}" \
+    --rawfile user "${USER_FILE}" \
     '{
       model: $model,
       reasoning: { effort: $effort },
       input: [
-        { role: "user", type: "message", content: $prompt }
+        { role: "developer", type: "message", content: $system },
+        { role: "user", type: "message", content: $user }
       ]
     }' > "${body_file}"
 
@@ -181,11 +205,15 @@ call_google() {
   local body_file
   body_file=$(mktemp)
   jq -n \
-    --rawfile prompt "${PROMPT_FILE}" \
+    --rawfile system "${SYSTEM_FILE}" \
+    --rawfile user "${USER_FILE}" \
     --argjson budget "${thinking_budget}" \
     '{
+      systemInstruction: {
+        parts: [{ text: $system }]
+      },
       contents: [{
-        parts: [{ text: $prompt }]
+        parts: [{ text: $user }]
       }],
       generationConfig: {
         thinkingConfig: {

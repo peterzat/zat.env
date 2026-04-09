@@ -561,7 +561,7 @@ echo ""
 echo "==> Concurrency safety"
 
 # review-external.sh: all temp files use mktemp
-for varname in PROMPT_FILE OPENAI_OUT GOOGLE_OUT; do
+for varname in SYSTEM_FILE USER_FILE OPENAI_OUT GOOGLE_OUT; do
   has "${SCRIPT}" "${varname}=.\(mktemp" \
     "script: ${varname} uses mktemp"
 done

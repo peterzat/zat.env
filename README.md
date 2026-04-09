@@ -243,6 +243,8 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **External reviewers (optional).** When API keys are configured in `~/.config/claude-reviewers/.env`, the codereview skill pipes the diff through `review-external.sh` to get independent findings from OpenAI and/or Google models. Findings are tagged with the provider name. External reviewers fail open: missing config, empty input, or API errors produce no findings. Runs once at initial review, not during fix/re-review cycles.
 
+**Review pipeline sequencing.** Claude Code's built-in review runs first (serial), then all configured external API reviewers run in parallel, then findings are merged. The serial-first design is intentional: Claude Code's review consumes the user's Anthropic plan (Pro, Max) without API token costs, but it runs inline and cannot be parallelized with external calls without significant orchestration complexity. Users on direct Claude API tokens (enterprise deployments) could instead add Claude as a peer external reviewer alongside OpenAI and Google in `review-external.sh`, eliminating the serialization delay at the cost of API token consumption. For plan-based subscribers the serial approach is the better trade-off.
+
 **Key guard:** Never deletes, skips, or weakens existing tests to make them pass. Fixes the code, not the tests.
 
 ### [`/security`](claude/skills/security/SKILL.md): Security Review

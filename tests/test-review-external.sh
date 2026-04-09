@@ -237,6 +237,84 @@ fi
 
 # ============================================================
 echo ""
+echo "==> Runs outside a git repo: exits 0, no crash"
+# ============================================================
+
+# The script derives UPSTREAM and commit summary via git commands.
+# Outside a repo these should fail gracefully (|| true guards).
+# Run in a subshell to isolate the cd from the main test process.
+NON_GIT_DIR=$(mktemp -d)
+cat > "${REVIEWER_ENV}" <<'EOF'
+OPENAI_API_KEY=sk-invalid-test-key
+EOF
+
+RESULT_FILE=$(mktemp)
+(
+  cd "${NON_GIT_DIR}"
+  printf '%s\n' "--- a/test.sh" "+++ b/test.sh" "@@ -1 +1 @@" "-old" "+new" \
+    | bash "${SCRIPT}" >/dev/null 2>/dev/null
+  echo "$?" > "${RESULT_FILE}"
+) || true
+EXIT_CODE=$(cat "${RESULT_FILE}")
+rm -f "${RESULT_FILE}"
+rm -rf "${NON_GIT_DIR}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "non-git dir: exit code 0 (fail-open)"
+else
+  fail "non-git dir: exit code ${EXIT_CODE} (should be 0)"
+fi
+
+# ============================================================
+echo ""
+echo "==> Prompt contains security dimension"
+# ============================================================
+
+if grep -q 'injection vectors' "${SCRIPT}"; then
+  pass "prompt: includes security dimension"
+else
+  fail "prompt: missing security dimension"
+fi
+
+# ============================================================
+echo ""
+echo "==> Prompt contains format example"
+# ============================================================
+
+if grep -q '^\[BLOCK\].*--.*' "${SCRIPT}" && grep -q '^\[WARN\].*--.*' "${SCRIPT}"; then
+  pass "prompt: includes BLOCK and WARN example findings"
+else
+  fail "prompt: missing example findings"
+fi
+
+# ============================================================
+echo ""
+echo "==> System and user messages are separate"
+# ============================================================
+
+# The script should build SYSTEM_FILE and USER_FILE, not a single PROMPT_FILE.
+if grep -q 'SYSTEM_FILE=' "${SCRIPT}" && grep -q 'USER_FILE=' "${SCRIPT}"; then
+  pass "message split: SYSTEM_FILE and USER_FILE defined"
+else
+  fail "message split: expected SYSTEM_FILE and USER_FILE variables"
+fi
+
+# OpenAI should use developer role for system instructions.
+if grep -q '"developer"' "${SCRIPT}"; then
+  pass "openai: uses developer role for system message"
+else
+  fail "openai: missing developer role"
+fi
+
+# Google should use systemInstruction field.
+if grep -q 'systemInstruction' "${SCRIPT}"; then
+  pass "google: uses systemInstruction field"
+else
+  fail "google: missing systemInstruction field"
+fi
+
+# ============================================================
+echo ""
 if [[ "${FAILS}" -eq 0 ]]; then
   echo "All ${TOTAL} checks passed."
 else
