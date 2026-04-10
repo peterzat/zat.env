@@ -245,6 +245,24 @@ jq --arg cmd "${VENV_HOOK_COMMAND}" '
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Added venv-source auto-approve hook"
 
+# Remove any existing post-tool-exit-plan-mode entry, then add the current version.
+# This is the /plan -> /spec plan handoff reminder. See hooks/README.md.
+PLAN_EXIT_HOOK_COMMAND="bash ${REPO_DIR}/hooks/post-tool-exit-plan-mode.sh"
+jq --arg cmd "${PLAN_EXIT_HOOK_COMMAND}" '
+  .hooks //= {} |
+  .hooks.PostToolUse //= [] |
+  .hooks.PostToolUse = [.hooks.PostToolUse[] | select(.hooks | map(.command // "" | test("post-tool-exit-plan-mode")) | any | not)] |
+  .hooks.PostToolUse += [{
+    "matcher": "ExitPlanMode",
+    "hooks": [{
+      "type": "command",
+      "command": $cmd,
+      "timeout": 5
+    }]
+  }]
+' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    Added post-ExitPlanMode /spec plan reminder hook"
+
 echo "==> Done"
 echo
 echo "Verify:"

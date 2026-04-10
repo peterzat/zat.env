@@ -5,7 +5,7 @@ description: >-
   for a unit of work. Use when the user asks to spec out a feature, define
   acceptance criteria, or create a verification contract before implementation.
   Manual invocation only via /spec.
-argument-hint: [new | propose | description]
+argument-hint: [new | propose | plan [slug] | description]
 disable-model-invocation: true
 context: fork
 effort: max
@@ -66,21 +66,24 @@ Also read the zat.env README for framework philosophy and practices:
 
 List directory structure 1-2 levels deep to understand the project shape.
 
-Check `~/.claude/plans/` for the most recently modified `.md` file. If one exists
-and was modified within the last 24 hours, read it as advisory planning context.
-This provides visibility into implementation sequencing, discovered constraints,
-and lessons from recent planning sessions.
-
-Plan context is advisory, not authoritative. If plan content conflicts with the
-current codebase state, trust the code. Do not treat plan implementation details
-as acceptance criteria.
+Plan files in `~/.claude/plans/` are NOT read here. They are only consumed by the
+explicit `/spec plan` mode (Step 3e), where the user has signaled intent to adopt
+a plan as the spec brief.
 
 ## Step 2: Determine Mode
 
 Parse `$ARGUMENTS` and project state. Order matters: check in this sequence.
+Keyword matches (`plan`, `propose`, `new`) always win, even in a project with no
+SPEC.md — otherwise `/spec plan` in a brand-new project would route to interview
+mode instead of adopting the plan.
 
+- **`plan` or `plan <slug>`:** Plan adoption mode (Step 3e). This is the handoff
+  from Claude Code's built-in plan mode: convert the most recently saved plan
+  (or a named plan) into a persistent SPEC.md. Wins over every other branch,
+  including "no SPEC.md exists."
+- **`propose`:** Propose mode (Step 3d). Requires an existing SPEC.md; if none
+  exists, fall through to interview mode.
 - **`new` or no SPEC.md exists:** Interview mode (Step 3a)
-- **`propose`:** Propose mode (Step 3d)
 - **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b)
 - **No arguments, SPEC.md exists with a `### Proposal` section:** Direct spec mode
   (Step 3b), using the proposal as the input brief. **Stale proposal guard:** run
@@ -112,6 +115,21 @@ description. Pressure-test them (Step 3.5), then write SPEC.md (Step 4). Present
 the result in Step 5. Do not ask for confirmation before writing; the user expressed
 intent by providing the description, and this skill runs in a forked context that
 cannot do multi-turn confirmation. The user can adjust the spec after seeing it.
+
+**Under-specification escape hatch.** If the brief is too vague to produce
+verifiable criteria (one-word descriptions like "add auth", purely aspirational
+statements like "make it faster", or anything where you cannot write 2+ testable
+checkboxes without guessing), STOP before writing SPEC.md. Do not write a spec
+full of placeholder criteria. Instead, tell the user:
+
+> This brief is too under-specified to produce testable acceptance criteria.
+> Drop into Claude Code's plan mode (Shift+Tab twice, or type `/plan`) to
+> explore the approach first, then run `/spec plan` to convert the saved plan
+> into a SPEC.md. The pressure test will sharpen the plan's outcomes into
+> verifiable criteria at that point.
+
+Then stop. Do not proceed to write SPEC.md. This is the only mode that may
+refuse to write — plan adoption mode and interview mode always produce a spec.
 
 **When entering via proposal detection** (no `$ARGUMENTS`, but a `### Proposal`
 section exists in SPEC.md): use the proposal content as the input brief. Read all
@@ -188,6 +206,59 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
 
 Propose mode skips Step 3.5 (pressure test) since proposals are not acceptance criteria.
 
+## Step 3e: Plan Adoption Mode (Convert a Saved Plan to a Spec)
+
+The user exited Claude Code's plan mode with a saved plan and now wants to turn
+it into a persistent, review-gated spec. This is the designed handoff: plan mode
+is for exploratory multi-turn thinking; `/spec plan` is the commit point where
+that thinking becomes a testable contract.
+
+1. **Locate the plan file.**
+   - **Slug provided** (`/spec plan <slug>`): strip any trailing `.md`, then look
+     for `~/.claude/plans/<slug>.md`. If not found, stop with:
+     "No plan file matching '<slug>' in ~/.claude/plans/. Run `ls ~/.claude/plans/`
+     to see available plans."
+   - **No slug** (`/spec plan`): pick the most-recently-modified plan via
+     `ls -t ~/.claude/plans/*.md 2>/dev/null | head -1`. If none exists, stop with:
+     "No plans found in ~/.claude/plans/. Exit plan mode first (it auto-saves on
+     exit), or use `/spec new` for interview mode."
+   - Do NOT apply a staleness window. If the user typed `/spec plan`, the typed
+     command is the signal — trust it. A user who wants a different plan will
+     specify a slug.
+
+2. **Read the plan file in full.** It is the authoritative input brief for this
+   spec. Unlike the advisory read that used to live in Step 1, the plan here is
+   treated as the primary source of intent.
+
+3. **Read the codebase** to ground the plan in current state (same as Step 3b).
+   Plans may have been written against a prior version of the code; trust the
+   current code when there is conflict, and note the drift in the Context section
+   of SPEC.md.
+
+4. **Draft acceptance criteria from the plan.** Plans typically describe stages,
+   approaches, and expected outcomes in prose. Your job is to extract verifiable
+   outcomes and reformulate them as testable checkboxes. Aspirational prose like
+   "stronger review output" must either become a concrete criterion (e.g.,
+   "N/M review fixtures produce a strict superset of prior BLOCK findings") or
+   be dropped if there is genuinely no way to verify it. Do not carry vague
+   language through into the spec.
+
+5. **Run Step 3.5 (pressure test).** This is especially important for plan
+   adoption because plans tend to mix intent, approach, and implementation
+   detail. The pressure test is where prose becomes contract.
+
+6. **Write SPEC.md (Step 4).** In the Context section, note that the spec was
+   adopted from `~/.claude/plans/<slug>.md` so the implementing agent can read
+   the original plan for background. Do not copy the plan wholesale into Context;
+   carry only the concrete constraints the implementer needs that are not
+   obvious from the acceptance criteria themselves.
+
+7. **Leave the plan file in place.** Plans are write-once; removing or moving
+   one breaks replay if the first conversion was wrong.
+
+Present the result in Step 5 with the adoption noted: "Spec adopted from plan
+`<slug>` with N acceptance criteria."
+
 ## Step 3.5: Pressure Test
 
 Before writing SPEC.md, pressure-test your drafted criteria. Do not add criteria for
@@ -205,9 +276,9 @@ the sake of completeness. Only add or revise if a question reveals a genuine gap
 5. **Am I over-specifying?** Remove any criterion that prescribes implementation rather
    than verifiable behavior. Remove any criterion that duplicates another.
 
-This step applies when writing new criteria (Steps 3a, 3b, and 3c when starting a
-new spec after completion). Skip it for evolve-mode check-offs where criteria are
-unchanged.
+This step applies when writing new criteria (Steps 3a, 3b, 3e, and 3c when
+starting a new spec after completion). Skip it for evolve-mode check-offs where
+criteria are unchanged.
 
 ## Step 4: Write SPEC.md
 
@@ -256,11 +327,14 @@ Rules for writing acceptance criteria:
 
 Show the user the spec you wrote. End with a one-line summary:
 - **New spec:** "Spec written: [title] with N acceptance criteria."
+- **Plan adopted:** "Spec adopted from plan `<slug>` with N acceptance criteria."
 - **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
 - **Evolved (complete):** "Turn complete: [title]. Proposal written. Anything from
   this turn you'd add or correct?"
 - **Proposal:** "Proposal written for next turn. Run `/spec` to start. You can also
   ask this conversation to review and enrich the proposal with context from this session."
+- **Escape (brief too vague):** no spec written; end with the plan-mode suggestion
+  from Step 3b verbatim.
 
 Note: This skill does not generate code, write tests, or run the test suite. It
 defines the verification contract. After writing the spec, STOP and wait for the

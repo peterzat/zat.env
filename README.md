@@ -208,7 +208,7 @@ You can also run `/spec propose` at any time to generate a proposal without wait
 
 For external or cloned projects, SPEC.md describes what you are building or changing right now, not what the project is (that's README territory).
 
-**Replaces plan mode.** `/spec` supersedes Claude Code's built-in plan mode for this project. Plan mode produces a one-off plan that lives only in the current conversation; `/spec` produces a persistent SPEC.md that survives across sessions, integrates with review skills, and drives the implementation loop. Use `/spec` instead of entering plan mode. If you need to think through an approach before coding, `/spec` is the tool for that.
+**Complements plan mode.** Plan mode and `/spec` serve different phases of the same work and have a documented handoff. Plan mode is Claude Code's built-in exploratory thinking space: read-only, multi-turn, no persistent artifact, good for "I don't know what I want yet." `/spec` is the commit point: it writes a persistent SPEC.md with testable acceptance criteria, integrates with review skills, and drives the implementation loop. When a plan mode session turns out to be bigger than one-off scratch thinking, exit plan mode and run `/spec plan` to adopt the saved plan as the spec brief (or `/spec plan <slug>` to pick a specific earlier plan). In the reverse direction, if you invoke `/spec` with a brief too vague to produce verifiable criteria, the skill stops and tells you to explore in plan mode first. A PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` every time you leave plan mode so the handoff is visible rather than something to remember.
 
 **Design intent.** Agents without acceptance criteria optimize for "make tests pass" rather than "solve the problem." In autonomous loops, the spec is the artifact that answers "what should I be building?" when the agent starts a fresh session. All review skills read SPEC.md when it exists: `/codereview` checks spec alignment, `/tester` checks whether tests cover the criteria, `/architect` evaluates whether the architecture can support the criteria, `/security` uses the spec for scope awareness.
 
@@ -949,6 +949,7 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Install script prunes stale hook entries from settings.json on re-run
 - [x] Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
 - [x] Test runner (`tests/run-all.sh`) with combined summary across all suites
+- [x] Plan-mode handoff: `/spec plan [<slug>]` adopts a saved plan as the spec brief, pressure-tests outcomes into verifiable criteria, and writes SPEC.md. PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` so the handoff is visible. `/spec` with an under-specified brief now suggests exploring in plan mode first. Supersedes the earlier advisory plan read in Step 1.
 
 ### Next up
 

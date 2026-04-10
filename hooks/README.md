@@ -47,6 +47,29 @@ eval-like builtin safety prompt.
 The settings.json `permissions.allow` list covers `. .venv/bin/activate && *` but
 not the `source` synonym. This hook fills that gap.
 
+## post-tool-exit-plan-mode.sh
+
+Injects a reminder about `/spec plan` into the main conversation context
+immediately after the user exits Claude Code's built-in plan mode.
+
+**How it works:**
+1. Fires as a `PostToolUse` hook scoped to `matcher: "ExitPlanMode"`
+2. Reads the hook input JSON from stdin, double-checks `tool_name == ExitPlanMode`
+3. Writes a plain-text reminder to stdout; plain stdout on `PostToolUse` is
+   surfaced as additional context the next-turn model sees
+4. Always exits 0 — the hook never blocks anything, it only reminds
+
+**Why it exists:** Plan mode is built into Claude Code and its prompt cannot be
+modified. Users who realize mid-plan-mode that their work is non-trivial need
+a clear path to convert the saved plan into a persistent SPEC.md. This hook is
+the deterministic reminder; the consumer is `/spec plan` (see the spec skill's
+Step 3e). Without it, users would have to remember the handoff themselves.
+
+**Why always-fires (not size-gated):** The reminder is one paragraph, and the
+judgment about whether the work is "non-trivial enough" to spec belongs to the
+user and the main-context Claude, not to a shell script trying to measure plan
+size. Always-firing keeps the contract simple.
+
 ## Installing Hooks
 
 Hooks are installed automatically by `zat.env-install.sh`. The install script

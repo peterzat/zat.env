@@ -402,6 +402,77 @@ else
   fail "marker: PROJ_HASH derivation mismatch -- skill=[${SKILL_PROJ_HASH}] hook=[${HOOK_PROJ_HASH}]"
 fi
 
+# --- Plan-mode handoff contract ---
+# The /spec plan mode and the post-ExitPlanMode hook are a two-piece contract.
+# If they drift (renamed mode, moved hook, changed message) the handoff breaks
+# silently: the hook still reminds about a keyword the skill no longer recognizes,
+# or the skill waits for a handoff the hook no longer triggers.
+
+echo ""
+echo "==> Plan-mode handoff contract"
+
+PLAN_HOOK="${REPO_DIR}/hooks/post-tool-exit-plan-mode.sh"
+INSTALL="${REPO_DIR}/zat.env-install.sh"
+
+# Spec skill declares plan mode in frontmatter argument-hint
+has "${SKILLS}/spec/SKILL.md" "argument-hint:.*plan" \
+  "spec: argument-hint advertises plan mode"
+
+# Spec skill has a Step 3e for plan adoption
+has "${SKILLS}/spec/SKILL.md" "Step 3e.*Plan Adoption" \
+  "spec: Step 3e is Plan Adoption Mode"
+
+# Step 2 router must include 'plan' as a keyword branch
+has "${SKILLS}/spec/SKILL.md" '`plan` or `plan <slug>`' \
+  "spec: Step 2 router has plan keyword branch"
+
+# The router must explicitly note that 'plan' wins over "no SPEC.md"
+has "${SKILLS}/spec/SKILL.md" "Wins over every other branch" \
+  "spec: plan keyword wins over no-SPEC.md fallback"
+
+# Spec skill must NOT still have the old advisory plan read in Step 1.
+# The old text was "Check ~/.claude/plans/ for the most recently modified"
+hasnt "${SKILLS}/spec/SKILL.md" "Check .*plans.*most recently modified" \
+  "spec: removed legacy advisory plan read from Step 1"
+
+# Spec skill must still explicitly name the plans directory in Step 3e
+# (that is where the plan files are located)
+has "${SKILLS}/spec/SKILL.md" 'ls -t.*plans.*\.md.*head' \
+  "spec: Step 3e locates most-recent plan via ls -t"
+
+# Spec skill's under-specification escape hatch points at /spec plan
+has "${SKILLS}/spec/SKILL.md" "/spec plan.*convert the saved plan" \
+  "spec: under-specification escape hatch points at /spec plan"
+
+# The hook file exists and is executable
+if [[ -x "${PLAN_HOOK}" ]]; then
+  pass "hook: post-tool-exit-plan-mode.sh exists and is executable"
+else
+  fail "hook: post-tool-exit-plan-mode.sh missing or not executable"
+fi
+
+# The hook's reminder text mentions /spec plan by name so the main-context
+# Claude knows which keyword to use
+has "${PLAN_HOOK}" '/spec plan' \
+  "hook: reminder mentions /spec plan keyword"
+
+# The hook double-checks tool_name as a safety net against matcher drift
+has "${PLAN_HOOK}" '"ExitPlanMode"' \
+  "hook: guards on tool_name == ExitPlanMode"
+
+# The install script registers the hook with the correct matcher
+has "${INSTALL}" '"matcher": "ExitPlanMode"' \
+  "install: registers hook with ExitPlanMode matcher"
+
+# The install script references the hook by filename so the stale-hook pruner
+# and the register block both find the same script
+has "${INSTALL}" "post-tool-exit-plan-mode.sh" \
+  "install: references post-tool-exit-plan-mode.sh by name"
+
+# The install script uses PostToolUse (not PreToolUse) for the plan hook
+has "${INSTALL}" '\.hooks\.PostToolUse.*post-tool-exit-plan-mode' \
+  "install: plan hook is registered under PostToolUse"
+
 # --- Output verdicts ---
 
 echo ""
