@@ -16,15 +16,17 @@ pass() { TOTAL=$((TOTAL + 1)); printf '  ok   %s\n' "$1"; }
 fail() { TOTAL=$((TOTAL + 1)); FAILS=$((FAILS + 1)); printf '  FAIL %s\n' "$1"; }
 
 has() {
-  # has <file> <pattern> <label> — pass if pattern found
+  # has <file> <pattern> <label> — pass if pattern found.
+  # `--` terminates grep option parsing so patterns starting with `-`
+  # (e.g. "-C", "--git-dir") are treated as patterns, not options.
   if [[ ! -f "$1" ]]; then fail "$3 [FILE MISSING: $1]"; return; fi
-  if grep -qE "$2" "$1" 2>/dev/null; then pass "$3"; else fail "$3"; fi
+  if grep -qE -- "$2" "$1" 2>/dev/null; then pass "$3"; else fail "$3"; fi
 }
 
 hasnt() {
   # hasnt <file> <pattern> <label> — pass if pattern NOT found
   if [[ ! -f "$1" ]]; then fail "$3 [FILE MISSING: $1]"; return; fi
-  if grep -qE "$2" "$1" 2>/dev/null; then fail "$3"; else pass "$3"; fi
+  if grep -qE -- "$2" "$1" 2>/dev/null; then fail "$3"; else pass "$3"; fi
 }
 
 # --- META field cross-references ---
@@ -277,8 +279,38 @@ has "${HOOK}" 'STORED_HASH.*DIFF_HASH' \
   "hook: compares stored marker hash against current diff"
 
 # Hook: tag-only pushes bypass gate
-has "${HOOK}" "TAG_PATTERN" \
-  "hook: tag-only pushes skip codereview gate"
+has "${HOOK}" "is_tag_only_push" \
+  "hook: tag-only pushes skip codereview gate (is_tag_only_push function)"
+
+# Hook: git-push detection uses a tokenizer, not a prefix match.
+# The earlier prefix-match implementation silently bypassed the gate on
+# `git -C <dir> push` and similar forms — a real bug that reached main.
+has "${HOOK}" "is_git_push" \
+  "hook: git-push detection uses is_git_push tokenizer"
+hasnt "${HOOK}" '!= git\\ push\*' \
+  "hook: no legacy 'git push*' prefix match (regression guard)"
+
+# Hook: tokenizer must handle git-level options that take separate arguments.
+# If any of these are missing from the case block, commands like `git -C dir push`
+# would fall through and be missed.
+for opt in "-C" "-c" "--git-dir" "--work-tree" "--namespace" "--exec-path" "--super-prefix" "--config-env"; do
+  has "${HOOK}" "${opt}" \
+    "hook: is_git_push handles ${opt} option"
+done
+
+# Hook: empty non-excluded diff is explicitly allowed with a stderr log.
+# Without this, a review-files-only commit on an already-reviewed base would
+# be blocked because the stored marker hash wouldn't match the empty-diff hash.
+has "${HOOK}" "git diff --quiet.*:!CODEREVIEW" \
+  "hook: empty non-excluded diff allow path uses git diff --quiet"
+has "${HOOK}" "no reviewable changes" \
+  "hook: empty-diff allow path logs a stderr explanation"
+
+# Hook: no leftover diagnostic trace from investigation.
+hasnt "${HOOK}" "pre-push-hook-trace" \
+  "hook: no diagnostic trace log (cleanup after investigation)"
+hasnt "${HOOK}" "TEMPORARY DIAGNOSTIC" \
+  "hook: no leftover TEMPORARY DIAGNOSTIC comment"
 
 # Hook: skip marker consumed on use (rm before exit 0)
 has "${HOOK}" 'rm.*SKIP_MARKER' \

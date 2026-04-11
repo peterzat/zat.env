@@ -41,6 +41,7 @@ run_suite() {
 
 run_suite "${TESTS_DIR}/lint-skills.sh"
 run_suite "${TESTS_DIR}/test-review-external.sh"
+run_suite "${TESTS_DIR}/test-pre-push-hook.sh"
 
 echo "━━━ Combined ━━━"
 echo ""
