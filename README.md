@@ -8,9 +8,13 @@
 
 <br>
 
-Reproducible framework for autonomous agentic coding with spec-driven development and adversarial guardrails. Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation and optional multi-model reviewers (OpenAI, Google, local GPU), security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review.
+Spec-driven development and adversarial review gates for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Define what done looks like, let the model figure out how to get there, and block code from leaving the machine until automated review passes.
+
+Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
+
+**Coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/)?** This repo is the implementation. The spec is the control plane, adversarial review is the verification loop, and the pre-push hook is the quality gate. The harness is deliberately minimal because the bitter lesson says it should be.
 
 **Where this is headed.** Today, zat.env provides best practices for supervised Claude Code usage: spec-driven development, adversarial review gates, and minimal conventions that stay out of the model's way. The design is deliberately minimal because current and future Anthropic coding models are good enough that over-specializing the harness limits your ability to benefit from model improvements. Over time, the goal is to layer autonomous coding loops on top of this foundation (review/fix/review cycles, convergence detection, parallel agents on branches) while keeping the harness as simple as the models allow. See [Roadmap](#roadmap) for the progression.
 
@@ -53,8 +57,7 @@ Each turn tightens quality. The spec prevents drift across sessions, gives revie
 - [Coding Practices](#coding-practices)
 - [Philosophy](#philosophy)
 - [Theory of Autonomous Improvement](#theory-of-autonomous-improvement)
-  - [The Carlini Principle](#the-carlini-principle)
-  - [Why Agents Can't One-Shot Complex Projects](#why-agents-cant-one-shot-complex-projects)
+  - [Design Foundations](#design-foundations)
   - [The Autonomy Spectrum](#the-autonomy-spectrum)
   - [Anti-Patterns We Designed Against](#anti-patterns-we-designed-against)
 - [Current Hardware: Hetzner GEX44](#current-hardware-hetzner-gex44)
@@ -445,38 +448,11 @@ These practices are deliberately minimal. Shorter, more specific instructions ou
 
 ## Theory of Autonomous Improvement
 
-This section documents the design philosophy behind the agentic skill system and the long-term vision for autonomous coding loops.
+### Design Foundations
 
-### The Carlini Principle
+The design is grounded in two Anthropic Engineering papers: Carlini's [parallel Claude compiler](https://www.anthropic.com/engineering/building-c-compiler) (16 agents, 100K lines of Rust, verification quality as the ceiling on output quality) and Rajasekaran's [harness design for long-running development](https://www.anthropic.com/engineering/harness-design-long-running-apps) (separate generation from evaluation, even when the same model does both). Applied here: invest in verification before investing in prompts. A well-designed review loop is worth more than a better system prompt.
 
-In February 2026, Nicholas Carlini at Anthropic [built a complete C compiler](https://www.anthropic.com/engineering/building-c-compiler) using 16 parallel Claude Opus 4.6 agents running in an infinite loop. 100,000 lines of Rust, 3,982 commits, ~$20,000 in API costs, 2 weeks. No human wrote code.
-
-Separately, Prithvi Rajasekaran at Anthropic Labs documented [harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps), showing that a generator-evaluator architecture (dedicated planner, generator, and evaluator agents with hard quality thresholds) produces dramatically better results than single-agent runs, even when the single agent is the same model. The key patterns: separate generation from evaluation, make subjective quality measurable with weighted rubrics, and use context resets or compaction to sustain coherence across hours-long sessions.
-
-Together these two papers form the technical basis for the autonomous loop roadmap below. Carlini's work demonstrates that verification loop quality determines output quality. Rajasekaran's work demonstrates how to structure the harness: decompose into specialized agents, stress-test evaluator criteria, and simplify the harness as model capabilities improve.
-
-Applied here: invest in verification (review skills, test suites, feedback loops) before investing in prompts. A well-designed review loop is worth more than a better system prompt.
-
-### Why Agents Can't One-Shot Complex Projects
-
-Even Opus 4.6 cannot reliably one-shot complex projects. This is not a model limitation to be overcome with better prompts or larger context windows. It is a fundamental property of how complexity interacts with sequential decision-making.
-
-**Requirements are underspecified.** Real projects have ambiguity that only surfaces during implementation. "Add authentication" implies dozens of decisions (session lifetime, token storage, error UX, rate limiting) that the requester hasn't articulated and may not have opinions on until they see a working version. An agent making all these decisions at once will get some wrong, and the cost of correcting compound errors is higher than making them incrementally.
-
-**Errors compound non-linearly.** A wrong abstraction chosen in step 3 of 20 doesn't just make step 3 wrong. It warps steps 4 through 20 to fit the bad abstraction. In an iterative loop, the wrong abstraction is caught at step 4 and corrected. In a one-shot run, the agent builds confidently on a flawed foundation because it has no external signal that anything is off.
-
-**Context degrades with scale.** Models attend to everything in context, but not equally. As a one-shot generation grows, early decisions (architecture, naming, module boundaries) get diluted by the volume of later code. The agent loses coherence with its own earlier choices. This is why Rajasekaran's harness design paper emphasizes context resets: sustained coherence requires periodically discarding accumulated context and re-grounding from persistent artifacts.
-
-**Verification requires a different mode than generation.** Generating code and evaluating code exercise different judgment. When the same agent does both in a single pass, it is biased toward confirming its own choices. Carlini's compiler project and Rajasekaran's harness work both show that separating generation from evaluation (even when the same model does both) produces measurably better results.
-
-**Human intent is discovered, not transmitted.** Users refine what they want by reacting to what they see. A one-shot agent denies the user this feedback opportunity. The result may be technically correct and still miss the point, because the point only becomes clear through iteration.
-
-The solution is iterative structure with verification at each step. This system implements the following mitigations:
-
-1. **Regression detection.** The Coding Practices conventions require running tests before and after fixes, and reverting if things get worse. This is enforced by convention in the global prompt, not by automated tooling.
-2. **Retry limits.** The convention "if two consecutive fix attempts fail, stop and re-evaluate" prevents the agent from spiraling. This is a prompt-level rule, not a stateful detection mechanism.
-3. **Diminishing returns.** Skills are designed to report "nothing to add" when code is clean, rather than generating noise to fill a template.
-4. **Machine-readable review metadata.** Review skills emit structured metadata (`<!-- REVIEW_META: {...} -->`) alongside prose findings. This is the foundation for future automated convergence detection but is not yet consumed programmatically.
+See [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/) for the full argument: why agents cannot one-shot complex projects, how spec-driven turns solve the drift problem, and why minimal harness design follows from the bitter lesson.
 
 ### The Autonomy Spectrum
 
@@ -559,234 +535,9 @@ These are per-machine values. See `claude/references/networking.md` for the full
 
 ### Setup From Scratch
 
-Starting from a bare Hetzner Ubuntu 22.04.2 LTS install with root SSH access. These steps reflect the actual setup of this machine (March 2026, driver 590-server, CUDA 13.1).
+Two scripts take a bare Hetzner Ubuntu 22.04 install to a fully provisioned agentic dev box: `hw-bootstrap.sh` handles system packages, NVIDIA drivers, CUDA, Docker, Tailscale, and Claude Code. `zat.env-install.sh` wires skills, hooks, and conventions into the live system. The process requires two bootstrap runs (one before and one after the NVIDIA driver install and reboot) plus a manual driver selection step.
 
-**Phase 1: Create user (as root)**
-
-SSH in as root using the IP from the Hetzner Robot panel:
-
-```bash
-ssh root@<public-ip>
-```
-
-Create a sudo-enabled user and copy the SSH authorized keys:
-
-```bash
-adduser peter
-usermod -aG sudo peter
-mkdir -p /home/peter/.ssh
-cp /root/.ssh/authorized_keys /home/peter/.ssh/authorized_keys
-chown -R peter:peter /home/peter/.ssh
-chmod 700 /home/peter/.ssh
-chmod 600 /home/peter/.ssh/authorized_keys
-exit
-```
-
-`adduser` prompts for a password and full name ("Peter Zatloukal"). The rest can be left blank.
-
-**Phase 2: First bootstrap run (as peter)**
-
-SSH back in as peter and run the bootstrap script:
-
-```bash
-ssh peter@<public-ip>
-sudo -v
-```
-
-```bash
-sudo apt-get update
-sudo apt-get install -y git
-git clone https://github.com/peterzat/zat.env.git ~/src/zat.env
-cd ~/src/zat.env
-bash hw-bootstrap.sh
-```
-
-The script installs base packages (build-essential, emacs, ripgrep, Python 3, etc.), then stops at the NVIDIA driver section. It prints a list of available GPGPU drivers from `ubuntu-drivers list --gpgpu` and exits with instructions. Do not reboot yet.
-
-**Phase 3: NVIDIA driver (manual)**
-
-From the list the script printed, pick the highest `-server` (non-open) branch. In March 2026 that was `590-server`. Do not use `-open` or headless variants.
-
-Install kernel headers first so DKMS can build the module, then install the driver:
-
-```bash
-sudo apt-get install -y linux-headers-$(uname -r)
-sudo apt-get install -y \
-  linux-modules-nvidia-590-server-$(uname -r) \
-  nvidia-driver-590-server \
-  nvidia-utils-590-server
-```
-
-The `linux-modules-nvidia` package provides pre-built kernel modules for your running kernel. The `linux-headers` package enables DKMS to rebuild them if needed (e.g., after a kernel update).
-
-Validate before rebooting:
-
-```bash
-sudo modprobe nvidia && nvidia-smi
-```
-
-You should see the RTX 4000 SFF Ada with 20475 MiB memory and driver version 590.48.01. If `nvidia-smi` fails but `modprobe` succeeded, verify that the headers package matches your running kernel (`uname -r`) and re-run the driver install to trigger the DKMS build. If `modprobe` itself fails, check `dmesg` and do NOT reboot.
-
-Once `nvidia-smi` shows the GPU:
-
-```bash
-sudo reboot
-```
-
-**Phase 4: Second bootstrap run**
-
-SSH back in (allow ~60 seconds for reboot):
-
-```bash
-ssh peter@<public-ip>
-```
-
-Verify the driver survived the reboot:
-
-```bash
-nvidia-smi
-```
-
-Run the bootstrap script again to complete CUDA toolkit, Docker, Tailscale, Claude Code, and NVIDIA Container Toolkit:
-
-```bash
-cd ~/src/zat.env
-bash hw-bootstrap.sh
-```
-
-The Docker GPU test at the end may fail with a "permission denied" error. This is expected because your user is not yet in the `docker` group (the script added you, but it takes effect on next login). Log out and back in:
-
-```bash
-exit
-```
-
-```bash
-ssh peter@<public-ip>
-```
-
-Verify Docker GPU access:
-
-```bash
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
-```
-
-**Phase 5: Tailscale, hostname, system updates**
-
-Authenticate Tailscale:
-
-```bash
-sudo tailscale up --ssh
-```
-
-This prints a one-time auth URL (`https://login.tailscale.com/a/<xxx>`). Open it in a browser to authenticate. On success, `tailscale status` shows your machine and any other devices on your tailnet.
-
-Fix the Hetzner default hostname (`Ubuntu-2204-jammy-amd64-base`):
-
-```bash
-sudo hostnamectl set-hostname dev
-sudo sed -i 's/Ubuntu-2204-jammy-amd64-base/dev/g' /etc/hosts
-sudo tailscale up --ssh --hostname=dev
-```
-
-Verify:
-
-```bash
-hostname -f
-tailscale status
-```
-
-`hostname -f` should return `dev`. `tailscale status` should show `dev` as the machine name with your tailnet identity (`peterzat@`).
-
-**Networking identity (machine-specific):**
-
-The hostname (`dev`), tailnet (`emperor-exponential.ts.net`), and any public DNS record (`dev.agent-hypervisor.ai`) are configured at this point. If you are setting up a different machine, substitute your own values. These values are referenced in `claude/references/networking.md` and should be updated there if they change.
-
-Apply pending system updates (this typically pulls a new kernel):
-
-```bash
-sudo apt-get update
-sudo apt-get dist-upgrade -y
-sudo apt-get autoremove -y
-sudo reboot
-```
-
-DKMS automatically rebuilds the NVIDIA module for the new kernel during `dist-upgrade`. You will see "Autoinstall on 5.15.0-NNN-generic succeeded for module(s) nvidia-srv" in the output.
-
-After reboot, connect via Tailscale SSH from your client machine:
-
-```bash
-ssh peter@<tailscale-ip>
-```
-
-The first Tailscale SSH connection prompts for browser-based authentication. After that, `ssh peter@dev` works if your client resolves Tailscale MagicDNS names (e.g., from a Mac on the same tailnet).
-
-Verify the hostname stuck. Hetzner's installimage puts the old hostname on the public IP lines in `/etc/hosts`, and a kernel update may regenerate those entries. If `hostname -f` still returns `dev`, you're fine. If the IP lines reverted, fix them:
-
-```bash
-cat /etc/hosts
-# If the public IP lines still say Ubuntu-2204-jammy-amd64-base:
-sudo sed -i 's/Ubuntu-2204-jammy-amd64-base/dev/g' /etc/hosts
-```
-
-Final sanity check:
-
-```bash
-hostname -f
-nvidia-smi
-tailscale status
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
-```
-
-**Phase 6: zat.env config and Claude Code**
-
-From here on, connect via Tailscale SSH (`ssh peter@dev` or `ssh peter@dev.emperor-exponential.ts.net`).
-
-Generate an SSH key for GitHub:
-
-```bash
-ssh-keygen -t ed25519 -C "peterzat"
-cat ~/.ssh/id_ed25519.pub
-```
-
-Add the public key at https://github.com/settings/keys, then verify access:
-
-```bash
-ssh -T git@github.com
-```
-
-You should see "Hi peterzat! You've successfully authenticated". Then install the GitHub CLI (`gh` is not in Ubuntu 22.04's default repos, so the fallback adds GitHub's APT repository):
-
-```bash
-sudo apt-get update -qq && sudo apt-get install -y gh || {
-  sudo sh -c 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    -o /usr/share/keyrings/githubcli-archive-keyring.gpg &&
-  chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg &&
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-    > /etc/apt/sources.list.d/github-cli.list &&
-  apt-get update -qq && apt-get install -y gh'
-}
-gh auth login
-```
-
-Install the zat.env config:
-
-```bash
-~/src/zat.env/zat.env-install.sh
-```
-
-The install script prompts for git `user.name` and `user.email` on first run, then symlinks skills, hooks, and conventions into place.
-
-Authenticate Claude Code:
-
-```bash
-claude
-```
-
-Follow the browser-based auth flow. Once authenticated, exit and start a new session to pick up the installed skills:
-
-```bash
-mkdir -p ~/src/scratchpad && cd ~/src/scratchpad && zatmux
-```
+See [docs/hardware-setup.md](docs/hardware-setup.md) for the full step-by-step walkthrough.
 
 ### Directory Overview
 
@@ -957,40 +708,9 @@ Papers and posts that inform the design of this setup, particularly around long-
 - Worktree-based A/B testing, quantitative trending, branch workflow aliases
 - Loop orchestrator and circuit breakers for autonomous review/fix cycles
 
-### Future (v2+)
+### Future
 
-**Near-term (high value, incremental):**
-- **`/verify` skill**: execute the project's test suite as ground truth; factual signal to complement opinion-based review
-- **Worktree-based A/B testing**: create a worktree before applying a fix, run tests in isolation, compare against main before merging
-- **Quantitative trending**: parse structured metadata footers, track BLOCK/WARN/NOTE counts over sessions, detect convergence or regression
-- **Branch workflow aliases**: `git feat <name>` (create feature branch), `git done` (merge + delete local-only branch)
-
-**Medium-term (autonomous loops):**
-- **Loop orchestrator** (`/review-loop`): codereview/fix/codereview loop until convergence or max iterations; auto-create PR via `/pr` when done. Progress persists in files and git, not context. Design around known failure modes (see [Anti-Patterns](#anti-patterns-we-designed-against)).
-- **Loop circuit breakers**: max-iteration cap, regression detection (test count must not decrease), convergence detection (stop if BLOCK count plateaus), human checkpoint intervals
-- **Baseline snapshots**: record build/test/lint state before changes, diff after. Distinguishes "I broke this" from "this was already broken."
-- **Remote agent PR review**: `/schedule` trigger runs `/codereview` against open PRs, posts results as PR comments
-- **Inter-session coordination**: lockfiles for persistent review files, session discovery, conflict-safe concurrent updates
-- **Alignment checks**: periodic re-read of task specification during long loops to detect intent drift
-- **Evaluate Claude Code Agent SDK**: explore the Agent SDK and `/agent` subagent mechanism for loop orchestration. Subagents can run in isolated worktrees with scoped tools and effort levels, which may be a better fit for coding loops than skill-level fork contexts. Key questions: can a subagent invoke skills, how does effort propagate, what are the context window trade-offs vs. forked skills. The [harness design paper](https://www.anthropic.com/engineering/harness-design-long-running-apps) provides a concrete reference architecture: planner/generator/evaluator agents with hard quality thresholds, context resets between sprint contracts, and iterative harness simplification as model capabilities improve. Evaluate whether the Agent SDK can instantiate this pattern (dedicated evaluator subagents running Playwright or test suites, generator subagents in worktrees, a coordinator managing sprint contracts and convergence).
-- **Progressive disclosure**: reference files (`skills/<name>/references/`) for dimension details as skill prompts grow
-
-**Long-term (multi-agent):**
-- **Agent-per-PR pattern**: each agent works in its own worktree/branch, opens a PR via `/pr` when done; a coordinator agent reviews and merges
-- **GitHub Actions CI**: independent test signal across multiple agent PRs; branch protection on main replaces local pre-push hook
-- **Cross-project awareness**: architect and security read persistent files from sibling projects to detect dependency-chain risks
-- **Long-running loop orchestration**: Carlini-style infinite loops with CI enforcement. Key inputs: lock files for task claiming, differential testing oracles, test output designed for agent consumption.
-- **Multi-agent coordination**: multiple Claude sessions across projects with shared task pools and message passing
-- **Monitoring / dashboards**: visibility into running agent sessions, GPU utilization, loop progress
-
-**Agent framework portability:**
-- **Evaluate agent wrappers**: benchmark alternative runtimes (Goose, Amp Code, Aider) against Claude Code on representative tasks. Skills are Markdown and hooks are bash; most of the architecture should port with changes to invocation syntax only.
-- **Agent-per-PR Carlini loop**: parallel agents on branches, PRs as synchronization boundaries, coordinator merging via `/pr`, GitHub Actions as the independent verification signal
-
-**/architect evolution:**
-- **Diff-against-prior mode**: `/architect diff` compares current assessment against a user-provided prior assessment to highlight what changed
-- **Progressive disclosure**: move detailed dimension descriptions into `references/dimensions.md` as the skill prompt approaches the 500-line limit
-- **Cross-project awareness**: read persistent files from sibling `~/src/` projects to detect dependency-chain risks and architectural inconsistencies
+Autonomous review/fix/review loops with convergence detection, worktree-based A/B testing, and eventually Carlini-style parallel agents with PRs as coordination boundaries. The architecture is designed so each step builds on the existing skill/artifact system without requiring a rewrite.
 
 ---
 
