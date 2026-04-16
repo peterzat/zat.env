@@ -8,15 +8,15 @@
 
 <br>
 
-Spec-driven development and adversarial review gates for Claude Code. Define what done looks like, let the model figure out how to get there, and block code from leaving the machine until automated review passes.
+Minimal harness for reliable autonomous coding with Claude Code. Verification quality, not prompt engineering, determines the ceiling on what agents can build. This repo implements the thinnest layer that matters: specs as the control plane, adversarial review as the verification loop, persistent artifacts as inter-session memory, and a pre-push gate that blocks unreviewed code from leaving the machine.
 
 Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
-**If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/)**, this repo is the implementation. The spec is the control plane, adversarial review is the verification loop, persistent artifacts are the inter-session memory, and the pre-push hook is the quality gate. The harness is deliberately minimal because the bitter lesson says it should be.
+**If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/)**, this is the repo. The harness is deliberately minimal because the bitter lesson says it should be.
 
-**Where this is headed.** The spec-implement-evaluate loop, persistent review artifacts, and adversarial gates already provide the core architecture for autonomous coding loops. Today a human is in the loop, reviewing outcomes and writing specs. The design is deliberately minimal because over-specializing the harness limits your ability to benefit from model improvements. What changes over time is not the architecture but the degree of autonomy: review/fix/review cycles that run without interruption, convergence detection, parallel agents on branches. See [Roadmap](#roadmap) for the progression.
+**Where this is headed.** Today a human is in the loop, reviewing outcomes and writing specs. What changes over time is not the architecture but the degree of autonomy: review/fix/review cycles that run without interruption, convergence detection, parallel agents on branches. See [Roadmap](#roadmap) for the progression.
 
 <a id="spec-driven-iteration"></a>
 
