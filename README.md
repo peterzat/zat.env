@@ -8,15 +8,15 @@
 
 <br>
 
-Spec-driven development and adversarial review gates for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Define what done looks like, let the model figure out how to get there, and block code from leaving the machine until automated review passes.
+Spec-driven development and adversarial review gates for Claude Code. Define what done looks like, let the model figure out how to get there, and block code from leaving the machine until automated review passes.
 
 Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
 Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
-**Coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/)?** This repo is the implementation. The spec is the control plane, adversarial review is the verification loop, and the pre-push hook is the quality gate. The harness is deliberately minimal because the bitter lesson says it should be.
+**If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/)**, this repo is the implementation. The spec is the control plane, adversarial review is the verification loop, persistent artifacts are the inter-session memory, and the pre-push hook is the quality gate. The harness is deliberately minimal because the bitter lesson says it should be.
 
-**Where this is headed.** Today, zat.env provides best practices for supervised Claude Code usage: spec-driven development, adversarial review gates, and minimal conventions that stay out of the model's way. The design is deliberately minimal because current and future Anthropic coding models are good enough that over-specializing the harness limits your ability to benefit from model improvements. Over time, the goal is to layer autonomous coding loops on top of this foundation (review/fix/review cycles, convergence detection, parallel agents on branches) while keeping the harness as simple as the models allow. See [Roadmap](#roadmap) for the progression.
+**Where this is headed.** The spec-implement-evaluate loop, persistent review artifacts, and adversarial gates already provide the core architecture for autonomous coding loops. Today a human is in the loop, reviewing outcomes and writing specs. The design is deliberately minimal because over-specializing the harness limits your ability to benefit from model improvements. What changes over time is not the architecture but the degree of autonomy: review/fix/review cycles that run without interruption, convergence detection, parallel agents on branches. See [Roadmap](#roadmap) for the progression.
 
 <a id="spec-driven-iteration"></a>
 
@@ -583,14 +583,18 @@ Post-install layout (annotated):
 │       ├── gitconfig/
 │       │   ├── aliases.gitconfig     # Git aliases, included via ~/.gitconfig
 │       │   └── ignore-global         # Global gitignore, referenced via ~/.gitconfig
+│       ├── docs/
+│       │   └── hardware-setup.md     # Full hardware provisioning walkthrough
 │       ├── hooks/
 │       │   ├── README.md             # Hook documentation
 │       │   ├── allow-venv-source.sh  # Auto-approves venv activation past safety prompt
+│       │   ├── post-tool-exit-plan-mode.sh  # Reminds user to use /spec plan after exiting plan mode
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/
 │       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
 │       │   ├── run-all.sh              # Run all test suites with combined summary
-│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (201 checks)
+│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (230 checks)
+│       │   ├── test-pre-push-hook.sh   # Pre-push hook behavioral tests (39 checks)
 │       │   └── test-review-external.sh # Guard logic and output contract tests (35 checks)
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
