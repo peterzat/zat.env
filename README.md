@@ -8,7 +8,7 @@
 
 <br>
 
-Minimal harness for reliable autonomous coding with Claude Code. Verification quality, not prompt engineering, determines the ceiling on what agents can build. This repo implements the thinnest layer that matters: specs as the control plane, adversarial review as the verification loop, persistent artifacts as inter-session memory, and a pre-push gate that blocks unreviewed code from leaving the machine.
+Minimal harness for verification-first autonomous coding with Claude Code. Verification quality, not prompt engineering, determines the ceiling on what agents can build. This repo implements the thinnest layer that matters: specs as the control plane, adversarial review as the verification loop, persistent artifacts as inter-session memory, and a pre-push gate that blocks unreviewed code from leaving the machine.
 
 Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
