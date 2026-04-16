@@ -2,7 +2,7 @@
 
 Full provisioning walkthrough for the Hetzner GEX44 dedicated server used for development. See the [README](../README.md#current-hardware) for machine specs and the agentic framework documentation.
 
-The agentic workflow itself runs on any Linux machine with git, jq, and Claude Code. This guide covers the specific bare-metal setup, including NVIDIA driver installation, CUDA toolkit, Docker GPU access, and Tailscale networking.
+The agentic workflow itself runs on any Linux machine with git, jq, and Claude Code. This guide covers the specific bare-metal setup, including NVIDIA driver installation, CUDA toolkit, Docker GPU access, and Tailscale networking. Nothing here is GEX44-specific except the NVIDIA driver version selection in Phase 3; `hw-bootstrap.sh` works on any Ubuntu box with a supported GPU.
 
 ---
 
