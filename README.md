@@ -29,7 +29,7 @@ Clone this repo and run `zat.env-install.sh` to get spec-driven development, adv
 5. `/spec` to close the turn: evolve checks off final criteria, asks a retrospective ("what did you learn?"), and writes a proposal for the next turn
 6. `/spec` to start the next turn (detects the proposal and uses it as the input brief automatically)
 
-Start each session with `/spec`. It re-orients from the current project state: picking up a proposal, reporting progress on unmet criteria, or prompting you to define what to build. Every path is useful, and it costs less than trying to remember where things stand.
+Start each session with `/spec`. It re-orients from the current project state: picking up a proposal, reporting progress on unmet criteria, or prompting you to define what to build. Whichever path it takes, you start oriented, and it costs less than trying to remember where things stand.
 
 Each turn tightens quality. The spec prevents drift across sessions, gives review skills a contract to verify against, and makes "improve quality" a concrete, trackable activity rather than a vague aspiration. When a turn completes, evolve writes a proposal grounded in git history and current state, so the next turn starts with context instead of a blank slate. (See [Philosophy](#philosophy) for the design principles behind this.)
 
@@ -40,7 +40,6 @@ Each turn tightens quality. The spec prevents drift across sessions, gives revie
 - [Daily Workflow](#daily-workflow)
   - [Connecting](#connecting)
   - [Starting a project](#starting-a-project)
-  - [tmux and persistent sessions](#tmux-and-persistent-sessions)
   - [zatmux](#zatmux)
 - [Agentic Skills](#agentic-skills)
   - [Prompt Design Principles](#prompt-design-principles)
@@ -135,7 +134,9 @@ zatmux
 
 ### zatmux
 
-Tmux session toggle. Attach from outside tmux, detach from inside:
+Tmux session toggle. Optional convenience for tmux users, not required for any of the agentic skills.
+
+Attach from outside tmux, detach from inside:
 
 ```bash
 cd ~
@@ -211,7 +212,7 @@ You can also run `/spec propose` at any time to generate a proposal without wait
 
 For external or cloned projects, SPEC.md describes what you are building or changing right now, not what the project is (that's README territory).
 
-**Complements plan mode.** Plan mode and `/spec` serve different phases of the same work and have a documented handoff. Plan mode is Claude Code's built-in exploratory thinking space: read-only, multi-turn, no persistent artifact, good for "I don't know what I want yet." `/spec` is the commit point: it writes a persistent SPEC.md with testable acceptance criteria, integrates with review skills, and drives the implementation loop. When a plan mode session turns out to be bigger than one-off scratch thinking, exit plan mode and run `/spec plan` to adopt the saved plan as the spec brief (or `/spec plan <slug>` to pick a specific earlier plan). In the reverse direction, if you invoke `/spec` with a brief too vague to produce verifiable criteria, the skill stops and tells you to explore in plan mode first. A PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` every time you leave plan mode so the handoff is visible rather than something to remember.
+**Complements Claude Code's plan mode.** Plan mode and `/spec` serve different phases of the same work and have a documented handoff. Plan mode is Claude Code's built-in exploratory thinking space: read-only, multi-turn, no persistent artifact, good for "I don't know what I want yet." `/spec` is the commit point: it writes a persistent SPEC.md with testable acceptance criteria, integrates with review skills, and drives the implementation loop. When a plan mode session turns out to be bigger than one-off scratch thinking, exit plan mode and run `/spec plan` to adopt the saved plan as the spec brief (or `/spec plan <slug>` to pick a specific earlier plan). In the reverse direction, if you invoke `/spec` with a brief too vague to produce verifiable criteria, the skill stops and tells you to explore in plan mode first. A PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` every time you leave plan mode so the handoff is visible rather than something to remember.
 
 **Design intent.** Agents without acceptance criteria optimize for "make tests pass" rather than "solve the problem." In autonomous loops, the spec is the artifact that answers "what should I be building?" when the agent starts a fresh session. All review skills read SPEC.md when it exists: `/codereview` checks spec alignment, `/tester` checks whether tests cover the criteria, `/architect` evaluates whether the architecture can support the criteria, `/security` uses the spec for scope awareness.
 
@@ -337,7 +338,7 @@ and remote checks.
 **Design intent.** Right now, `/pr` is primarily a convenience for composing PR descriptions
 and running `gh pr create`. Direct-to-main remains the default solo workflow, and PRs are
 opt-in. The longer-term purpose is to establish PRs as the coordination primitive for
-autonomous agent loops (see [The Carlini Principle](#the-carlini-principle)). Terminal node
+autonomous agent loops (see [Design Foundations](#design-foundations)). Terminal node
 in the context graph: reads review metadata, produces no persistent file.
 
 ### Pre-Push Gate
@@ -426,7 +427,7 @@ These practices are deliberately minimal. Shorter, more specific instructions ou
 
 **Always-on, never a snowflake.** Long agentic loops need an always-reachable machine: sessions that survive SSH disconnects, overnight jobs that keep running, an environment tuned for the work. But a hand-configured machine is a liability. Everything must be reproducible: `hw-bootstrap.sh` provisions bare metal, `zat.env-install.sh` installs the agentic layer, and the combination recovers the full environment from scratch. Any hardware that meets the minimum spec and is reachable via Tailscale works.
 
-**Verification over prompting.** The quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt. See [The Carlini Principle](#the-carlini-principle) for the background.
+**Verification over prompting.** The quality of automated verification determines the ceiling of what agents can build. A well-designed test suite and review loop is worth more than a better prompt.
 
 **Two kinds of enforcement.** Some safety properties are enforced by code (the pre-push hook blocks pushes without a matching diff hash, allowed-tools prevents codereview from using Edit). Others are enforced by prompt instructions (the 3-cycle fix limit, "never fix code yourself," the finding format contract between codereview and codefix). Prompt-enforced properties are non-deterministic: the LLM usually follows them, but compliance is not guaranteed. This is a deliberate trade-off. Hard-coding every constraint would make the system rigid and the skills unable to adapt. Instead, zat.env uses hard gates for irreversible actions (pushing code) and prompt instructions for everything else, with structural tests (`tests/lint-skills.sh`) that verify the contracts between prompted and hard-coded components have not drifted apart. When a new constraint is added, the question is: what is the cost of the LLM not following this instruction? If the answer is "code reaches the remote repository unchecked," it needs a hard gate. If the answer is "a review finding gets mis-categorized," a prompt instruction with a structural lint check is sufficient.
 
@@ -570,7 +571,7 @@ Post-install layout (annotated):
 │       │       │   └── SKILL.md
 │       │       ├── codereview/       # /codereview: adversarial code review
 │       │       │   └── SKILL.md
-│       │       ├── codefix/         # /codefix: fix review findings (invoked by codereview)
+│       │       ├── codefix/          # /codefix: fix review findings (invoked by codereview)
 │       │       │   └── SKILL.md
 │       │       ├── security/         # /security: security audit
 │       │       │   └── SKILL.md
@@ -714,7 +715,10 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 ### Future
 
-Autonomous review/fix/review loops with convergence detection, worktree-based A/B testing, and eventually Carlini-style parallel agents with PRs as coordination boundaries. The architecture is designed so each step builds on the existing skill/artifact system without requiring a rewrite.
+- Autonomous review/fix/review loops with convergence detection and circuit breakers
+- Worktree-based A/B testing: verify changes in isolation before merging
+- Carlini-style parallel agents: each on its own branch, PRs as coordination boundaries, CI as the independent verification signal
+- Fleet coordination: humans set goals and review outcomes, agents handle everything in between. More on this at [agent-hypervisors](https://agent-hypervisor.ai/posts/agent-hypervisors/).
 
 ---
 
