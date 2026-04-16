@@ -12,7 +12,7 @@ Minimal harness for reliable autonomous coding with Claude Code. Verification qu
 
 Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
-Everything is reproducible from two scripts: `hw-bootstrap.sh` provisions a bare server, `zat.env-install.sh` wires the agentic layer onto any machine. Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Full recovery from bare metal is two scripts and a reboot. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
+`zat.env-install.sh` is the only requirement: it wires skills, hooks, and conventions into any machine with git, jq, and Claude Code. `hw-bootstrap.sh` is optional and specific to [my always-on dev box](#current-hardware-hetzner-gex44) (bare-metal Hetzner provisioning with NVIDIA drivers, Docker, Tailscale). Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
 **If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/)**, this is the repo. The harness is deliberately minimal because the bitter lesson says it should be.
 
