@@ -550,7 +550,7 @@ Post-install layout (annotated):
 ```
 ~/
 ├── bin/                              # Helper scripts (symlinked into ~/bin by install)
-│   ├── claude-fixed-reasoning         # Launch claude with fixed thinking budget (no adaptive)
+│   ├── claude-fixed-reasoning        # Launch claude with fixed thinking budget (no adaptive)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
 │   └── zatmux                        # Attach/create tmux session based on current dir
