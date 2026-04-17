@@ -12,7 +12,7 @@ Minimal harness for verification-first autonomous coding with Claude Code. Verif
 
 Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
-`zat.env-install.sh` is the only requirement: it wires skills, hooks, and conventions into any machine with git, jq, and Claude Code. `hw-bootstrap.sh` is optional and specific to [my always-on dev box](#current-hardware-hetzner-gex44) (A hosted dedicated bare-metal Linux server for GPU workloads with secure remote access). Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Nothing is invasive: skills are opt-in (invoke them when you want them), and the pre-push gate has a bypass. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
+`zat.env-install.sh` is the only requirement: it wires skills, hooks, and conventions into any machine with git, jq, and Claude Code. `hw-bootstrap.sh` is optional and specific to [my always-on dev box](#current-hardware-hetzner-gex44) (a hosted dedicated bare-metal Linux server for GPU workloads with secure remote access). Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Nothing is invasive: skills are opt-in (invoke them when you want them), and the pre-push gate has a bypass. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
 If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/), this is the repo. The harness is deliberately minimal because the bitter lesson says it should be.
 
@@ -500,6 +500,8 @@ The current system is at **Gated**. The skills and persistent files are the foun
 The agentic workflow runs on any Linux machine with sufficient resources and a Tailscale connection. The Hetzner GEX44 was selected because it keeps a dedicated GPU box running 24/7 at practical cost. If needs change, the hardware can be swapped without changing any of the agentic tooling.
 
 The only hard networking requirement is Tailscale. All access goes through the Tailscale mesh: SSH, Claude Code remote sessions, everything. The bootstrap script configures Tailscale as one of its first steps.
+
+There's no real difference between a hosted dev box like this and a physical machine in your closet, as long as it's always on and securely reachable over SSH.
 
 ### Machine Specs
 
