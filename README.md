@@ -20,16 +20,17 @@ If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hyperv
 
 <a id="spec-driven-iteration"></a>
 
-**Spec-driven iteration.** Agents without concrete acceptance criteria drift. They optimize for making tests pass rather than solving the problem, and "works but not good enough" stays vague indefinitely. The spec is what keeps the agent (and the human) oriented: it defines what done looks like, gives review skills something to verify against, and lets a fresh session re-orient from disk without stale context. A **turn** is one pass through the spec-implement-evaluate loop. Here is how you build things with zat.env:
+**Spec-driven iteration.** Agents without concrete acceptance criteria drift. They optimize for making tests pass rather than solving the problem, and "works but not good enough" stays vague indefinitely. The spec is what keeps the agent (and the human) oriented: it defines what done looks like, gives review skills something to verify against, and lets a fresh session re-orient from disk without stale context.
 
-1. `/spec` (or `/spec <description>`) to define acceptance criteria
-2. Implement. Intervene with manual direction as needed.
-3. `/spec` to check off completed criteria (evolve mode)
-4. Repeat 2-3 until all criteria are met
-5. `/spec` to close the turn: evolve checks off final criteria, asks a retrospective ("what did you learn?"), and writes a proposal for the next turn
-6. `/spec` to start the next turn (detects the proposal and uses it as the input brief automatically)
+A **turn** is one pass through the spec-implement-evaluate loop. One command drives the iteration loop: `/spec`. It's stateful, so the same invocation does different things depending on where the project is:
 
-Start each session with `/spec`. It re-orients from the current project state: picking up a proposal, reporting progress on unmet criteria, or prompting you to define what to build. Whichever path it takes, you start oriented, and it costs less than trying to remember where things stand.
+1. **Define.** `/spec <description>` (or just `/spec`) writes the acceptance criteria.
+2. **Implement.** Intervene with manual direction as needed.
+3. **Evolve.** `/spec` checks off what's done and reports what's left. Repeat 2-3 until all criteria are met.
+4. **Close the turn.** Once the last criterion is checked, evolve mode runs a retrospective ("what did you learn?") and writes a proposal you can pick up next turn.
+5. **Next turn.** `/spec` detects the proposal and uses it as the input brief automatically.
+
+Start every session with `/spec`. It re-orients from current state: picking up a proposal, reporting progress, or prompting you to define what to build. That costs less than trying to remember where things stand.
 
 Each turn tightens quality. The spec prevents drift across sessions, gives review skills a contract to verify against, and makes "improve quality" a concrete, trackable activity rather than a vague aspiration. When a turn completes, evolve writes a proposal grounded in git history and current state, so the next turn starts with context instead of a blank slate. (See [Philosophy](#philosophy) for the design principles behind this.)
 
