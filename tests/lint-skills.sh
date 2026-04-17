@@ -307,10 +307,10 @@ has "${HOOK}" "no reviewable changes" \
   "hook: empty-diff allow path logs a stderr explanation"
 
 # Hook: no leftover diagnostic trace from investigation.
-hasnt "${HOOK}" "pre-push-hook-trace" \
+hasnt "${HOOK}" "hook.*trace" \
   "hook: no diagnostic trace log (cleanup after investigation)"
-hasnt "${HOOK}" "TEMPORARY DIAGNOSTIC" \
-  "hook: no leftover TEMPORARY DIAGNOSTIC comment"
+hasnt "${HOOK}" "TEMPORARY.*REMOVE" \
+  "hook: no leftover TEMPORARY comment"
 
 # Hook: skip marker consumed on use (rm before exit 0)
 has "${HOOK}" 'rm.*SKIP_MARKER' \
