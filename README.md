@@ -654,31 +654,29 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 ## Roadmap
 
-### Done (v1.0)
+### Next up
 
-- [x] Machine provisioning script (`hw-bootstrap.sh`)
-- [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
-- [x] Global git conventions (aliases, ignore-global)
-- [x] Machine-wide Claude conventions (`claude/global-claude.md`)
-- [x] Adversarial code review (`/codereview`) with pre-push hook gate
-- [x] Security review (`/security`) with persistent `SECURITY.md`
-- [x] Architecture review (`/architect`)
-- [x] Test strategy review (`/tester`) with persistent `TESTING.md`
-- [x] Content-addressed push gate (diff hash + project hash)
-- [x] Auto-fix with escalating conservatism and 3-iteration cap
-- [x] Spec-driven development (`/spec`) with persistent `SPEC.md` and cross-skill integration
-- [x] Cross-skill context graph with bounded amplification prevention
-- [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
-- [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
+- `/verify` skill: execute the project's test suite as ground truth signal
+- Worktree-based A/B testing, quantitative trending, branch workflow aliases
+- Loop orchestrator and circuit breakers for autonomous review/fix cycles
 
-### Done (v1.1)
+### Future
 
-- [x] Reduce global-claude.md instruction density: trim redundant directives, shorten to what the model actually needs
-- [x] Extract reference files: networking and ML/GPU details moved to `claude/references/` (read on demand, not always loaded)
-- [x] Skill frontmatter: add `argument-hint` and `effort:high` across skills for better Claude Code integration
-- [x] Hook `if`-field filtering: install script now writes conditional hooks (push-only filtering) instead of relying on in-script guards
-- [x] README trajectory summary: added design philosophy paragraph explaining where zat.env is headed
-- [x] Documentation consistency: firewall status, coding practices, and directory overview kept in sync across all files
+- Autonomous review/fix/review loops with convergence detection and circuit breakers
+- Worktree-based A/B testing: verify changes in isolation before merging
+- Carlini-style parallel agents: each on its own branch, PRs as coordination boundaries, CI as the independent verification signal
+- Fleet coordination: humans set goals and review outcomes, agents handle everything in between. More on this at [agent-hypervisors](https://agent-hypervisor.ai/posts/agent-hypervisors/).
+
+### Done (v1.3)
+
+- [x] Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
+- [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google/local GPU, called synchronously by `/codereview`, fail-open
+- [x] Structural lint suite (215 checks across 21 categories) covering builder/verifier separation, marker contracts, agent boundary risks, concurrency safety, and cross-skill field identity
+- [x] `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
+- [x] Install script prunes stale hook entries from settings.json on re-run
+- [x] Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
+- [x] Test runner (`tests/run-all.sh`) with combined summary across all suites
+- [x] Plan-mode handoff: `/spec plan [<slug>]` adopts a saved plan as the spec brief, pressure-tests outcomes into verifiable criteria, and writes SPEC.md. PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` so the handoff is visible. `/spec` with an under-specified brief now suggests exploring in plan mode first. Supersedes the earlier advisory plan read in Step 1.
 
 ### Done (v1.2)
 
@@ -698,29 +696,31 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Pre-push hook skips codereview gate for tag-only pushes
 - [x] Coding practice: do not push or modify remote state without explicit user instruction
 
-### Done (v1.3)
+### Done (v1.1)
 
-- [x] Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
-- [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google/local GPU, called synchronously by `/codereview`, fail-open
-- [x] Structural lint suite (215 checks across 21 categories) covering builder/verifier separation, marker contracts, agent boundary risks, concurrency safety, and cross-skill field identity
-- [x] `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
-- [x] Install script prunes stale hook entries from settings.json on re-run
-- [x] Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
-- [x] Test runner (`tests/run-all.sh`) with combined summary across all suites
-- [x] Plan-mode handoff: `/spec plan [<slug>]` adopts a saved plan as the spec brief, pressure-tests outcomes into verifiable criteria, and writes SPEC.md. PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` so the handoff is visible. `/spec` with an under-specified brief now suggests exploring in plan mode first. Supersedes the earlier advisory plan read in Step 1.
+- [x] Reduce global-claude.md instruction density: trim redundant directives, shorten to what the model actually needs
+- [x] Extract reference files: networking and ML/GPU details moved to `claude/references/` (read on demand, not always loaded)
+- [x] Skill frontmatter: add `argument-hint` and `effort:high` across skills for better Claude Code integration
+- [x] Hook `if`-field filtering: install script now writes conditional hooks (push-only filtering) instead of relying on in-script guards
+- [x] README trajectory summary: added design philosophy paragraph explaining where zat.env is headed
+- [x] Documentation consistency: firewall status, coding practices, and directory overview kept in sync across all files
 
-### Next up
+### Done (v1.0)
 
-- `/verify` skill: execute the project's test suite as ground truth signal
-- Worktree-based A/B testing, quantitative trending, branch workflow aliases
-- Loop orchestrator and circuit breakers for autonomous review/fix cycles
-
-### Future
-
-- Autonomous review/fix/review loops with convergence detection and circuit breakers
-- Worktree-based A/B testing: verify changes in isolation before merging
-- Carlini-style parallel agents: each on its own branch, PRs as coordination boundaries, CI as the independent verification signal
-- Fleet coordination: humans set goals and review outcomes, agents handle everything in between. More on this at [agent-hypervisors](https://agent-hypervisor.ai/posts/agent-hypervisors/).
+- [x] Machine provisioning script (`hw-bootstrap.sh`)
+- [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
+- [x] Global git conventions (aliases, ignore-global)
+- [x] Machine-wide Claude conventions (`claude/global-claude.md`)
+- [x] Adversarial code review (`/codereview`) with pre-push hook gate
+- [x] Security review (`/security`) with persistent `SECURITY.md`
+- [x] Architecture review (`/architect`)
+- [x] Test strategy review (`/tester`) with persistent `TESTING.md`
+- [x] Content-addressed push gate (diff hash + project hash)
+- [x] Auto-fix with escalating conservatism and 3-iteration cap
+- [x] Spec-driven development (`/spec`) with persistent `SPEC.md` and cross-skill integration
+- [x] Cross-skill context graph with bounded amplification prevention
+- [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
+- [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
 
 ---
 
