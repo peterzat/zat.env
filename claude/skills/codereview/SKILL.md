@@ -4,7 +4,9 @@ description: >-
   Adversarial code review of uncommitted or staged changes. Includes a security
   scan via /security for full-tier reviews (skipped for docs-only changes). Use
   when the user asks to review code, check changes before pushing, or run a code
-  review. Also use automatically before any git push.
+  review. Also use automatically before any git push, unless the user has
+  explicitly said "push now" (unprompted); in that case run
+  `codereview-skip && git push` without invoking this skill.
 context: fork
 effort: max
 allowed-tools: Bash(*), Read, Grep, Glob, Skill(security), Skill(security *), Skill(codefix)
