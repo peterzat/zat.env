@@ -142,13 +142,14 @@ if [[ ! -f "${SETTINGS_FILE}" ]]; then
   echo '{}' > "${SETTINGS_FILE}"
 fi
 
-# Set effortLevel to high. The medium default (changed silently by Anthropic on
-# 2026-03-03) under-allocates reasoning for complex engineering work. Skills
-# already override to effort:max via frontmatter at critical checkpoints; this
-# protects the implementation turns between skills. See:
-# github.com/anthropics/claude-code/issues/42796
-jq '.effortLevel = "high" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    Set effortLevel to high, showThinkingSummaries on"
+# Set effortLevel to xhigh. xhigh (introduced in Claude Code v2.1.111) sits
+# between high and max and is tuned for Opus 4.7; other models fall back to
+# high. Skills already override to effort:max via frontmatter at critical
+# checkpoints; this protects implementation turns between skills. Background:
+# the medium default (silently set 2026-03-03) under-allocated reasoning for
+# complex engineering work. See github.com/anthropics/claude-code/issues/42796
+jq '.effortLevel = "xhigh" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    Set effortLevel to xhigh, showThinkingSummaries on"
 
 # Replace permissions: defaultMode, allow list, deny list.
 # Clean slate on each install to prevent session-accumulated cruft.
@@ -176,6 +177,8 @@ jq '
       "Bash(jq *)",
       "Bash(bash -n *)",
       "Bash(make *)",
+      "Bash(nvidia-smi)",
+      "Bash(shellcheck *)",
       "Bash(. .venv/bin/activate && *)",
       "Skill(codereview)",
       "Skill(codefix)",
