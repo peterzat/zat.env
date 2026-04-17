@@ -389,7 +389,17 @@ external reviewer, or "None."]
 
 ## Output Summary
 
-End with a summary table:
+If auto-fixes were applied in this run, print them first (skip this block entirely
+if no fixes occurred). Collect the list from every `/codefix` invocation's Step 4
+report across all cycles, deduplicating if the same finding was touched twice:
+
+```
+Fixes Applied (this run):
+  [SEVERITY] file:line — one-line description of the change
+  [SEVERITY] file:line — one-line description of the change
+```
+
+Then end with a summary table:
 
 | Severity | Found | Auto-fixed |
 |----------|-------|------------|
