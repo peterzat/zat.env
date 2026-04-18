@@ -195,9 +195,6 @@ based on the current codebase state (read relevant code and tests). Then:
         >     - **Revisit criteria:** what would make this worth picking up again.
         >     - **Origin:** spec date or plan slug where it was first considered.
 
-        [If the sweep proposed deletions, also include the sweep approval
-        line in the output per Step 3c.5's format.]
-
         End with: "Run `/spec` to start the next turn. You can also ask this
         conversation to review and enrich the proposal with context from this
         session."
@@ -231,13 +228,13 @@ when BACKLOG.md does not exist or has zero entries.
 3. If any entries are recommend-delete, include a Backlog Sweep subsection in
    the proposal (written in Step 3d) listing them with one-line reasons:
 
-       ### Backlog Sweep — pending approval
+       ### Backlog Sweep
        - **Delete:** `<entry name>` — <one-line reason>
        - ...
-       Reply "approve backlog deletions" to apply, or edit BACKLOG.md manually.
+       Edit BACKLOG.md to apply.
 
-4. Do not delete entries from BACKLOG.md in this step. Deletion happens only
-   after user approval, handled by the main-thread agent after the skill ends.
+4. Do not delete entries from BACKLOG.md in this step. The user applies any
+   deletions they agree with by editing BACKLOG.md directly.
 
 ## Step 3d: Propose Mode (Generate Proposal)
 
@@ -447,9 +444,8 @@ Show the user the spec you wrote. End with a one-line summary:
 - **Plan adopted:** "Spec adopted from plan `<slug>` with N acceptance criteria."
 - **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
 - **Evolved (complete):** Step 3c step 4 handles the full turn-close output
-  (proposal, retrospective question, BACKLOG entry template, and — if the sweep
-  proposed deletions — the "approve backlog deletions" approval line). Step 5
-  does not add a separate summary.
+  (proposal, retrospective question, BACKLOG entry template). Step 5 does not
+  add a separate summary.
 - **Proposal:** "Proposal written for next turn. Run `/spec` to start. You can also
   ask this conversation to review and enrich the proposal with context from this session."
 - **Backlog append:** "Added `<short name>` to BACKLOG.md. Edit the file directly
@@ -513,8 +509,6 @@ Rules:
   another approach, (4) explicit user decision. Default at sweep time is keep
   when in doubt — a deferred idea the user recorded earns the benefit of the doubt.
 
-Sweep deletion handoff: Step 3c.5 proposes deletions but does not apply them.
-When the user replies "approve backlog deletions" to the proposal, the
-main-thread agent applies the deletions directly to BACKLOG.md. The skill
-does not re-run for this — it is a direct edit by whatever conversation saw
-the proposal output.
+Sweep deletion handoff: Step 3c.5 proposes deletions but never applies them.
+The user reviews the `### Backlog Sweep` subsection of the proposal and edits
+BACKLOG.md directly to apply any deletions they agree with.

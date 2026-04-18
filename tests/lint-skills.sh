@@ -532,15 +532,6 @@ else
   fail "spec: BACKLOG.md 'Backlog Sweep' appears <3 times (producer/consumer/summary)"
 fi
 
-# Approval phrase: literal that the main-thread agent interprets from user reply.
-# Produced in the Step 3c.5 sweep format and echoed in Step 5 Confirm.
-APPROVE_COUNT=$(grep -c "approve backlog deletions" "${SKILLS}/spec/SKILL.md" || true)
-if [[ "${APPROVE_COUNT}" -ge 2 ]]; then
-  pass "spec: BACKLOG.md approval phrase appears in both producer and summary"
-else
-  fail "spec: BACKLOG.md approval phrase appears <2 times (sweep + summary contract broken)"
-fi
-
 # Entry template field labels. The template is inlined in Step 3c for the
 # main-thread handoff and also listed in the tail Format section. Both copies
 # must carry the same four fields.
