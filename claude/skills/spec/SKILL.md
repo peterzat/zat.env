@@ -53,9 +53,7 @@ Read from the project root if they exist:
 - `CLAUDE.md` — project conventions and constraints
 - `CODEREVIEW.md` — most recent entry only (recent review context)
 - `TESTING.md` — most recent entry only (current test strategy)
-- `BACKLOG.md` — deferred-proposals register (if present). Skim entries; used by
-  Step 3b (surface relevant entries during drafting) and Step 3c.5 (turn-close
-  sweep). Format reference at the tail of this skill.
+- `BACKLOG.md` — deferred-proposals register (if present). Skim.
 
 Also read the zat.env README for framework philosophy and practices:
 
@@ -108,6 +106,10 @@ questions total. Focus on:
 If the project has a README, use it to pre-fill context rather than asking the user
 to repeat what is already documented.
 
+If BACKLOG.md exists, scan for entries whose revisit criteria may now hold or whose
+topic may overlap the user's answers. Mention them during the interview so the user
+can pull them into scope or leave them deferred. (Same spirit as Step 3b's surfacing.)
+
 After the user responds, write SPEC.md (Step 4).
 
 ## Step 3b: Direct Spec Mode (Feature Described in Arguments)
@@ -145,12 +147,17 @@ refuse to write — plan adoption mode and interview mode always produce a spec.
 section exists in SPEC.md): use the proposal content as the input brief. Read all
 proposal subsections: "What happened," "Questions and directions," and
 "Retrospective" (if present). The retrospective contains user corrections or
-context from the prior turn and must inform the new criteria. Proceed as normal:
-read the codebase, draft acceptance criteria, pressure-test (Step 3.5), and write
-SPEC.md (Step 4). When writing the new spec entry, carry relevant details from the
-proposal's "What happened" section into the new spec's Context section so the
-coding agent has concrete prior-turn context. Remove the consumed `### Proposal`
-section from SPEC.md.
+context from the prior turn and must inform the new criteria. Also handle:
+**Revisit candidates** (if present) — if the user chose to revive any during the
+turn-boundary retrospective, incorporate them into the brief; otherwise drop them
+along with the consumed Proposal. **Backlog Sweep** (if present) — always drop
+when consuming; its approval window was the prior turn, and any approved deletions
+have already been applied to BACKLOG.md. Proceed as normal: read the codebase,
+draft acceptance criteria, pressure-test (Step 3.5), and write SPEC.md (Step 4).
+When writing the new spec entry, carry relevant details from the proposal's
+"What happened" section into the new spec's Context section so the coding agent
+has concrete prior-turn context. Remove the consumed `### Proposal` section from
+SPEC.md.
 
 ## Step 3c: Evolve Mode (Existing Spec)
 
@@ -170,11 +177,14 @@ based on the current codebase state (read relevant code and tests). Then:
         labeled subsection.
      3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
      4. Present the proposal and ask: "Anything from this turn you'd add or
-        correct?" This is inviting, not mandatory. If the user adds context,
-        append it as a `### Retrospective` subsection within the proposal
-        section. Either way, end with: "Run `/spec` to start the next turn.
-        You can also ask this conversation to review and enrich the proposal
-        with context from this session."
+        correct? Any ideas considered and deferred this turn worth capturing
+        in BACKLOG.md?" This is inviting, not mandatory. If the user adds
+        context, append it as a `### Retrospective` subsection within the
+        proposal section. If the user names deferrals, the main-thread agent
+        appends them to BACKLOG.md using the format in the tail of this skill.
+        Either way, end with: "Run `/spec` to start the next turn. You can
+        also ask this conversation to review and enrich the proposal with
+        context from this session."
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it. Options: continue working, `/spec <revised
      description>` or `/spec new` to start fresh, or `/spec propose` to abandon
@@ -245,8 +255,10 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    - **Revisit candidates** (optional, only if BACKLOG.md exists and the turn-close
      sweep found entries whose revisit criteria now plausibly hold, or propose mode
      detects such entries independently): list entry name + one-line reason each.
-     Keep clearly separated from "What happened" so the user can tell
-     "carried forward from this turn" apart from "revived from backlog."
+     Cap at 3; if more qualify, show the top 3 by relevance to this turn's work
+     and note "N more in BACKLOG.md" afterward. Keep clearly separated from
+     "What happened" so the user can tell "carried forward from this turn" apart
+     from "revived from backlog."
    - **Backlog Sweep** (optional, only if Step 3c.5 produced recommend-delete
      entries): pending-approval deletion list, per the Step 3c.5 format.
 6. Write the proposal under a `### Proposal (YYYY-MM-DD)` heading in SPEC.md. Place
@@ -284,7 +296,8 @@ that thinking becomes a testable contract.
 3. **Read the codebase** to ground the plan in current state (same as Step 3b).
    Plans may have been written against a prior version of the code; trust the
    current code when there is conflict, and note the drift in the Context section
-   of SPEC.md.
+   of SPEC.md. If BACKLOG.md exists, also scan for entries overlapping the plan's
+   scope and surface them in the presentation output (same pattern as Step 3b).
 
 4. **Draft acceptance criteria from the plan.** Plans typically describe stages,
    approaches, and expected outcomes in prose. Your job is to extract verifiable
