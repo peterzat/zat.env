@@ -563,6 +563,30 @@ else
   fail "spec: Step 3.6 referenced <4 times (expected heading + 3 callers in 3a/3b/3e)"
 fi
 
+# Backlog append mode (Step 3f): new keyword in argument-hint, routing branch
+# in Step 2, Step 3f section exists, Step 5 Confirm has the append variant,
+# and Step 5 advertises the add syntax as part of BACKLOG surfacing.
+has "${SKILLS}/spec/SKILL.md" "argument-hint:.*backlog" \
+  "spec: argument-hint advertises backlog mode"
+has "${SKILLS}/spec/SKILL.md" '`backlog <description>`' \
+  "spec: Step 2 router has backlog keyword branch"
+has "${SKILLS}/spec/SKILL.md" "Step 3f.*Backlog Append Mode" \
+  "spec: Step 3f Backlog Append Mode section exists"
+has "${SKILLS}/spec/SKILL.md" '"Added `<short name>` to BACKLOG.md' \
+  "spec: Step 5 Confirm has backlog-append variant"
+has "${SKILLS}/spec/SKILL.md" '/spec backlog <description>' \
+  "spec: Step 5 surfacing advertises /spec backlog add syntax"
+
+# Step 3f pressure test must enforce specificity, revisit criterion, and
+# why-deferred reason. These are the three gates that keep BACKLOG entries
+# from turning into vague prose.
+has "${SKILLS}/spec/SKILL.md" "Is the description specific" \
+  "spec: Step 3f pressure test checks description specificity"
+has "${SKILLS}/spec/SKILL.md" "Can a revisit criterion be derived" \
+  "spec: Step 3f pressure test checks revisit criterion"
+has "${SKILLS}/spec/SKILL.md" "Is the why-deferred reason concrete" \
+  "spec: Step 3f pressure test checks why-deferred reason"
+
 # --- Output verdicts ---
 
 echo ""

@@ -5,7 +5,7 @@ description: >-
   for a unit of work. Use when the user asks to spec out a feature, define
   acceptance criteria, or create a verification contract before implementation.
   Manual invocation only via /spec.
-argument-hint: [new | propose | plan [slug] | description]
+argument-hint: [new | propose | plan [slug] | backlog <description> | description]
 disable-model-invocation: true
 context: fork
 effort: max
@@ -84,6 +84,9 @@ mode instead of adopting the plan.
   including "no SPEC.md exists."
 - **`propose`:** Propose mode (Step 3d). Requires an existing SPEC.md; if none
   exists, fall through to interview mode.
+- **`backlog <description>`:** Backlog append mode (Step 3f). Captures a
+  deferred idea as a structured BACKLOG.md entry without starting a new spec.
+  Wins over direct spec mode when the first token is `backlog`.
 - **`new` or no SPEC.md exists:** Interview mode (Step 3a)
 - **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b)
 - **No arguments, SPEC.md exists with a `### Proposal` section:** Direct spec mode
@@ -334,6 +337,65 @@ that thinking becomes a testable contract.
 Present the result in Step 5 with the adoption noted: "Spec adopted from plan
 `<slug>` with N acceptance criteria."
 
+## Step 3f: Backlog Append Mode
+
+The user invoked `/spec backlog <description>` to capture a deferred idea as a
+structured BACKLOG.md entry. This mode does not touch SPEC.md or consume a
+proposal; it writes a single entry to BACKLOG.md, creating the file if absent.
+
+1. **Parse the description** from `$ARGUMENTS` after the leading `backlog`
+   keyword. If no description remains, stop with: "Run `/spec backlog
+   <description>` with an idea to defer. Example: `/spec backlog Redis
+   caching for the listing endpoint hot path`."
+
+2. **Read context:** SPEC.md (for Origin and current-scope context) and
+   BACKLOG.md (for dup check). If BACKLOG.md does not exist, it will be
+   created in step 6 with a `# Backlog` header plus the purpose line from
+   the BACKLOG.md Format section.
+
+3. **Duplicate check.** Scan existing entries for matching short names or
+   substantially overlapping one-line descriptions. If a likely duplicate
+   exists, stop with: "A similar entry exists: `<name>`. Edit BACKLOG.md
+   directly to amend, or use a more differentiated description."
+
+4. **Pressure-test the entry** (lightweight analogue of Step 3.5, adapted
+   for deferred items — stop on any failure rather than lowering quality):
+
+   - **Is the description specific?** Names the *what* and roughly the
+     *where*. "Better caching" fails; "Redis caching for the listing
+     endpoint hot path" passes. On failure: "This description is too
+     vague to track. Include what and roughly where, not just a topic."
+   - **Can a revisit criterion be derived?** From the description plus
+     current SPEC.md scope, is there a concrete signal that would make
+     the entry worth picking up again (a feature shipping, a threshold
+     being crossed, a dependency landing)? If nothing derivable: "I
+     couldn't infer a revisit criterion. Include when this would become
+     worth picking up (e.g., 'when feature X ships' or 'if p99 latency
+     exceeds Y')."
+   - **Is the why-deferred reason concrete?** Usually derivable as "out
+     of scope for <current spec title>" when SPEC.md exists, or from the
+     description. If neither yields a concrete reason, stop: "Include
+     why this is being deferred, not just what it is."
+
+5. **Generate the entry fields:**
+   - **short name:** kebab-case, 2-4 words, derived from the description.
+   - **One-line description:** the description, lightly cleaned.
+   - **Why deferred:** derived from SPEC.md scope or the description.
+   - **Revisit criteria:** derived from description + current scope.
+   - **Origin:** current SPEC.md date from `SPEC_META` if present, else
+     `ad-hoc`.
+
+6. **Write to BACKLOG.md.** If the file does not exist, create it with
+   the `# Backlog` header and the purpose line from the BACKLOG.md Format
+   section at the tail of this skill. Append the new entry at the end;
+   do not reorder existing entries.
+
+7. **Confirm** via Step 5 with: "Added `<short name>` to BACKLOG.md. Edit
+   the file directly if Why deferred or Revisit criteria need refinement."
+
+Backlog append mode skips the overlap scan (Step 3.6) and the proposal
+generator — it is an additive, narrow operation.
+
 ## Step 3.5: Pressure Test
 
 Before writing SPEC.md, pressure-test your drafted criteria. Do not add criteria for
@@ -415,14 +477,24 @@ Show the user the spec you wrote. End with a one-line summary:
 - **New spec:** "Spec written: [title] with N acceptance criteria."
 - **Plan adopted:** "Spec adopted from plan `<slug>` with N acceptance criteria."
 - **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
-- **Evolved (complete):** "Turn complete: [title]. Proposal written.
-  [If sweep found deletions: 'Backlog sweep proposed N deletions — reply
-  \"approve backlog deletions\" to apply.'] Anything from this turn you'd add
-  or correct?"
+- **Evolved (complete):** Step 3c step 4 handles the full turn-close output
+  (proposal, retrospective question, BACKLOG entry template, and — if the sweep
+  proposed deletions — the "approve backlog deletions" approval line). Step 5
+  does not add a separate summary.
 - **Proposal:** "Proposal written for next turn. Run `/spec` to start. You can also
   ask this conversation to review and enrich the proposal with context from this session."
+- **Backlog append:** "Added `<short name>` to BACKLOG.md. Edit the file directly
+  if Why deferred or Revisit criteria need refinement."
 - **Escape (brief too vague):** no spec written; end with the plan-mode suggestion
   from Step 3b verbatim.
+
+**BACKLOG.md surfacing.** If BACKLOG.md exists with one or more entries, append
+a final line after the mode-specific summary:
+
+> BACKLOG.md: N entries. `/spec backlog <description>` to add.
+
+Skip this line in backlog-append mode (the summary already names the file) and
+when BACKLOG.md is absent or empty.
 
 Note: This skill does not generate code, write tests, or run the test suite. It
 defines the verification contract. After writing the spec, STOP and wait for the
