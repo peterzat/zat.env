@@ -109,8 +109,9 @@ questions total. Focus on:
 If the project has a README, use it to pre-fill context rather than asking the user
 to repeat what is already documented.
 
-Run Step 3.6 (BACKLOG.md overlap scan) to flag related deferred entries during
-the interview.
+If BACKLOG.md exists with entries, scan them for topic overlap with the
+interview answers and mention overlapping entries so the user can decide
+whether to pull them into scope.
 
 After the user responds, write SPEC.md (Step 4).
 
@@ -123,8 +124,8 @@ the result in Step 5. Do not ask for confirmation before writing; the user expre
 intent by providing the description, and this skill runs in a forked context that
 cannot do multi-turn confirmation. The user can adjust the spec after seeing it.
 
-**BACKLOG.md surfacing.** Run Step 3.6 (BACKLOG.md overlap scan) against the
-brief before writing SPEC.md.
+**BACKLOG.md overlap.** If BACKLOG.md exists with entries, scan for topic
+overlap with the brief and mention overlapping entries before writing SPEC.md.
 
 **Under-specification escape hatch.** If the brief is too vague to produce
 verifiable criteria (one-word descriptions like "add auth", purely aspirational
@@ -308,7 +309,8 @@ that thinking becomes a testable contract.
 3. **Read the codebase** to ground the plan in current state (same as Step 3b).
    Plans may have been written against a prior version of the code; trust the
    current code when there is conflict, and note the drift in the Context section
-   of SPEC.md. Also run Step 3.6 (BACKLOG.md overlap scan) against the plan's scope.
+   of SPEC.md. If BACKLOG.md exists with entries, scan for topic overlap with
+   the plan's scope and mention overlapping entries.
 
 4. **Draft acceptance criteria from the plan.** Plans typically describe stages,
    approaches, and expected outcomes in prose. Your job is to extract verifiable
@@ -394,17 +396,6 @@ the sake of completeness. Only add or revise if a question reveals a genuine gap
 This step applies when writing new criteria (Steps 3a, 3b, 3e, and 3c when
 starting a new spec after completion). Skip it for evolve-mode check-offs where
 criteria are unchanged.
-
-## Step 3.6: BACKLOG.md Overlap Scan
-
-Shared subroutine called by Steps 3a, 3b, and 3e. Skipped entirely when
-BACKLOG.md does not exist or has zero entries.
-
-Scan entries for topic overlap with the current input (interview answers in 3a,
-the brief in 3b, or the adopted plan's scope in 3e). Mention overlapping entries
-in the output so the user can decide to pull them into scope or leave deferred.
-Do not re-open entries whose revisit criteria clearly don't hold; just flag.
-Goal: avoid re-litigating trade-offs the project already decided.
 
 ## Step 4: Write SPEC.md
 

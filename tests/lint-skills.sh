@@ -553,16 +553,6 @@ for field in "One-line description" "Why deferred" "Revisit criteria" "Origin"; 
   fi
 done
 
-# Step 3.6 shared subroutine must exist and be referenced by Steps 3a, 3b, 3e.
-has "${SKILLS}/spec/SKILL.md" "Step 3.6.*BACKLOG.md Overlap Scan" \
-  "spec: Step 3.6 BACKLOG.md overlap scan subroutine exists"
-REF_COUNT=$(grep -c "Step 3.6" "${SKILLS}/spec/SKILL.md" || true)
-if [[ "${REF_COUNT}" -ge 4 ]]; then
-  pass "spec: Step 3.6 referenced by its three callers plus the section heading"
-else
-  fail "spec: Step 3.6 referenced <4 times (expected heading + 3 callers in 3a/3b/3e)"
-fi
-
 # Backlog append mode (Step 3f): new keyword in argument-hint, routing branch
 # in Step 2, Step 3f section exists, Step 5 Confirm has the append variant,
 # and Step 5 advertises the add syntax as part of BACKLOG surfacing.
