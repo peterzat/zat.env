@@ -267,13 +267,10 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    - **Questions and directions:** key questions or directions for the next turn.
      Specific enough to drive discussion, not so prescriptive that they lock in an
      approach.
-   - **Revisit candidates** (optional, only if BACKLOG.md exists and the turn-close
-     sweep found entries whose revisit criteria now plausibly hold, or propose mode
-     detects such entries independently): list entry name + one-line reason each.
-     Cap at 3; if more qualify, show the top 3 by relevance to this turn's work
-     and note "N more in BACKLOG.md" afterward. Keep clearly separated from
-     "What happened" so the user can tell "carried forward from this turn" apart
-     from "revived from backlog."
+   - **Revisit candidates** (optional, only when the turn-close sweep found
+     entries whose revisit criteria now plausibly hold): list entry name +
+     one-line reason each. Cap at 3; if more qualify, show the top 3 by
+     relevance and note "N more in BACKLOG.md" afterward.
    - **Backlog Sweep** (optional, only if Step 3c.5 produced recommend-delete
      entries): pending-approval deletion list, per the Step 3c.5 format.
 6. Write the proposal under a `### Proposal (YYYY-MM-DD)` heading in SPEC.md. Place
@@ -339,62 +336,43 @@ Present the result in Step 5 with the adoption noted: "Spec adopted from plan
 
 ## Step 3f: Backlog Append Mode
 
-The user invoked `/spec backlog <description>` to capture a deferred idea as a
-structured BACKLOG.md entry. This mode does not touch SPEC.md or consume a
-proposal; it writes a single entry to BACKLOG.md, creating the file if absent.
+Invoked via `/spec backlog <description>`. Writes a single entry to BACKLOG.md;
+does not touch SPEC.md or consume a proposal.
 
-1. **Parse the description** from `$ARGUMENTS` after the leading `backlog`
-   keyword. If no description remains, stop with: "Run `/spec backlog
-   <description>` with an idea to defer. Example: `/spec backlog Redis
-   caching for the listing endpoint hot path`."
+1. **Parse the description** from `$ARGUMENTS` after the `backlog` keyword. If
+   empty, stop: "Run `/spec backlog <description>` with an idea to defer."
 
-2. **Read context:** SPEC.md (for Origin and current-scope context) and
-   BACKLOG.md (for dup check). If BACKLOG.md does not exist, it will be
-   created in step 6 with a `# Backlog` header plus the purpose line from
-   the BACKLOG.md Format section.
+2. **Read SPEC.md and BACKLOG.md.** SPEC.md supplies Origin and scope context;
+   BACKLOG.md is for the dup check.
 
-3. **Duplicate check.** Scan existing entries for matching short names or
-   substantially overlapping one-line descriptions. If a likely duplicate
-   exists, stop with: "A similar entry exists: `<name>`. Edit BACKLOG.md
-   directly to amend, or use a more differentiated description."
+3. **Duplicate check.** Scan for matching short names or substantially
+   overlapping one-line descriptions. If a likely duplicate exists, stop:
+   "A similar entry exists: `<name>`. Edit BACKLOG.md directly to amend."
 
-4. **Pressure-test the entry** (lightweight analogue of Step 3.5, adapted
-   for deferred items — stop on any failure rather than lowering quality):
+4. **Pressure-test. Stop on any failure:**
+   - **Is the description specific?** Names a *what* and roughly a *where*,
+     not just a topic.
+   - **Can a revisit criterion be derived?** From description + SPEC.md scope,
+     a concrete signal (feature shipping, threshold crossed, dependency
+     landing) that would make the entry worth picking up again.
+   - **Is the why-deferred reason concrete?** Derivable as "out of scope for
+     <current spec title>" or from the description itself.
 
-   - **Is the description specific?** Names the *what* and roughly the
-     *where*. "Better caching" fails; "Redis caching for the listing
-     endpoint hot path" passes. On failure: "This description is too
-     vague to track. Include what and roughly where, not just a topic."
-   - **Can a revisit criterion be derived?** From the description plus
-     current SPEC.md scope, is there a concrete signal that would make
-     the entry worth picking up again (a feature shipping, a threshold
-     being crossed, a dependency landing)? If nothing derivable: "I
-     couldn't infer a revisit criterion. Include when this would become
-     worth picking up (e.g., 'when feature X ships' or 'if p99 latency
-     exceeds Y')."
-   - **Is the why-deferred reason concrete?** Usually derivable as "out
-     of scope for <current spec title>" when SPEC.md exists, or from the
-     description. If neither yields a concrete reason, stop: "Include
-     why this is being deferred, not just what it is."
+   On failure, name which gate failed and what's missing. Don't write.
 
-5. **Generate the entry fields:**
-   - **short name:** kebab-case, 2-4 words, derived from the description.
-   - **One-line description:** the description, lightly cleaned.
-   - **Why deferred:** derived from SPEC.md scope or the description.
-   - **Revisit criteria:** derived from description + current scope.
-   - **Origin:** current SPEC.md date from `SPEC_META` if present, else
-     `ad-hoc`.
+5. **Generate fields.** short name (kebab-case, 2-4 words), One-line
+   description (the description, lightly cleaned), Why deferred (from SPEC.md
+   scope or description), Revisit criteria (from description + scope), Origin
+   (SPEC_META date if present, else `ad-hoc`). See the BACKLOG.md Format
+   section below for layout.
 
-6. **Write to BACKLOG.md.** If the file does not exist, create it with
-   the `# Backlog` header and the purpose line from the BACKLOG.md Format
-   section at the tail of this skill. Append the new entry at the end;
-   do not reorder existing entries.
+6. **Append to BACKLOG.md.** Create the file with the `# Backlog` header and
+   purpose line from the Format section if absent. Do not reorder existing
+   entries.
 
-7. **Confirm** via Step 5 with: "Added `<short name>` to BACKLOG.md. Edit
-   the file directly if Why deferred or Revisit criteria need refinement."
+7. Confirm via Step 5.
 
-Backlog append mode skips the overlap scan (Step 3.6) and the proposal
-generator — it is an additive, narrow operation.
+Skips the overlap scan (Step 3.6) and proposal generator — additive, narrow.
 
 ## Step 3.5: Pressure Test
 
@@ -493,8 +471,12 @@ a final line after the mode-specific summary:
 
 > BACKLOG.md: N entries. `/spec backlog <description>` to add.
 
-Skip this line in backlog-append mode (the summary already names the file) and
-when BACKLOG.md is absent or empty.
+Skip this line when:
+- BACKLOG.md is absent or empty,
+- running backlog-append mode (the summary already names the file), or
+- the current turn already surfaced BACKLOG content (sweep output, revisit
+  candidates, or overlap-scan mentions). Don't re-advertise what the user
+  just saw.
 
 Note: This skill does not generate code, write tests, or run the test suite. It
 defines the verification contract. After writing the spec, STOP and wait for the
@@ -521,7 +503,8 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **One-line description** of the proposal.
 - **Why deferred:** reason.
 - **Revisit criteria:** what would make this worth picking up again.
-- **Origin:** spec date or plan slug where it was first considered.
+- **Origin:** where first considered. Canonical forms: `spec YYYY-MM-DD`,
+  `plan <slug>`, `<working-doc>.md (<section>)`, or `ad-hoc`.
 ```
 
 Rules:
@@ -529,7 +512,18 @@ Rules:
   or findings file rather than embedding the detail.
 - Revisit criteria are mandatory. An entry without a criterion is prose, not
   a tracked item, and should be rejected at write time or moved elsewhere.
+- Thematic `## <theme>` subheads are allowed between entries when the list
+  clusters by theme. The skill keys on `###` for entries regardless of grouping.
+- Scope split with SPEC.md: BACKLOG.md is for deferred items worth carrying
+  across turns. Turn-specific out-of-scope notes can live in SPEC.md's Context
+  section and are consumed when the turn closes.
 - Exit paths: (1) shipped and removed, (2) sweep-test deletion at turn close
   (only when the entry clearly contradicts current state), (3) supplanted by
   another approach, (4) explicit user decision. Default at sweep time is keep
   when in doubt — a deferred idea the user recorded earns the benefit of the doubt.
+
+Sweep deletion handoff: Step 3c.5 proposes deletions but does not apply them.
+When the user replies "approve backlog deletions" to the proposal, the
+main-thread agent applies the deletions directly to BACKLOG.md. The skill
+does not re-run for this — it is a direct edit by whatever conversation saw
+the proposal output.
