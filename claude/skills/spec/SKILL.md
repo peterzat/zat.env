@@ -178,13 +178,24 @@ based on the current codebase state (read relevant code and tests). Then:
      3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
      4. Present the proposal and ask: "Anything from this turn you'd add or
         correct? Any ideas considered and deferred this turn worth capturing
-        in BACKLOG.md?" This is inviting, not mandatory. If the user adds
-        context, append it as a `### Retrospective` subsection within the
-        proposal section. If the user names deferrals, the main-thread agent
-        appends them to BACKLOG.md using the format in the tail of this skill.
-        Either way, end with: "Run `/spec` to start the next turn. You can
-        also ask this conversation to review and enrich the proposal with
-        context from this session."
+        in BACKLOG.md?" This is inviting, not mandatory. Include the entry
+        template in the output alongside the question so the main-thread
+        agent has the format when appending new entries (the tail Format
+        section is not visible to the main-thread after this forked skill
+        ends):
+
+            ### <short name>
+            - **One-line description** of the proposal.
+            - **Why deferred:** reason.
+            - **Revisit criteria:** what would make this worth picking up again.
+            - **Origin:** spec date or plan slug where it was first considered.
+
+        If the user adds retrospective context, append it as a `### Retrospective`
+        subsection within the proposal section. If the user names deferrals, the
+        main-thread agent appends them to BACKLOG.md using the template above,
+        creating the file if needed. Either way, end with: "Run `/spec` to start
+        the next turn. You can also ask this conversation to review and enrich
+        the proposal with context from this session."
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it. Options: continue working, `/spec <revised
      description>` or `/spec new` to start fresh, or `/spec propose` to abandon
@@ -197,20 +208,20 @@ Runs only when all criteria are met in evolve mode (turn close). Skipped entirel
 when BACKLOG.md does not exist or has zero entries.
 
 1. Read BACKLOG.md entries.
-2. Classify each entry against current project state using the sweep test:
-
-   > Given what shipped this turn and the current direction, if this entry
-   > weren't here, would I re-create it?
+2. Classify each entry against current project state:
 
    Classes:
-   - **keep** — answer is yes; entry still plausibly useful
+   - **keep** — default; entry is still plausibly relevant (most entries land here)
    - **revisit-candidate** — the entry's revisit criteria now plausibly hold;
      pass to proposal generation (Step 3d) as a labeled subsection
-   - **recommend-delete** — no longer plausibly useful (shipped, supplanted,
-     context moved on, or drift)
+   - **recommend-delete** — entry clearly contradicts current state (shipped
+     this turn, explicitly supplanted by a different approach, or the problem
+     it addresses no longer exists)
 
-   Bias toward delete when unsure. "Still technically accurate" is not enough
-   to keep; the test is "still plausibly useful."
+   Bias toward keep when unsure. The user recorded the entry because they
+   didn't want to forget it; deletion requires a clear signal, not the
+   absence of one. "Still technically accurate but feels less relevant now"
+   is a keep, not a delete.
 
 3. If any entries are recommend-delete, include a Backlog Sweep subsection in
    the proposal (written in Step 3d) listing them with one-line reasons:
@@ -435,6 +446,7 @@ Rules:
   or findings file rather than embedding the detail.
 - Revisit criteria are mandatory. An entry without a criterion is prose, not
   a tracked item, and should be rejected at write time or moved elsewhere.
-- Exit paths: (1) shipped and removed, (2) sweep-test deletion at turn close,
-  (3) supplanted by another approach, (4) explicit user decision. Default at
-  sweep time is delete when in doubt.
+- Exit paths: (1) shipped and removed, (2) sweep-test deletion at turn close
+  (only when the entry clearly contradicts current state), (3) supplanted by
+  another approach, (4) explicit user decision. Default at sweep time is keep
+  when in doubt — a deferred idea the user recorded earns the benefit of the doubt.
