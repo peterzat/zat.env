@@ -53,6 +53,9 @@ Read from the project root if they exist:
 - `CLAUDE.md` — project conventions and constraints
 - `CODEREVIEW.md` — most recent entry only (recent review context)
 - `TESTING.md` — most recent entry only (current test strategy)
+- `BACKLOG.md` — deferred-proposals register (if present). Skim entries; used by
+  Step 3b (surface relevant entries during drafting) and Step 3c.5 (turn-close
+  sweep). Format reference at the tail of this skill.
 
 Also read the zat.env README for framework philosophy and practices:
 
@@ -116,6 +119,13 @@ the result in Step 5. Do not ask for confirmation before writing; the user expre
 intent by providing the description, and this skill runs in a forked context that
 cannot do multi-turn confirmation. The user can adjust the spec after seeing it.
 
+**BACKLOG.md surfacing.** If BACKLOG.md exists, scan for entries whose topic
+overlaps the brief. Note them briefly in the presentation output ("BACKLOG.md
+has related deferred entries: X, Y. Revisit criteria: ...") before writing SPEC.md
+so the user can decide to include or skip. Do not re-open entries whose revisit
+criteria clearly don't hold; just flag them. Goal: avoid re-litigating trade-offs
+the project already decided.
+
 **Under-specification escape hatch.** If the brief is too vague to produce
 verifiable criteria (one-word descriptions like "add auth", purely aspirational
 statements like "make it faster", or anything where you cannot write 2+ testable
@@ -154,10 +164,12 @@ based on the current codebase state (read relevant code and tests). Then:
 2. Then:
    - If all criteria are met: summarize completion, then run the **turn-boundary
      transition**:
-     1. Generate a proposal (same logic as Step 3d) immediately. Do not wait
-        for user input first.
-     2. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
-     3. Present the proposal and ask: "Anything from this turn you'd add or
+     1. Run the BACKLOG sweep (Step 3c.5) if BACKLOG.md exists.
+     2. Generate a proposal (same logic as Step 3d) immediately. Do not wait
+        for user input first. Include revisit candidates from the sweep as a
+        labeled subsection.
+     3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
+     4. Present the proposal and ask: "Anything from this turn you'd add or
         correct?" This is inviting, not mandatory. If the user adds context,
         append it as a `### Retrospective` subsection within the proposal
         section. Either way, end with: "Run `/spec` to start the next turn.
@@ -168,6 +180,38 @@ based on the current codebase state (read relevant code and tests). Then:
      description>` or `/spec new` to start fresh, or `/spec propose` to abandon
      remaining criteria and generate a proposal for a new direction based on what
      was accomplished so far.
+
+## Step 3c.5: BACKLOG Sweep (Turn Close Only)
+
+Runs only when all criteria are met in evolve mode (turn close). Skipped entirely
+when BACKLOG.md does not exist or has zero entries.
+
+1. Read BACKLOG.md entries.
+2. Classify each entry against current project state using the sweep test:
+
+   > Given what shipped this turn and the current direction, if this entry
+   > weren't here, would I re-create it?
+
+   Classes:
+   - **keep** — answer is yes; entry still plausibly useful
+   - **revisit-candidate** — the entry's revisit criteria now plausibly hold;
+     pass to proposal generation (Step 3d) as a labeled subsection
+   - **recommend-delete** — no longer plausibly useful (shipped, supplanted,
+     context moved on, or drift)
+
+   Bias toward delete when unsure. "Still technically accurate" is not enough
+   to keep; the test is "still plausibly useful."
+
+3. If any entries are recommend-delete, include a Backlog Sweep subsection in
+   the proposal (written in Step 3d) listing them with one-line reasons:
+
+       ### Backlog Sweep — pending approval
+       - **Delete:** `<entry name>` — <one-line reason>
+       - ...
+       Reply "approve backlog deletions" to apply, or edit BACKLOG.md manually.
+
+4. Do not delete entries from BACKLOG.md in this step. Deletion happens only
+   after user approval, handled by the main-thread agent after the skill ends.
 
 ## Step 3d: Propose Mode (Generate Proposal)
 
@@ -198,6 +242,13 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    - **Questions and directions:** key questions or directions for the next turn.
      Specific enough to drive discussion, not so prescriptive that they lock in an
      approach.
+   - **Revisit candidates** (optional, only if BACKLOG.md exists and the turn-close
+     sweep found entries whose revisit criteria now plausibly hold, or propose mode
+     detects such entries independently): list entry name + one-line reason each.
+     Keep clearly separated from "What happened" so the user can tell
+     "carried forward from this turn" apart from "revived from backlog."
+   - **Backlog Sweep** (optional, only if Step 3c.5 produced recommend-delete
+     entries): pending-approval deletion list, per the Step 3c.5 format.
 6. Write the proposal under a `### Proposal (YYYY-MM-DD)` heading in SPEC.md. Place
    it after the `---` separator and prior-spec summary, before the `<!-- SPEC_META`
    comment. If there is no separator, add one.
@@ -329,8 +380,10 @@ Show the user the spec you wrote. End with a one-line summary:
 - **New spec:** "Spec written: [title] with N acceptance criteria."
 - **Plan adopted:** "Spec adopted from plan `<slug>` with N acceptance criteria."
 - **Evolved (in progress):** "Spec updated: N/M criteria met. [title] continues."
-- **Evolved (complete):** "Turn complete: [title]. Proposal written. Anything from
-  this turn you'd add or correct?"
+- **Evolved (complete):** "Turn complete: [title]. Proposal written.
+  [If sweep found deletions: 'Backlog sweep proposed N deletions — reply
+  \"approve backlog deletions\" to apply.'] Anything from this turn you'd add
+  or correct?"
 - **Proposal:** "Proposal written for next turn. Run `/spec` to start. You can also
   ask this conversation to review and enrich the proposal with context from this session."
 - **Escape (brief too vague):** no spec written; end with the plan-mode suggestion
@@ -340,3 +393,35 @@ Note: This skill does not generate code, write tests, or run the test suite. It
 defines the verification contract. After writing the spec, STOP and wait for the
 user's next instruction. Do not begin implementation unless the user explicitly
 asks for it.
+
+---
+
+## BACKLOG.md Format
+
+Optional per-project file at the project root. The durable home for proposals
+considered and deferred during a turn, so they survive SPEC.md's turn-close
+truncation. Create only when there's an entry to write; do not pre-populate.
+
+Minimal format:
+
+```markdown
+# Backlog
+
+Durable register of considered proposals that were deferred, scoped out, or
+rejected. Read before drafting a new SPEC.md; swept at turn close.
+
+### <short name>
+- **One-line description** of the proposal.
+- **Why deferred:** reason.
+- **Revisit criteria:** what would make this worth picking up again.
+- **Origin:** spec date or plan slug where it was first considered.
+```
+
+Rules:
+- Entries stay terse. If an entry needs paragraphs of context, link to a commit
+  or findings file rather than embedding the detail.
+- Revisit criteria are mandatory. An entry without a criterion is prose, not
+  a tracked item, and should be rejected at write time or moved elsewhere.
+- Exit paths: (1) shipped and removed, (2) sweep-test deletion at turn close,
+  (3) supplanted by another approach, (4) explicit user decision. Default at
+  sweep time is delete when in doubt.

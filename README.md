@@ -32,6 +32,8 @@ A **turn** is one pass through the spec-implement-evaluate loop. One command dri
 
 **Clear between turns.** Turn boundaries are a natural place to `/clear` the session (or quit and restart Claude Code). The proposal and SPEC.md are on disk, so a fresh session loses nothing and gains a clean context window, which is exactly what the "context pollution in loops" anti-pattern warns against.
 
+**Capture deferred ideas in `BACKLOG.md`.** Turns surface good ideas that don't fit the current or next spec: alternatives considered and rejected for now, adjacent improvements, tangents worth remembering. Rather than bloat SPEC.md's out-of-scope section or lose them to context decay, write them to `BACKLOG.md` at the project root. `/spec` reads it when drafting (to avoid re-litigating decided trade-offs) and sweeps it at turn close with a confirmation prompt before any deletions, so it does not grow monotonically. Optional: create the file when there is something to capture, not pre-emptively. Format and sweep mechanics are documented in the `/spec` skill.
+
 Start every session with `/spec`. It re-orients from current state: picking up a proposal, reporting progress, or prompting you to define what to build. That costs less than trying to remember where things stand.
 
 Each turn tightens quality. The spec prevents drift across sessions, gives review skills a contract to verify against, and makes "improve quality" a concrete, trackable activity rather than a vague aspiration. When a turn completes, evolve writes a proposal grounded in git history and current state, so the next turn starts with context instead of a blank slate. (See [Philosophy](#philosophy) for the design principles behind this.)
@@ -381,6 +383,7 @@ Four skills write per-project files to the project root. These files are working
 | File | Written by | Contents |
 |------|-----------|----------|
 | `SPEC.md` | `/spec` | Current acceptance criteria, goal, context |
+| `BACKLOG.md` | `/spec` (optional) | Deferred proposals register: ideas considered and deferred, with revisit criteria |
 | `CODEREVIEW.md` | `/codereview` | Dated review history, findings, fixes applied |
 | `SECURITY.md` | `/security` | Security findings, resolved issues, accepted risks |
 | `TESTING.md` | `/tester` | Test strategy assessment, recommendation status |
@@ -630,6 +633,7 @@ Post-install layout (annotated):
 ```
 ~/src/<project>/
 ├── SPEC.md          # Written by /spec: acceptance criteria for current unit of work
+├── BACKLOG.md       # Written by /spec (optional): deferred proposals register
 ├── CODEREVIEW.md    # Written by /codereview: dated review history with metadata
 ├── SECURITY.md      # Written by /security: security findings and accepted risks
 └── TESTING.md       # Written by /tester: test strategy assessment
