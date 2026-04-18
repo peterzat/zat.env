@@ -505,6 +505,64 @@ has "${INSTALL}" "post-tool-exit-plan-mode.sh" \
 has "${INSTALL}" '\.hooks\.PostToolUse.*post-tool-exit-plan-mode' \
   "install: plan hook is registered under PostToolUse"
 
+# --- BACKLOG.md contracts ---
+# Producer-consumer pairs within the spec skill, the approval phrase that the
+# main-thread agent interprets, and the entry template field labels. These are
+# prompt-level contracts with no runtime gate; rename in one site and the
+# counterpart silently misses entries.
+
+echo ""
+echo "==> BACKLOG.md contracts"
+
+# "Revisit candidates" subsection: written in Step 3d, consumed in Step 3b.
+# Must appear at least twice (producer + consumer).
+REVISIT_COUNT=$(grep -c "Revisit candidates" "${SKILLS}/spec/SKILL.md" || true)
+if [[ "${REVISIT_COUNT}" -ge 2 ]]; then
+  pass "spec: BACKLOG.md 'Revisit candidates' has producer and consumer"
+else
+  fail "spec: BACKLOG.md 'Revisit candidates' appears <2 times (producer/consumer pair broken)"
+fi
+
+# "Backlog Sweep" subsection: written in Step 3c.5, consumed in Step 3b,
+# summarized in Step 5. Must appear at least three times.
+SWEEP_COUNT=$(grep -c "Backlog Sweep" "${SKILLS}/spec/SKILL.md" || true)
+if [[ "${SWEEP_COUNT}" -ge 3 ]]; then
+  pass "spec: BACKLOG.md 'Backlog Sweep' referenced by producer, consumer, and summary"
+else
+  fail "spec: BACKLOG.md 'Backlog Sweep' appears <3 times (producer/consumer/summary)"
+fi
+
+# Approval phrase: literal that the main-thread agent interprets from user reply.
+# Produced in the Step 3c.5 sweep format and echoed in Step 5 Confirm.
+APPROVE_COUNT=$(grep -c "approve backlog deletions" "${SKILLS}/spec/SKILL.md" || true)
+if [[ "${APPROVE_COUNT}" -ge 2 ]]; then
+  pass "spec: BACKLOG.md approval phrase appears in both producer and summary"
+else
+  fail "spec: BACKLOG.md approval phrase appears <2 times (sweep + summary contract broken)"
+fi
+
+# Entry template field labels. The template is inlined in Step 3c for the
+# main-thread handoff and also listed in the tail Format section. Both copies
+# must carry the same four fields.
+for field in "One-line description" "Why deferred" "Revisit criteria" "Origin"; do
+  FIELD_COUNT=$(grep -c "\*\*${field}" "${SKILLS}/spec/SKILL.md" || true)
+  if [[ "${FIELD_COUNT}" -ge 2 ]]; then
+    pass "spec: BACKLOG.md entry field '${field}' appears in inline template and tail Format"
+  else
+    fail "spec: BACKLOG.md entry field '${field}' appears <2 times (template duplication drifted)"
+  fi
+done
+
+# Step 3.6 shared subroutine must exist and be referenced by Steps 3a, 3b, 3e.
+has "${SKILLS}/spec/SKILL.md" "Step 3.6.*BACKLOG.md Overlap Scan" \
+  "spec: Step 3.6 BACKLOG.md overlap scan subroutine exists"
+REF_COUNT=$(grep -c "Step 3.6" "${SKILLS}/spec/SKILL.md" || true)
+if [[ "${REF_COUNT}" -ge 4 ]]; then
+  pass "spec: Step 3.6 referenced by its three callers plus the section heading"
+else
+  fail "spec: Step 3.6 referenced <4 times (expected heading + 3 callers in 3a/3b/3e)"
+fi
+
 # --- Output verdicts ---
 
 echo ""
