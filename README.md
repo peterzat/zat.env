@@ -30,6 +30,8 @@ A **turn** is one pass through the spec-implement-evaluate loop. One command dri
 4. **Close the turn.** Once the last criterion is checked, evolve mode runs a retrospective ("what did you learn?") and writes a proposal you can pick up next turn.
 5. **Next turn.** `/spec` detects the proposal and uses it as the input brief automatically.
 
+**Clear between turns.** Turn boundaries are a natural place to `/clear` the session (or quit and restart Claude Code). The proposal and SPEC.md are on disk, so a fresh session loses nothing and gains a clean context window, which is exactly what the "context pollution in loops" anti-pattern warns against.
+
 Start every session with `/spec`. It re-orients from current state: picking up a proposal, reporting progress, or prompting you to define what to build. That costs less than trying to remember where things stand.
 
 Each turn tightens quality. The spec prevents drift across sessions, gives review skills a contract to verify against, and makes "improve quality" a concrete, trackable activity rather than a vague aspiration. When a turn completes, evolve writes a proposal grounded in git history and current state, so the next turn starts with context instead of a blank slate. (See [Philosophy](#philosophy) for the design principles behind this.)
