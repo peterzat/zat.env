@@ -171,26 +171,32 @@ based on the current codebase state (read relevant code and tests). Then:
         for user input first. Include revisit candidates from the sweep as a
         labeled subsection.
      3. Write the proposal to SPEC.md under `### Proposal (YYYY-MM-DD)`.
-     4. Present the proposal and ask: "Anything from this turn you'd add or
-        correct? Any ideas considered and deferred this turn worth capturing
-        in BACKLOG.md?" This is inviting, not mandatory. Include the entry
-        template in the output alongside the question so the main-thread
-        agent has the format when appending new entries (the tail Format
-        section is not visible to the main-thread after this forked skill
-        ends):
+     4. Present the proposal, then emit the following as part of the final
+        output. The skill terminates after Step 5, so the main-thread agent
+        relies on this output to know how to handle the user's response —
+        the skill's internal prompt is not visible post-termination.
 
-            ### <short name>
-            - **One-line description** of the proposal.
-            - **Why deferred:** reason.
-            - **Revisit criteria:** what would make this worth picking up again.
-            - **Origin:** spec date or plan slug where it was first considered.
+        Ask:
 
-        If the user adds retrospective context, append it as a `### Retrospective`
-        subsection within the proposal section. If the user names deferrals, the
-        main-thread agent appends them to BACKLOG.md using the template above,
-        creating the file if needed. Either way, end with: "Run `/spec` to start
-        the next turn. You can also ask this conversation to review and enrich
-        the proposal with context from this session."
+        > Anything from this turn you'd add or correct? If so, I'll append
+        > it as a `### Retrospective` subsection inside the proposal.
+        >
+        > Any ideas considered and deferred this turn worth capturing in
+        > BACKLOG.md? If so, I'll append each using this template (creating
+        > BACKLOG.md with a `# Backlog` header first if it doesn't exist):
+        >
+        >     ### <short name>
+        >     - **One-line description** of the proposal.
+        >     - **Why deferred:** reason.
+        >     - **Revisit criteria:** what would make this worth picking up again.
+        >     - **Origin:** spec date or plan slug where it was first considered.
+
+        [If the sweep proposed deletions, also include the sweep approval
+        line in the output per Step 3c.5's format.]
+
+        End with: "Run `/spec` to start the next turn. You can also ask this
+        conversation to review and enrich the proposal with context from this
+        session."
    - If criteria remain unmet: report progress and ask the user whether to continue
      with the current spec or revise it. Options: continue working, `/spec <revised
      description>` or `/spec new` to start fresh, or `/spec propose` to abandon
