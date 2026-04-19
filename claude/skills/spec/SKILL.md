@@ -225,7 +225,7 @@ when BACKLOG.md does not exist or has zero entries.
        - ...
 
 4. Do not delete entries from BACKLOG.md in this step. Deletions are applied
-   by the consuming `/spec` in Step 3b, not between turns, so the mechanism
+   by the consuming `/spec` in Step 3g, not between turns, so the mechanism
    survives back-to-back `/spec` invocations with no edit window.
 
 ## Step 3d: Propose Mode (Generate Proposal)
@@ -409,22 +409,15 @@ Execute these steps in order.
        MANIFEST
 
    One `delete:` line per entry in the proposal's `### Backlog Sweep`
-   subsection (headings in that subsection are typically wrapped in
-   backticks; strip the backticks, keep the text verbatim). One `adopt:`
-   line per revived revisit candidate (revival signal: user named the
-   candidate in conversation, "Chosen direction" note inside the proposal,
-   or mention before `/spec`). Use today's date for adopts. Non-revived
-   candidates get no adopt line. Skip the invocation entirely if both
-   lists are empty.
+   subsection (headings there are typically wrapped in backticks; strip
+   the backticks, keep the text verbatim). One `adopt:` line per revived
+   revisit candidate (revival signal: user named the candidate in
+   conversation, "Chosen direction" note inside the proposal, or mention
+   before `/spec`). Use today's date for adopts. Non-revived candidates
+   get no adopt line. Skip the invocation entirely if both lists are empty.
 
-   The script reads ops from stdin and mutates BACKLOG.md atomically
-   per op. It prints `DELETED:` / `ANNOTATED:` to stdout, `MISS:` to
-   stderr, and a final `BACKLOG.md: N entries` tally. Exit 0 means all
-   ops landed (or nothing to apply); exit 1 means at least one heading
-   was not found. On exit 1, surface the MISS lines in Step 7 — do not
-   retry with a rewritten manifest to hide a miss, and do not fall back
-   to hand-editing BACKLOG.md. The whole point of the single bash call
-   is to keep BACKLOG mutations out of LLM-executed edits.
+   Script output is surfaced verbatim in Step 7; on exit 1, surface the
+   MISS lines and do not hand-edit BACKLOG.md to hide a miss.
 
 3. **Read the codebase** to ground the new spec.
 

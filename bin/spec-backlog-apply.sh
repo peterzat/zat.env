@@ -3,45 +3,17 @@ set -euo pipefail
 
 # Apply a BACKLOG sweep manifest (read from stdin) to BACKLOG.md.
 #
-# Deterministic counterpart to the /spec skill's proposal-consume step.
-# The skill produces the manifest in-memory from the prior turn's proposal
-# and pipes it here, so BACKLOG.md mutations are one mechanical bash call
-# rather than LLM-executed file edits.
-#
-# Manifest (stdin, one op per line):
-#
-#   delete: <heading as it appears or appeared in BACKLOG.md>
-#   adopt: <heading> | <YYYY-MM-DD>
-#
-# Lines that don't start with `delete:` or `adopt:` are ignored.
-#
-# Matching: both sides strip any trailing "(ACTIVE in spec YYYY-MM-DD)"
-# annotation before comparison, so the manifest may reference a heading
-# with or without annotation.
-#
-# Exit codes:
-#   0 — all ops applied, or nothing to do (empty stdin, zero ops parsed,
-#       missing BACKLOG.md with a non-empty manifest).
-#   1 — at least one op's heading was not found in BACKLOG.md (MISS).
-#
-# Behavior:
-#   delete — removes the `### <heading>` line and all content until the
-#       next `### ` or `## ` (or EOF), including trailing blanks inside
-#       the entry block.
-#   adopt — replaces the `### <heading>` line with
-#       `### <heading> (ACTIVE in spec <date>)`, replacing any existing
-#       annotation.
-#
-# Output (stdout): one line per successful op (DELETED / ANNOTATED), plus
-# a final "BACKLOG.md: N entries" tally (fence-aware count).
-# Output (stderr): MISS lines; "BACKLOG.md not found" notice when the
-# manifest has ops but the file is absent.
+# Deterministic counterpart to the /spec skill's proposal-consume step
+# (Step 3g). Keeps BACKLOG.md mutations out of LLM-executed file edits.
 #
 # Invocation:
 #   spec-backlog-apply.sh <<'MANIFEST'
-#   delete: S — Contraction right-side sizing
-#   adopt: "by" descender clipping | 2026-04-19
+#   delete: <heading as it appears or appeared in BACKLOG.md>
+#   adopt:  <heading> | <YYYY-MM-DD>
 #   MANIFEST
+#
+# Heading matching strips any trailing "(ACTIVE in spec YYYY-MM-DD)" on
+# both sides, so the manifest may name a heading with or without annotation.
 
 BACKLOG=BACKLOG.md
 

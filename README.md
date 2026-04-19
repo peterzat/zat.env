@@ -560,6 +560,7 @@ Post-install layout (annotated):
 │   ├── claude-fixed-reasoning        # Launch claude with fixed thinking budget (no adaptive)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
+│   ├── spec-backlog-apply.sh         # Apply BACKLOG sweep manifest from stdin (used by /spec Step 3g)
 │   └── zatmux                        # Attach/create tmux session based on current dir
 │
 ├── data/                             # Shared large datasets and model files (not in git)

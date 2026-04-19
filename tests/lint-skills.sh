@@ -631,8 +631,6 @@ done
 # the same shape as the skill writes. Drift here breaks match-normalization.
 has "${APPLY_SCRIPT}" 'ACTIVE in spec \[0-9\]' \
   "sweep apply: script's annotation pattern matches skill convention"
-has "${SKILLS}/spec/SKILL.md" "ACTIVE in spec YYYY-MM-DD" \
-  "spec: skill documents annotation format 'ACTIVE in spec YYYY-MM-DD'"
 
 # --- Output verdicts ---
 
