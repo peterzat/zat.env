@@ -263,7 +263,7 @@ when BACKLOG.md does not exist or has zero entries.
        - **Delete:** `<entry name>` — <one-line reason>
        - ...
 
-       _Auto-applied when the next `/spec` consumes this proposal. Edit this list or BACKLOG.md before running `/spec` again to override._
+       _Swept for deletion. Apply on next `/spec`; edit this list or BACKLOG.md to override._
 
 4. Do not delete entries from BACKLOG.md in this step. Deletions are applied
    by the consuming `/spec` in Step 3b, not between turns, so the mechanism
