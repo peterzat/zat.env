@@ -575,6 +575,65 @@ has "${SKILLS}/spec/SKILL.md" "Can a revisit criterion be derived" \
 has "${SKILLS}/spec/SKILL.md" "Is the why-deferred reason concrete" \
   "spec: Step 3f pressure test checks why-deferred reason"
 
+# --- Sweep apply contract ---
+# The sweep manifest is the prompt/infrastructure boundary for backlog
+# mutations: the skill pipes a manifest on stdin to
+# spec-backlog-apply.sh, which parses ops (`delete:` / `adopt:`) and
+# mutates BACKLOG.md deterministically. Drift on op prefix or annotation
+# format silently stops mutations from landing.
+
+APPLY_SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"
+
+# Script exists and is executable
+if [[ -x "${APPLY_SCRIPT}" ]]; then
+  pass "sweep apply: spec-backlog-apply.sh exists and is executable"
+else
+  fail "sweep apply: spec-backlog-apply.sh missing or not executable"
+fi
+
+# Skill references the script by name so the main-thread agent knows
+# what to invoke
+has "${SKILLS}/spec/SKILL.md" "spec-backlog-apply.sh" \
+  "spec: Step 3g names spec-backlog-apply.sh"
+
+# Proposal-consume mode is its own top-level step (not buried inside Step 3b).
+# Keeping it as a named mode makes the numbered steps (including the script
+# invocation) salient to the agent routing to it.
+has "${SKILLS}/spec/SKILL.md" "Step 3g.*Proposal Consume" \
+  "spec: Step 3g Proposal Consume Mode section exists"
+has "${SKILLS}/spec/SKILL.md" 'Proposal consume mode \(Step 3g\)' \
+  "spec: Step 2 router sends proposal-present case to Step 3g"
+
+# Heredoc pattern: the skill must show the script being invoked with a
+# heredoc so the ops go to stdin in one bash call. If the skill drifts to
+# "write file, then run script" the mutation step becomes two calls
+# (easier to skip) rather than one.
+has "${SKILLS}/spec/SKILL.md" "spec-backlog-apply.sh <<" \
+  "spec: Step 3g invokes script via heredoc on stdin"
+
+# Script reads from stdin (cat) and does not parse SPEC.md. If someone
+# reintroduces SPEC.md parsing the interface contract breaks silently.
+has "${APPLY_SCRIPT}" '^manifest=\$\(cat\)' \
+  "sweep apply: script reads manifest from stdin"
+hasnt "${APPLY_SCRIPT}" '^SPEC=SPEC\.md' \
+  "sweep apply: script does not parse SPEC.md (stdin-only interface)"
+
+# Op prefix identity: delete:/adopt: are the only op types the script
+# parses. If the skill produces a different verb it becomes a silent miss.
+for op in "delete:" "adopt:"; do
+  has "${SKILLS}/spec/SKILL.md" "${op}" \
+    "spec: manifest op '${op}' documented in skill"
+  has "${APPLY_SCRIPT}" "${op}" \
+    "sweep apply: script parses '${op}' op"
+done
+
+# Annotation format: the "(ACTIVE in spec YYYY-MM-DD)" stripper must use
+# the same shape as the skill writes. Drift here breaks match-normalization.
+has "${APPLY_SCRIPT}" 'ACTIVE in spec \[0-9\]' \
+  "sweep apply: script's annotation pattern matches skill convention"
+has "${SKILLS}/spec/SKILL.md" "ACTIVE in spec YYYY-MM-DD" \
+  "spec: skill documents annotation format 'ACTIVE in spec YYYY-MM-DD'"
+
 # --- Output verdicts ---
 
 echo ""
