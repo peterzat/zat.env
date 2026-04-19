@@ -9,7 +9,7 @@ set -euo pipefail
 # Invocation:
 #   spec-backlog-apply.sh <<'MANIFEST'
 #   delete: <heading as it appears or appeared in BACKLOG.md>
-#   adopt:  <heading> | <YYYY-MM-DD>
+#   adopt: <heading> | <YYYY-MM-DD>
 #   MANIFEST
 #
 # Heading matching strips any trailing "(ACTIVE in spec YYYY-MM-DD)" on
