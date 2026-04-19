@@ -5,7 +5,7 @@ description: >-
   for a unit of work. Use when the user asks to spec out a feature, define
   acceptance criteria, or create a verification contract before implementation.
   Manual invocation only via /spec.
-argument-hint: [new | propose | plan [slug] | backlog <description> | description]
+argument-hint: [new | propose | plan [slug] | backlog <description> | backlog clear | description]
 disable-model-invocation: true
 context: fork
 effort: max
@@ -84,9 +84,10 @@ mode instead of adopting the plan.
   including "no SPEC.md exists."
 - **`propose`:** Propose mode (Step 3d). Requires an existing SPEC.md; if none
   exists, fall through to interview mode.
-- **`backlog <description>`:** Backlog append mode (Step 3f). Captures a
-  deferred idea as a structured BACKLOG.md entry without starting a new spec.
-  Wins over direct spec mode when the first token is `backlog`.
+- **`backlog <description>` or `backlog clear`:** Backlog mode (Step 3f).
+  Append captures a deferred idea as a structured BACKLOG.md entry; clear
+  deletes BACKLOG.md outright. Neither touches SPEC.md. Wins over direct
+  spec mode when the first token is `backlog`.
 - **`new` or no SPEC.md exists:** Interview mode (Step 3a)
 - **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b)
 - **No arguments, SPEC.md exists with a `### Proposal` section:** Direct spec mode
@@ -366,22 +367,28 @@ that thinking becomes a testable contract.
 Present the result in Step 5 with the adoption noted: "Spec adopted from plan
 `<slug>` with N acceptance criteria."
 
-## Step 3f: Backlog Append Mode
+## Step 3f: Backlog Mode
 
-Invoked via `/spec backlog <description>`. Writes a single entry to BACKLOG.md;
-does not touch SPEC.md or consume a proposal.
+Invoked via `/spec backlog <description>` (append an entry) or
+`/spec backlog clear` (delete BACKLOG.md). Does not touch SPEC.md or
+consume a proposal.
 
-1. **Parse the description** from `$ARGUMENTS` after the `backlog` keyword. If
-   empty, stop: "Run `/spec backlog <description>` with an idea to defer."
+Parse the argument after the `backlog` keyword. Dispatch:
+- Empty: stop with "Run `/spec backlog <description>` to defer an idea, or
+  `/spec backlog clear` to reset BACKLOG.md."
+- Exactly `clear`: run the **Clear** path below.
+- Otherwise: treat as a description and run the **Append** path.
 
-2. **Read SPEC.md and BACKLOG.md.** SPEC.md supplies Origin and scope context;
+### Append
+
+1. **Read SPEC.md and BACKLOG.md.** SPEC.md supplies Origin and scope context;
    BACKLOG.md is for the dup check.
 
-3. **Duplicate check.** Scan for matching short names or substantially
+2. **Duplicate check.** Scan for matching short names or substantially
    overlapping one-line descriptions. If a likely duplicate exists, stop:
    "A similar entry exists: `<name>`. Edit BACKLOG.md directly to amend."
 
-4. **Pressure-test. Stop on any failure:**
+3. **Pressure-test. Stop on any failure:**
    - **Is the description specific?** Names a *what* and roughly a *where*,
      not just a topic.
    - **Can a revisit criterion be derived?** From description + SPEC.md scope,
@@ -392,19 +399,29 @@ does not touch SPEC.md or consume a proposal.
 
    On failure, name which gate failed and what's missing. Don't write.
 
-5. **Generate fields.** short name (kebab-case, 2-4 words), One-line
+4. **Generate fields.** short name (kebab-case, 2-4 words), One-line
    description (the description, lightly cleaned), Why deferred (from SPEC.md
    scope or description), Revisit criteria (from description + scope), Origin
    (SPEC_META date if present, else `ad-hoc`). See the BACKLOG.md Format
    section below for layout.
 
-6. **Append to BACKLOG.md.** Create the file with the `# Backlog` header and
+5. **Append to BACKLOG.md.** Create the file with the `# Backlog` header and
    purpose line from the Format section if absent. Do not reorder existing
    entries.
 
-7. Confirm via Step 5.
+6. Confirm via Step 5.
 
-Skips the overlap scan (Step 3.6) and proposal generator — additive, narrow.
+Skips the overlap scan (Step 3.6) and proposal generator; additive, narrow.
+
+### Clear
+
+1. If BACKLOG.md doesn't exist, stop: "BACKLOG.md doesn't exist. Nothing to clear."
+2. Count existing `### ` entries (use Grep or Bash) for the confirm message.
+3. Delete BACKLOG.md via Bash: `rm BACKLOG.md`.
+4. Confirm via Step 5.
+
+The clear path is deterministic and single-imperative; it does not read
+SPEC.md, does not pressure-test, does not write a new entry.
 
 ## Step 3.5: Pressure Test
 
@@ -483,6 +500,7 @@ Show the user the spec you wrote. End with a one-line summary:
   ask this conversation to review and enrich the proposal with context from this session."
 - **Backlog append:** "Added `<short name>` to BACKLOG.md. Edit the file directly
   if Why deferred or Revisit criteria need refinement."
+- **Backlog clear:** "Cleared N entries from BACKLOG.md. Reversible via git."
 - **Escape (brief too vague):** no spec written; end with the plan-mode suggestion
   from Step 3b verbatim.
 
@@ -491,9 +509,14 @@ a final line after the mode-specific summary:
 
 > BACKLOG.md: N entries. `/spec backlog <description>` to add.
 
-Skip this line when:
+When N > 15, append one more line immediately after, as a soft prompt that
+the register may be worth resetting:
+
+> Staleness check: `/spec backlog clear` or `rm BACKLOG.md` resets the register. Reversible via git.
+
+Skip the surfacing block when:
 - BACKLOG.md is absent or empty,
-- running backlog-append mode (the summary already names the file), or
+- running backlog mode in either form (the mode summary already names the file), or
 - the current turn already surfaced BACKLOG content (sweep output, revisit
   candidates, or overlap-scan mentions). Don't re-advertise what the user
   just saw.
@@ -507,9 +530,16 @@ asks for it.
 
 ## BACKLOG.md Format
 
-Optional per-project file at the project root. The durable home for proposals
-considered and deferred during a turn, so they survive SPEC.md's turn-close
-truncation. Create only when there's an entry to write; do not pre-populate.
+Optional per-project file at the project root. The mechanism is opt-in: use
+it when durable deferred proposals are worth carrying across turns, skip it
+when SPEC.md's out-of-scope section is enough. Create only when there's an
+entry to write; do not pre-populate. Reset the register anytime with
+`/spec backlog clear` (or `rm BACKLOG.md` from the terminal); both are
+reversible via git. The skill tolerates absence at every read site, so a
+project can run indefinitely without BACKLOG.md existing.
+
+The file is the durable home for proposals considered and deferred during
+a turn, so they survive SPEC.md's turn-close truncation.
 
 Minimal format:
 

@@ -544,19 +544,26 @@ for field in "One-line description" "Why deferred" "Revisit criteria" "Origin"; 
   fi
 done
 
-# Backlog append mode (Step 3f): new keyword in argument-hint, routing branch
-# in Step 2, Step 3f section exists, Step 5 Confirm has the append variant,
-# and Step 5 advertises the add syntax as part of BACKLOG surfacing.
+# Backlog mode (Step 3f): argument-hint covers append and clear, Step 2 router
+# branches on the backlog keyword, Step 3f section exists and dispatches on the
+# argument, Step 5 Confirm has both append and clear variants, and Step 5
+# advertises the add syntax as part of BACKLOG surfacing.
 has "${SKILLS}/spec/SKILL.md" "argument-hint:.*backlog" \
   "spec: argument-hint advertises backlog mode"
 has "${SKILLS}/spec/SKILL.md" '`backlog <description>`' \
   "spec: Step 2 router has backlog keyword branch"
-has "${SKILLS}/spec/SKILL.md" "Step 3f.*Backlog Append Mode" \
-  "spec: Step 3f Backlog Append Mode section exists"
+has "${SKILLS}/spec/SKILL.md" "Step 3f.*Backlog Mode" \
+  "spec: Step 3f Backlog Mode section exists"
+has "${SKILLS}/spec/SKILL.md" 'Exactly `clear`' \
+  "spec: Step 3f dispatches on clear keyword"
 has "${SKILLS}/spec/SKILL.md" '"Added `<short name>` to BACKLOG.md' \
   "spec: Step 5 Confirm has backlog-append variant"
+has "${SKILLS}/spec/SKILL.md" '"Cleared N entries from BACKLOG.md' \
+  "spec: Step 5 Confirm has backlog-clear variant"
 has "${SKILLS}/spec/SKILL.md" '/spec backlog <description>' \
   "spec: Step 5 surfacing advertises /spec backlog add syntax"
+has "${SKILLS}/spec/SKILL.md" 'Staleness check' \
+  "spec: Step 5 surfacing has soft-prompt for large BACKLOG"
 
 # Step 3f pressure test must enforce specificity, revisit criterion, and
 # why-deferred reason. These are the three gates that keep BACKLOG entries
