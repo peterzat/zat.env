@@ -143,20 +143,43 @@ Then stop. Do not proceed to write SPEC.md. This is the only mode that may
 refuse to write — plan adoption mode and interview mode always produce a spec.
 
 **When entering via proposal detection** (no `$ARGUMENTS`, but a `### Proposal`
-section exists in SPEC.md): use the proposal content as the input brief. Read all
-proposal subsections: "What happened," "Questions and directions," and
-"Retrospective" (if present). The retrospective contains user corrections or
-context from the prior turn and must inform the new criteria. Also handle:
-**Revisit candidates** (if present) — if the user chose to revive any during the
-turn-boundary retrospective, incorporate them into the brief; otherwise drop them
-along with the consumed Proposal. **Backlog Sweep** (if present) — always drop
-when consuming; its approval window was the prior turn, and any approved deletions
-have already been applied to BACKLOG.md. Proceed as normal: read the codebase,
-draft acceptance criteria, pressure-test (Step 3.5), and write SPEC.md (Step 4).
-When writing the new spec entry, carry relevant details from the proposal's
-"What happened" section into the new spec's Context section so the coding agent
-has concrete prior-turn context. Remove the consumed `### Proposal` section from
-SPEC.md.
+section exists in SPEC.md): execute these steps in order. Steps 2 and 3
+mutate BACKLOG.md and must run when their triggers are present.
+
+1. **Read the proposal** as the brief. Read all subsections including
+   "What happened," "Questions and directions," "Retrospective,"
+   "Revisit candidates," "Backlog Sweep." Any user reply appended
+   inside the proposal carries corrections and revival signals.
+
+2. **Apply Backlog Sweep deletions** if the proposal has a `### Backlog
+   Sweep` subsection with `- **Delete:**` lines. For each, match BACKLOG.md
+   by heading prefix (the actual heading may have trailing annotations like
+   `(ACTIVE in spec YYYY-MM-DD)`), then remove the full entry block. Skip
+   silently if no heading matches. Track the list for Step 8.
+
+3. **Apply revisit-candidate annotations** if the user indicated revival
+   (explicit reply, "Chosen direction" note in the proposal, or mention
+   before `/spec`). Append ` (ACTIVE in spec YYYY-MM-DD)` to the matching
+   `### <short name>` heading — YYYY-MM-DD is today. Non-revived candidates
+   stay unchanged. Track annotated entries for Step 8.
+
+4. **Read the codebase** to ground the new spec.
+
+5. **Draft acceptance criteria** from the proposal, incorporating revived
+   candidates and retrospective content.
+
+6. **Run Step 3.5 (pressure test).**
+
+7. **Write SPEC.md (Step 4).** Carry relevant "What happened" details into
+   Context. Remove the consumed `### Proposal` section including its
+   Revisit candidates and Backlog Sweep subsections.
+
+8. **Report BACKLOG mutations** in the Step 5 output, before the summary:
+
+   > Deleted from BACKLOG.md: `<entry>`, `<entry>`.
+   > Annotated in BACKLOG.md as ACTIVE: `<entry>`, `<entry>`.
+
+   Also skip the "BACKLOG.md: N entries" tally line per the Step 5 rule.
 
 ## Step 3c: Evolve Mode (Existing Spec)
 
@@ -180,14 +203,21 @@ based on the current codebase state (read relevant code and tests). Then:
         relies on this output to know how to handle the user's response —
         the skill's internal prompt is not visible post-termination.
 
-        Ask:
+        Ask (emit the `>`-quoted block verbatim, gates included):
 
         > Anything from this turn you'd add or correct? If so, I'll append
         > it as a `### Retrospective` subsection inside the proposal.
         >
         > Any ideas considered and deferred this turn worth capturing in
-        > BACKLOG.md? If so, I'll append each using this template (creating
-        > BACKLOG.md with a `# Backlog` header first if it doesn't exist):
+        > BACKLOG.md? Each entry I write must have a specific description
+        > (names a *what* and roughly a *where*), a concrete revisit
+        > criterion — a signal that would make the entry worth picking up
+        > again, like a feature shipping or a threshold crossed; history-only
+        > notes ("X was tried and reverted") fail this gate and belong in a
+        > commit message or FINDINGS.md instead — and a concrete why-deferred
+        > reason. I'll push back on anything that fails a gate rather than
+        > writing it as-is. Template (I'll create BACKLOG.md with a
+        > `# Backlog` header if it doesn't exist):
         >
         >     ### <short name>
         >     - **One-line description** of the proposal.
@@ -225,16 +255,19 @@ when BACKLOG.md does not exist or has zero entries.
    absence of one. "Still technically accurate but feels less relevant now"
    is a keep, not a delete.
 
-3. If any entries are recommend-delete, include a Backlog Sweep subsection in
-   the proposal (written in Step 3d) listing them with one-line reasons:
+3. If any entries are recommend-delete, include a Backlog Sweep subsection
+   in the proposal (written in Step 3d). Use this form; the italicized
+   footer is literal text:
 
        ### Backlog Sweep
        - **Delete:** `<entry name>` — <one-line reason>
        - ...
-       Edit BACKLOG.md to apply.
 
-4. Do not delete entries from BACKLOG.md in this step. The user applies any
-   deletions they agree with by editing BACKLOG.md directly.
+       _Auto-applied when the next `/spec` consumes this proposal. Edit this list or BACKLOG.md before running `/spec` again to override._
+
+4. Do not delete entries from BACKLOG.md in this step. Deletions are applied
+   by the consuming `/spec` in Step 3b, not between turns, so the mechanism
+   survives back-to-back `/spec` invocations with no edit window.
 
 ## Step 3d: Propose Mode (Generate Proposal)
 
@@ -509,6 +542,12 @@ Rules:
   another approach, (4) explicit user decision. Default at sweep time is keep
   when in doubt — a deferred idea the user recorded earns the benefit of the doubt.
 
-Sweep deletion handoff: Step 3c.5 proposes deletions but never applies them.
-The user reviews the `### Backlog Sweep` subsection of the proposal and edits
-BACKLOG.md directly to apply any deletions they agree with.
+Sweep deletion handoff: Step 3c.5 proposes deletions in the `### Backlog Sweep`
+subsection of the proposal; the consuming `/spec` (Step 3b) applies them
+automatically when the proposal is consumed, and reports which entries were
+deleted in its Step 5 output. The approval window is intrinsic to the
+consume step, not a between-turns edit window, so the mechanism survives
+back-to-back `/spec` invocations. To override a proposed deletion, the user
+edits the `### Backlog Sweep` subsection (remove the line) or BACKLOG.md
+(nothing to delete then) before running `/spec` again. Deletions are
+reversible via git.
