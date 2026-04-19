@@ -161,8 +161,10 @@ mutate BACKLOG.md and must run when their triggers are present.
 3. **Apply revisit-candidate annotations** if the user indicated revival
    (explicit reply, "Chosen direction" note in the proposal, or mention
    before `/spec`). Append ` (ACTIVE in spec YYYY-MM-DD)` to the matching
-   `### <short name>` heading — YYYY-MM-DD is today. Non-revived candidates
-   stay unchanged. Track annotated entries for Step 8.
+   `### <short name>` heading — YYYY-MM-DD is today. If the heading already
+   carries a prior `(ACTIVE in spec ...)` annotation, replace it instead of
+   appending a second one. Non-revived candidates stay unchanged. Track
+   annotated entries for Step 8.
 
 4. **Read the codebase** to ground the new spec.
 
@@ -411,7 +413,7 @@ Parse the argument after the `backlog` keyword. Dispatch:
 
 6. Confirm via Step 5.
 
-Skips the overlap scan (Step 3.6) and proposal generator; additive, narrow.
+Skips the overlap scan (see Steps 3a/3b/3e) and proposal generator; additive, narrow.
 
 ### Clear
 

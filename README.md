@@ -686,6 +686,7 @@ Papers and posts that inform the design of this setup, particularly around long-
 - [x] Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
 - [x] Test runner (`tests/run-all.sh`) with combined summary across all suites
 - [x] Plan-mode handoff: `/spec plan [<slug>]` adopts a saved plan as the spec brief, pressure-tests outcomes into verifiable criteria, and writes SPEC.md. PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` so the handoff is visible. `/spec` with an under-specified brief now suggests exploring in plan mode first. Supersedes the earlier advisory plan read in Step 1.
+- [x] BACKLOG.md convention: persistent register for deferred proposals that would otherwise be lost at turn boundaries. `/spec backlog <description>` appends a pressure-tested entry; the turn-close sweep classifies entries as keep/revisit/delete with bias toward keep; approved deletions auto-apply on the next `/spec` when the proposal is consumed, and revived entries are annotated `(ACTIVE in spec YYYY-MM-DD)`. `/spec backlog clear` resets the register. Opt-in per project; absent-file is a no-op at every read site.
 
 ### Done (v1.2)
 
