@@ -12,11 +12,8 @@ Skills (`~/.claude/skills/`), hooks, and this file (`~/.claude/CLAUDE.md`) are s
 from `~/src/zat.env/`. Editing them in-place from a downstream project modifies the shared
 system. When working on any project other than zat.env itself, do not modify these files.
 If a skill produces wrong behavior or a convention needs updating, note the issue and defer
-the fix to a zat.env session.
-
-Memory file conventions are in the Memory section below. If a skill does the wrong thing,
-the fix belongs in the skill definition in zat.env, not in a per-project memory file that
-patches around the behavior.
+the fix to a zat.env session. Skill behavioral corrections belong in the skill definition,
+not in a per-project memory file that patches around it.
 
 ## Memory
 
@@ -79,11 +76,11 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
 
 ## ML / GPU
 
-20GB VRAM (RTX 4000 SFF Ada), 70W TDP. Large datasets and model files go in `~/data/`, not in project directories or git. For full conventions see `~/src/zat.env/claude/references/ml-gpu.md`.
+Large datasets and model files go in `~/data/`, not in project directories or git. For machine-specific GPU/CUDA conventions see `~/src/zat.env/claude/references/ml-gpu.md`.
 
 ## Networking
 
-Tailscale hostname `dev`, bind services to `0.0.0.0`, UFW active. For full conventions see `~/src/zat.env/claude/references/networking.md`.
+Bind services to `0.0.0.0` so Tailscale clients can reach them. For machine-specific networking (hostname, tailnet, firewall) see `~/src/zat.env/claude/references/networking.md`.
 
 ## Secrets
 
