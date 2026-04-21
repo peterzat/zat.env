@@ -1,19 +1,21 @@
 # CLAUDE.md — zat.env repo
 
-This is the `zat.env` repo: Peter Zatloukal's reproducible dev environment configuration for a Hetzner GEX44.
+This is the `zat.env` repo: a reproducible Claude Code harness — skills, hooks, conventions, and an install script that wires them into the live system. For what the system does and how downstream users adopt it, see [README.md](README.md). For machine-wide Claude conventions active in every session, see [`claude/global-claude.md`](claude/global-claude.md) (symlinked to `~/.claude/CLAUDE.md`).
 
-For machine-wide conventions that apply to all projects, see `claude/global-claude.md` (symlinked to `~/.claude/CLAUDE.md`).
+This file is for developers modifying this repo: what each piece is, what must stay in sync, how to test changes.
 
 ## What this repo contains
 
-- `hw-bootstrap.sh` — system provisioning script (apt packages, NVIDIA drivers, Docker, Tailscale, Claude Code)
-- `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks, skills, hooks)
+- `zat.env-install.sh` — wires this repo's config into the live system (git config, symlinks, skills, hooks). Idempotent; safe to re-run.
+- `hw-bootstrap.sh` — optional system provisioning (apt packages, NVIDIA drivers, Docker, Tailscale, Claude Code). Targets Ubuntu 22.04 dev boxes; downstream adopters typically don't need it.
 - `claude/global-claude.md` — machine-wide Claude conventions
 - `claude/references/` — detailed reference docs (networking, ML/GPU) read on demand
-- `claude/skills/` — global Claude Code skills: `/spec`, `/codereview`, `/codefix`, `/security`, `/architect`, `/tester`, `/pr`
-- `bin/review-external.sh` — optional external multi-model reviewer (stdin diff, stdout findings)
+- `claude/skills/` — global Claude Code skills: `/spec` (with `backlog` and `plan` subcommands), `/codereview`, `/codefix`, `/security`, `/architect`, `/tester`, `/pr`
+- `bin/` — helper scripts: `review-external.sh` (multi-model reviewer, stdin diff → stdout findings), `spec-backlog-apply.sh` (deterministic BACKLOG.md mutator), `codereview-skip` (one-shot push-gate bypass), `claude-fixed-reasoning` (launcher with non-adaptive thinking), `zatmux` (tmux session toggle)
 - `gitconfig/` — versioned git aliases and global gitignore, included via `~/.gitconfig`
-- `hooks/` — Claude Code hooks; `pre-push-codereview.sh` gates git push on passing `/codereview`
+- `hooks/` — Claude Code hooks: `pre-push-codereview.sh` (gates `git push` on passing review), `allow-venv-source.sh` (auto-approves venv activation), `post-tool-exit-plan-mode.sh` (reminds about `/spec plan` after exiting plan mode)
+- `tests/` — structural lint and behavioral tests; `tests/run-all.sh` runs every suite
+- `docs/` — extended walkthroughs (e.g., `hardware-setup.md`)
 
 ## Working on this repo
 
@@ -24,13 +26,13 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 - Print `==> Section name` banners so output is scannable
 
 **Skill files** (`claude/skills/<name>/SKILL.md`):
-- Each skill is a self-contained prompt; starts with YAML frontmatter then Markdown instructions
+- Self-contained prompt; YAML frontmatter then Markdown
 - Skills must be self-sufficient — they start with empty context and gather their own information
 - Keep each SKILL.md under ~500 lines; use `references/` subdirectory if details grow
 - After modifying any skill or hook, run `tests/run-all.sh` to check structural consistency
 
 **Hook scripts** (`hooks/*.sh`):
-- Must be idempotent and have no side effects other than blocking/allowing the action
+- Idempotent and side-effect-free other than blocking/allowing the action
 - Exit 0 = allow, exit 2 = block (stderr is shown to Claude)
 - Registered in `~/.claude/settings.json` by `zat.env-install.sh`
 
@@ -42,18 +44,18 @@ For machine-wide conventions that apply to all projects, see `claude/global-clau
 
 **Coding Practices sync** — the `## Coding Practices` section in `README.md` is a verbatim copy of the bullet points in `claude/global-claude.md`. Whenever `global-claude.md`'s Coding Practices section changes, update `README.md` to match.
 
-**Prompt/infrastructure boundary** — this repo has two kinds of logic: deterministic (hook scripts, helper scripts, marker files) and instructed (skill prompts interpreted by the LLM). These interact at specific contract points that must stay in sync:
+**Prompt/infrastructure boundary** — this repo has two kinds of logic: deterministic (hook scripts, helper scripts, marker files) and instructed (skill prompts interpreted by the LLM). They interact at specific contract points where prose and code must stay in sync. `tests/lint-skills.sh` enforces each one:
 
-- **Marker hash computation.** The codereview skill (Step 8) contains a bash snippet the LLM executes to write the push marker. The pre-push hook recomputes the same hash independently. If the PROJ_HASH derivation, sha256 truncation, or file exclusion list drifts between them, the review passes but the push is blocked. `tests/lint-skills.sh` extracts and compares these values.
-- **REVIEW_META field names.** Codereview writes the JSON footer, refresh detection (Step 2) and /pr merge grep for specific field names. A renamed field breaks the readers silently. Lint checks verify field name identity across all three consumers.
-- **Skip marker path.** The `codereview-skip` script and the pre-push hook must use identical path templates and PROJ_HASH derivation. Lint checks compare these.
-- **Builder/verifier tool boundary.** Codereview cannot Edit/Write (enforced by allowed-tools), but has Bash(*). The "Never fix code yourself" instruction is the only guard against `sed -i`. It is positioned in Prompt Design Principles (before Step 1) so the LLM reads it early. Codefix similarly has Bash(*) and could modify CODEREVIEW.md via shell redirects; the do-not-modify list names each file explicitly.
-- **BACKLOG.md prompt contracts.** The spec skill has three intra-skill producer/consumer handoffs with no runtime gate: `### Backlog Sweep` (produced in Step 3c.5, consumed in Step 3g, summarized in Step 5), `### Revisit candidates` (produced in Step 3d, consumed in Step 3g), and the four-field entry template (`One-line description`, `Why deferred`, `Revisit criteria`, `Origin`) duplicated between the inline turn-close template in Step 3c and the tail BACKLOG.md Format section. Rename a subsection or field in one site and the counterpart silently misses entries. Lint checks enforce both the appearance count and the field names.
-- **Sweep manifest stdin interface.** The spec skill's proposal-consume step (Step 3g) pipes a manifest to `bin/spec-backlog-apply.sh` on stdin via a heredoc; the script parses `delete:` and `adopt:` ops and mutates BACKLOG.md deterministically. This exists precisely so LLM non-compliance on state-mutation edits cannot silently rot BACKLOG.md: the skill decides; the script executes. Proposal-consume lives as its own top-level mode (not inside Step 3b) so the numbered steps — including the script invocation — stay salient when the router sends "no args + proposal" here. The op prefixes (`delete:`, `adopt:`) and the annotation regex (`(ACTIVE in spec YYYY-MM-DD)`) must stay identical between skill and script — drift silently stops mutations from landing while the skill's own report still claims success. Lint checks verify Step 3g existence, router target, heredoc pattern, stdin read, op prefixes, and the script-side annotation regex.
+- **Marker hash computation.** Codereview Step 8 writes the push marker; the pre-push hook recomputes the same hash independently. PROJ_HASH derivation, sha256 truncation, and the file exclusion list must match across both sites — drift means the review passes but the push is blocked.
+- **REVIEW_META field names.** Codereview writes a JSON footer; refresh detection (Step 2) and `/pr merge` grep for specific field names. Renaming a field silently breaks the readers.
+- **Skip marker path.** `bin/codereview-skip` and the pre-push hook must use identical path templates and PROJ_HASH derivation.
+- **Builder/verifier tool boundary.** Codereview and codefix have `Bash(*)` but no Edit/Write. The "Never fix code yourself" instruction (codereview, in Prompt Design Principles) and the explicit do-not-modify list (codefix) are the only guards against `sed -i` or shell-redirect bypass.
+- **BACKLOG.md prompt contracts.** Three intra-spec producer/consumer handoffs with no runtime gate: `### Backlog Sweep` (produced in Step 3c.5, consumed in Step 3g, summarized in Step 5); `### Revisit candidates` (produced in Step 3d, consumed in Step 3g); and the four-field entry template (`One-line description`, `Why deferred`, `Revisit criteria`, `Origin`) duplicated between Step 3c and the BACKLOG.md Format section. A subsection rename or field rename in one site silently misses entries in the other.
+- **Sweep manifest stdin interface.** Spec Step 3g pipes a manifest to `bin/spec-backlog-apply.sh` via heredoc; the script parses `delete:` and `adopt:` ops and mutates BACKLOG.md deterministically. This split exists precisely so LLM non-compliance on state-mutation edits cannot silently rot BACKLOG.md: the skill decides; the script executes. Op prefixes and the annotation regex (`(ACTIVE in spec YYYY-MM-DD)`) must stay identical between skill and script.
 
-When editing any skill, hook, or bin script, run `tests/run-all.sh` afterward. The structural checks verify these contracts have not drifted. If you add a new contract point (new marker, new cross-skill field, new shared path), add a corresponding lint check.
+When editing any skill, hook, or bin script, run `tests/run-all.sh` afterward. If you add a new contract point (new marker, new cross-skill field, new shared path), add a corresponding lint check.
 
-**Upstream fix pattern** — when an issue is discovered while working on a downstream project (skill produces wrong output, convention is missing, prompt needs adjustment), the fix is made in the zat.env repo, never patched locally in a downstream project. Changes to skills, hooks, and global-claude.md affect every project on the machine, so always confirm the intended change with the user before editing. Test the fix by re-running the skill or checking global-claude.md in a downstream project session. The goal is that improvements compound: every fix benefits all future projects.
+**Upstream fix pattern** — when an issue is discovered while working on a downstream project (skill produces wrong output, convention is missing, prompt needs adjustment), the fix is made in this repo, never patched locally in a downstream project. Changes to skills, hooks, and global-claude.md affect every project on the machine, so always confirm the intended change with the user before editing. Test the fix by re-running the skill or checking global-claude.md in a downstream project session. The goal is that improvements compound: every fix benefits all future projects.
 
 ## What NOT to put here
 
