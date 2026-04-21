@@ -1,11 +1,11 @@
-## Review -- 2026-04-21 (commit: 2cd4666)
+## Review -- 2026-04-21 (commit: 538ce88)
 
-**Review scope:** Light review. Only `claude/global-claude.md` modified (uncommitted, +3/-6 lines, no other files touched). No code or configuration files changed; test suite, security scan, external reviewers, and fix loop skipped per light-review tier.
+**Review scope:** Refresh review. Focus: 1 file changed since prior review (commit 2cd4666) -- `zat.env-install.sh` (uncommitted). The previously-reviewed `claude/global-claude.md` change was committed as 538ce88; that file's content matches what was reviewed at 2cd4666. 0 already-reviewed files needed interaction-only checks.
 
-**Summary:** Editorial cleanup of `claude/global-claude.md` in three spots. (1) Shared System Boundary collapses two short paragraphs into one: the second paragraph's substance ("skill behavioral corrections belong in the skill definition, not in a per-project memory file") is preserved as a trailing sentence; the removed forward pointer ("Memory file conventions are in the Memory section below") is harmless because the Memory section is the next heading. (2) ML/GPU line drops the machine-specific specs `20GB VRAM (RTX 4000 SFF Ada), 70W TDP` from this machine-agnostic global file; the same facts remain verbatim in `claude/references/ml-gpu.md` (lines 6-7), and the cross-link wording shifts from "full conventions" to "machine-specific GPU/CUDA conventions" which more accurately describes the target. (3) Networking line follows the same pattern: drops `Tailscale hostname dev` and `UFW active` (both machine-specific), keeps the portable convention `Bind services to 0.0.0.0`, and retargets the pointer at "machine-specific networking (hostname, tailnet, firewall)" --- all of which are present in `claude/references/networking.md` (hostname line 6, tailnet line 7, firewall line 23). Both reference files exist and resolve. No broken links, no factual drift, no secrets.
+**Summary:** New five-line "Customize for your machine" banner appended to `zat.env-install.sh` between the existing `==> Done` and `Verify:` blocks. Pure echo output pointing fresh installers at `claude/references/ml-gpu.md` and `claude/references/networking.md`; both files exist and already self-document as "machine-specific values, update for your hardware/machine." Banner pairs naturally with prior commit 538ce88 which dropped machine-specific values from the always-loaded `global-claude.md`. No variable interpolation, no command substitution, no logic, no functional change to install path. Idempotent. All 334 structural-lint and behavioral tests still pass. `/security` invoked on the two non-md files changed since the last security scan (`bin/spec-backlog-apply.sh` and `zat.env-install.sh`): 0 findings. External reviewers configured but no providers uncommented: ran silently, no output.
 
 **External reviewers:**
-Skipped (light review).
+None configured (PATH binary present, but no providers uncommented in `~/.config/claude-reviewers/.env`).
 
 ### Findings
 
@@ -20,6 +20,6 @@ None.
 None.
 
 ---
-*Prior review (2026-04-21): Light review of CLAUDE.md (editorial restructuring, audience reframing, expanded directory listing, condensed contract bullets). Verified bin/, hooks/, docs/, tests/, skill set, and /spec subcommands against actual contents. 0 findings.*
+*Prior review (2026-04-21): Light review of `claude/global-claude.md` editorial cleanup (drop machine-specific values from always-loaded summary, collapse duplicate Shared System Boundary forward-pointer). 0 findings.*
 
-<!-- REVIEW_META: {"date":"2026-04-21","commit":"2cd4666","reviewed_up_to":"2cd466652922f1a5d00aef1197476eeff3f11a9a","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-04-21","commit":"538ce88","reviewed_up_to":"538ce88c3273f83c3834cf65d82063bbe8234c0b","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->

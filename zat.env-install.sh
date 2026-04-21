@@ -268,6 +268,11 @@ echo "    Added post-ExitPlanMode /spec plan reminder hook"
 
 echo "==> Done"
 echo
+echo "==> Customize for your machine"
+echo "claude/references/ml-gpu.md and networking.md carry machine-specific defaults"
+echo "(GPU specs, Tailscale hostname, tailnet, public DNS, firewall). Review and"
+echo "edit them to match your machine."
+echo
 echo "Verify:"
 echo "  git st                                    # should work (alias from gitconfig)"
 echo "  ls -la ~/.claude/CLAUDE.md                # should be a symlink"
