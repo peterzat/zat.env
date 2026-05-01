@@ -848,6 +848,231 @@ has "${SKILLS}/security/SKILL.md" "Accepted Risks" \
 has "${SKILLS}/codereview/SKILL.md" "Listed in Accepted Risks" \
   "codereview: carry-forward checks Accepted Risks"
 
+# --- Tester/spec cross-skill contracts ---
+# /tester design writes a contract under an exact H1 heading and emits
+# BACKLOG entries with a canonical Origin form. Audit mode preserves the
+# H1 block. Destructive BACKLOG mutations go through spec-backlog-apply.sh.
+# Drift in any one site silently breaks the design/audit/sweep loop.
+
+echo ""
+echo "==> Tester/spec cross-skill contracts"
+
+TESTER="${SKILLS}/tester/SKILL.md"
+SPEC_SKILL="${SKILLS}/spec/SKILL.md"
+APPLY_SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"
+
+# Contract H1 heading is identical in the design step and the audit
+# preservation clause. Both sites must reference the exact literal.
+has "${TESTER}" '# Durable test-architecture contract' \
+  "tester: contract H1 heading present"
+# Count occurrences: must be >= 2 (design step writes it, audit step preserves it).
+if [[ -f "${TESTER}" ]]; then
+  hits=$(grep -c '# Durable test-architecture contract' "${TESTER}" || true)
+  TOTAL=$((TOTAL + 1))
+  if [[ "${hits}" -ge 2 ]]; then
+    pass "tester: contract H1 heading appears in both design and audit sections (${hits} hits)"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: contract H1 heading should appear >= 2 times, got %s\n' "${hits}"
+  fi
+fi
+
+# Design mode routes on `design` token and rejects other tokens.
+has "${TESTER}" 'Exactly `design`' \
+  "tester: Step 0 routes on exact 'design' token"
+has "${TESTER}" 'Unknown mode for /tester' \
+  "tester: Step 0 rejects unknown modes with named error"
+
+# Canonical Origin form is identical in /tester and /spec.
+has "${TESTER}" 'tester design YYYY-MM-DD' \
+  "tester: Origin canonical form 'tester design YYYY-MM-DD'"
+has "${SPEC_SKILL}" 'tester design YYYY-MM-DD' \
+  "spec: BACKLOG.md Format names 'tester design YYYY-MM-DD' as canonical Origin"
+
+# BACKLOG.md four-field entry template is duplicated in /tester design mode
+# and must match /spec's template field-for-field. A rename in tester/SKILL.md
+# that drifts from spec/SKILL.md would silently break /spec's sweep and
+# overlap consumers.
+for field in "One-line description" "Why deferred" "Revisit criteria" "Origin"; do
+  has "${TESTER}" "\*\*${field}" \
+    "tester: design mode entry field '${field}' matches /spec template"
+done
+
+# purge-origin op keyword is consistent between skill prompts and script parser.
+has "${TESTER}" 'purge-origin:' \
+  "tester: design mode invokes purge-origin op"
+has "${SPEC_SKILL}" 'purge-origin:' \
+  "spec: BACKLOG manifest format documents purge-origin op"
+has "${APPLY_SCRIPT}" 'purge-origin:\*)' \
+  "spec-backlog-apply.sh: parser handles purge-origin op"
+
+# append/end-append is a multi-line op; all three sites must agree on the
+# keyword and the delimiter or the block parse breaks silently.
+has "${TESTER}" 'append:' \
+  "tester: design mode invokes append op"
+has "${TESTER}" 'end-append' \
+  "tester: design mode uses end-append delimiter"
+has "${SPEC_SKILL}" 'append:' \
+  "spec: BACKLOG manifest format documents append op"
+has "${SPEC_SKILL}" 'end-append' \
+  "spec: BACKLOG manifest format documents end-append delimiter"
+has "${APPLY_SCRIPT}" 'append:\*)' \
+  "spec-backlog-apply.sh: parser handles append op"
+has "${APPLY_SCRIPT}" 'end-append' \
+  "spec-backlog-apply.sh: parser recognizes end-append delimiter"
+
+# Design mode must delegate ALL BACKLOG mutations to the script, not use
+# sed -i / shell-redirect / cat-append / Edit on prior-content patterns.
+# (The `append:` op is the replacement for LLM-executed appends.)
+hasnt "${TESTER}" 'sed -i.*BACKLOG' \
+  "tester: no sed -i on BACKLOG.md"
+hasnt "${TESTER}" '> BACKLOG\.md' \
+  "tester: no shell redirect overwrite of BACKLOG.md"
+hasnt "${TESTER}" '>> BACKLOG\.md' \
+  "tester: no shell-append redirect to BACKLOG.md (use append: op)"
+hasnt "${TESTER}" 'cat >> BACKLOG' \
+  "tester: no cat-append to BACKLOG.md (use append: op)"
+
+# Tester and spec must invoke the script via PATH (bare name), not a
+# project-relative `bin/` prefix. Downstream projects don't carry the
+# repo's bin/ directory; only the ~/bin/ symlink (via PATH) works.
+# The `<<` anchor scopes this to heredoc invocations, so prose references
+# to the in-repo source path in CLAUDE.md and the Format section remain valid.
+hasnt "${TESTER}" 'bin/spec-backlog-apply\.sh <<' \
+  "tester: invokes script via PATH, not project-relative bin/ prefix"
+hasnt "${SPEC_SKILL}" 'bin/spec-backlog-apply\.sh <<' \
+  "spec: invokes script via PATH, not project-relative bin/ prefix"
+
+# ACTIVE-annotation preservation: both the script and the skill must refer
+# to the same annotation format so revisions don't lose adopted entries.
+has "${TESTER}" 'ACTIVE in spec' \
+  "tester: Design Mode references ACTIVE annotation (preservation gate)"
+has "${APPLY_SCRIPT}" 'ACTIVE in spec' \
+  "spec-backlog-apply.sh: script references ACTIVE annotation (preserves on purge)"
+
+# Audit-mode preservation mechanics: the instruction to the LLM must name
+# the Edit tool (safer than Write) and must tell the LLM to read the
+# contract before a full-file Write so the section survives reconstruction.
+# The instruction is the only guard against silent truncation of the
+# durable contract block.
+has "${TESTER}" 'Prefer the Edit tool' \
+  "tester: audit preservation prefers Edit over Write"
+has "${TESTER}" 'existing TESTING.md in full' \
+  "tester: audit preservation tells LLM to Read before full-file Write"
+has "${TESTER}" 'Read the file again and confirm' \
+  "tester: audit preservation has post-write verification step"
+
+# Locate the D.5 / D.5.5 / D.6 anchors once; all subsequent checks
+# scope into these ranges. The escaped-dot patterns disambiguate D.5
+# from D.5.5 (otherwise `^### Step D.5` matches both).
+TESTER_D5_LINE=$(grep -n '^### Step D\.5: ' "${TESTER}" | head -1 | cut -d: -f1)
+TESTER_D55_LINE=$(grep -n '^### Step D\.5\.5: ' "${TESTER}" | head -1 | cut -d: -f1)
+TESTER_D6_LINE=$(grep -n '^### Step D\.6: ' "${TESTER}" | head -1 | cut -d: -f1)
+
+# Canonical Origin literal must appear in Step D.5 specifically (the
+# producer), not only in the general prose. Range tightened to D.5–D.5.5
+# so a literal that drifted into D.5.5 wouldn't accidentally satisfy this.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
+  if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -q 'tester design YYYY-MM-DD'; then
+    pass "tester: canonical Origin literal present in Step D.5"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: Step D.5 missing canonical Origin literal "tester design YYYY-MM-DD"\n'
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL tester: could not locate Step D.5 / D.5.5 anchors for Origin placement check\n'
+fi
+
+# Step D.5.5 (pre-apply checklist) anchor exists.
+has "${TESTER}" '### Step D.5.5: Pre-apply checklist' \
+  "tester: Step D.5.5 anchor exists"
+
+# Position: D.5.5 falls strictly between D.5 and D.6.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]] \
+   && [[ "${TESTER_D5_LINE}" -lt "${TESTER_D55_LINE}" ]] \
+   && [[ "${TESTER_D55_LINE}" -lt "${TESTER_D6_LINE}" ]]; then
+  pass "tester: Step D.5.5 positioned between D.5 (line ${TESTER_D5_LINE}) and D.6 (line ${TESTER_D6_LINE})"
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL tester: Step D.5.5 not positioned between D.5 and D.6 (D.5=%s D.5.5=%s D.6=%s)\n' \
+    "${TESTER_D5_LINE:-?}" "${TESTER_D55_LINE:-?}" "${TESTER_D6_LINE:-?}"
+fi
+
+# D.5.5 names each of the five required components by name. A drift that
+# silently drops a component would shrink the user's course-correct surface.
+if [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]]; then
+  D55_BLOCK=$(sed -n "${TESTER_D55_LINE},${TESTER_D6_LINE}p" "${TESTER}")
+  for component in "Signals fingerprint" "Contract shape" "Rollout entry count" "Per-entry overlap" "SPEC tension"; do
+    TOTAL=$((TOTAL + 1))
+    if printf '%s\n' "${D55_BLOCK}" | grep -qF "${component}"; then
+      pass "tester: D.5.5 names component '${component}'"
+    else
+      FAILS=$((FAILS + 1))
+      printf '  FAIL tester: D.5.5 missing component name "%s"\n' "${component}"
+    fi
+  done
+
+  # Always-on must be explicit so a future revision doesn't gate the
+  # checklist behind an opt-in flag.
+  TOTAL=$((TOTAL + 1))
+  if printf '%s\n' "${D55_BLOCK}" | grep -qE 'always posted|always-on|no flag-gating|no opt-out'; then
+    pass "tester: D.5.5 explicitly states always-on (no flag-gating)"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: D.5.5 missing always-on guard (expected one of: always posted / always-on / no flag-gating / no opt-out)\n'
+  fi
+
+  # Flag-not-block on SPEC tension must be explicit so a future revision
+  # doesn't silently turn the flag into a gate.
+  TOTAL=$((TOTAL + 1))
+  if printf '%s\n' "${D55_BLOCK}" | grep -qE 'never block|flag, never block|flag-not-block'; then
+    pass "tester: D.5.5 SPEC tension explicitly states flag-not-block"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: D.5.5 SPEC tension missing flag-not-block guard\n'
+  fi
+fi
+
+# Coordinate-with field appears in Step D.5's template (between D.5 and D.5.5).
+# This is the conditional fifth field appended when the overlap scan flags an
+# entry; the script preserves it verbatim inside the append: body.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
+  if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -qF 'Coordinate with:'; then
+    pass "tester: D.5 template documents conditional 'Coordinate with:' field"
+  else
+    FAILS=$((FAILS + 1))
+    printf "  FAIL tester: D.5 template missing 'Coordinate with:' field\n"
+  fi
+fi
+
+# Why-deferred specificity soft hint lives in D.5 (between D.5 and D.5.5).
+TOTAL=$((TOTAL + 1))
+if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
+  if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -qE 'Why-deferred specificity|boilerplate'; then
+    pass "tester: D.5 contains Why-deferred specificity / boilerplate soft hint"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: D.5 missing Why-deferred specificity / boilerplate soft hint\n'
+  fi
+fi
+
+# D.1 overlap scan must extend to all BACKLOG entries (not just tester-design).
+# The "two passes" framing in D.1 is what flags non-tester topical overlap to
+# feed D.5.5's per-entry overlap line and D.5's Coordinate-with field.
+has "${TESTER}" 'scan in two passes' \
+  "tester: D.1 overlap scan extends to all BACKLOG entries (two passes)"
+
+# Greenfield line cap is a soft cap, not a hard ≤ 50 rule. A hard cap pushes
+# the LLM to pad to 50 or trim something material to stay under.
+hasnt "${TESTER}" 'total ≤ 50 lines' \
+  "tester: D.4 greenfield line cap is not a hard '≤ 50 lines' rule"
+has "${TESTER}" 'soft cap' \
+  "tester: D.4 greenfield line cap is explicitly soft"
+
 # --- Skill frontmatter ---
 # Required fields for each skill.
 

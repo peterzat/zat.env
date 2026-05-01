@@ -576,7 +576,8 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Why deferred:** reason.
 - **Revisit criteria:** what would make this worth picking up again.
 - **Origin:** where first considered. Canonical forms: `spec YYYY-MM-DD`,
-  `plan <slug>`, `<working-doc>.md (<section>)`, or `ad-hoc`.
+  `plan <slug>`, `tester design YYYY-MM-DD`, `<working-doc>.md (<section>)`,
+  or `ad-hoc`.
 ```
 
 Rules:
@@ -605,11 +606,16 @@ a proposed deletion, the user edits the `### Backlog Sweep` subsection
 `/spec` again. Deletions are reversible via git.
 
 Manifest format (piped to `bin/spec-backlog-apply.sh` on stdin by Step 3g
-Step 2, one op per line):
+Step 2 and by `/tester design`, one op per line except `append:` which
+spans a block):
 
 ```
 delete: <heading>
 adopt: <heading> | <YYYY-MM-DD>
+purge-origin: <origin prefix>
+append: <heading>
+<entry body lines, verbatim>
+end-append
 ```
 
 Rules:
@@ -618,12 +624,34 @@ Rules:
 - `adopt:` sets the `### <heading>` line to
   `### <heading> (ACTIVE in spec <YYYY-MM-DD>)`, replacing any prior
   `(ACTIVE in spec ...)` annotation on that line.
+- `purge-origin:` removes every entry whose Origin field starts with the
+  given prefix (backticks and bullet markers stripped), except entries
+  whose heading carries an `(ACTIVE in spec YYYY-MM-DD)` annotation.
+  Used by `/tester design` to dedup prior rollout entries on revision
+  while preserving ACTIVE work. One `PURGED: <heading> (origin prefix: ...)`
+  line is reported per removed entry; zero matches is success. The
+  prefix is a literal starts-with match: `purge-origin: spec` would
+  match every Origin starting with `spec` including `spec YYYY-MM-DD`.
+  Use the full canonical form as the prefix to scope narrowly.
+- `append:` writes a new `### <heading>` entry with the body spanning
+  every manifest line until the next `end-append`. The body is stored
+  verbatim, preserving indentation and blank lines. An already-present
+  heading (with or without an ACTIVE annotation) emits
+  `SKIPPED: <heading>` and no write; otherwise `APPENDED: <heading>`.
+  If BACKLOG.md does not exist, the script creates it with the standard
+  `# Backlog` header before appending. A missing `end-append` delimiter
+  is an error (exit 1). Used by `/tester design` to land rollout entries
+  without LLM-executed Write/Edit.
 - Heading matching strips a trailing `(ACTIVE in spec YYYY-MM-DD)`
   annotation from both the manifest entry and the file line, so the
   manifest may reference a heading with or without the annotation.
-- Lines that don't start with `delete:` or `adopt:` are ignored, so
-  comments or blank lines in the heredoc are safe.
+- Lines that don't start with a recognized op keyword are ignored, so
+  comments or blank lines in the heredoc are safe — unless they appear
+  inside an `append:` / `end-append` block, where every line is body.
 - The script invocation is skipped entirely when there are zero ops.
+- Ops run in order: delete, adopt, purge, append. Within an op type,
+  entries run in parse order.
 - If a `delete:` or `adopt:` heading is not found in BACKLOG.md, the
   script reports a MISS to stderr and exits non-zero. The skill surfaces
-  the MISS to the user rather than silently dropping it.
+  the MISS to the user rather than silently dropping it. `purge-origin:`
+  and `append:` are not subject to MISS.

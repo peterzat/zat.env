@@ -1,6 +1,6 @@
-## Security Review — 2026-04-21 (scope: paths)
+## Security Review — 2026-05-01 (scope: paths)
 
-**Summary:** Reviewed `bin/spec-backlog-apply.sh` and `zat.env-install.sh`. No exploitable issues found. The apply script consumes a stdin manifest with pure parameter expansion (no `eval`), passes captured strings to `awk` via `-v` (string assignment, not code), and writes only to the literal filename `BACKLOG.md` via `mktemp` + `mv`. The install script refuses to run as root, derives all writes to user-owned directories (`~/.claude`, `~/bin`, `~/.config/claude-reviewers`), passes user-derived strings to `jq` via `--arg`, and the reviewer `.env` template holds placeholders only. No network calls, no credential surface, no exposed input from external attackers.
+**Summary:** Reviewed `bin/spec-backlog-apply.sh`, `tests/lint-skills.sh`, and `tests/run-all.sh`. No exploitable issues. The apply script's stdin-only manifest interface uses `printf '%s'` and `awk -v` string assignment (no `eval`, no command substitution from manifest input, no regex with attacker-controlled patterns), with file writes confined to `mktemp` plus `mv` to a hardcoded `BACKLOG.md` in cwd. Confirmed by direct exploit attempts that command substitution embedded in headings or append bodies is preserved as literal text and not executed. The lint script reads only repo-local paths derived from its own `dirname`, invokes only read-only tools (`grep`, `awk`, `sha256sum`, `shellcheck`), and writes nothing outside its own variables. The runner script hardcodes the four suite paths under `TESTS_DIR`. No secrets in the files or recent git history of these paths. All 456 checks pass across 4 suites.
 
 ### Findings
 
@@ -12,6 +12,6 @@ No security issues identified.
 - **Tag-bypass regex in pre-push hook** (hooks/pre-push-codereview.sh:101): Combined branch+tag push could skip codereview gate. Defense-in-depth gap, not actively exploitable since the hook is advisory and user-controlled. Previously flagged as WARN.
 
 ---
-*Prior review (2026-04-19, scope: paths): Reviewed `bin/spec-backlog-apply.sh` and `tests/lint-skills.sh`. No findings. Apply script uses pure parameter expansion and awk -v string assignment; lint script reads only repo-local files with hardcoded patterns.*
+*Prior review (2026-04-24, scope: paths): Reviewed `bin/spec-backlog-apply.sh`, `tests/lint-skills.sh`, `tests/run-all.sh`, `tests/test-spec-backlog-apply.sh`, and `zat.env-install.sh`. 0 findings. Apply script's `purge-origin` op used pure parameter expansion and awk `-v` string assignment; new behavioral test suite used `mktemp -d` with trapped cleanup; install script refused root and wrote only to user-owned dirs.*
 
-<!-- SECURITY_META: {"date":"2026-04-21","commit":"538ce88c3273f83c3834cf65d82063bbe8234c0b","scope":"paths","scanned_files":["bin/spec-backlog-apply.sh","zat.env-install.sh"],"block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-05-01","commit":"47020150fbb3691a4cc3888cd8836a493826730e","scope":"paths","scanned_files":["bin/spec-backlog-apply.sh","tests/lint-skills.sh","tests/run-all.sh"],"block":0,"warn":0,"note":0} -->

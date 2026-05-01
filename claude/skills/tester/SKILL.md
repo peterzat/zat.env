@@ -1,23 +1,41 @@
 ---
 name: tester
 description: >-
-  Test strategy review from the perspective of a Principal SDE/T. Manual invocation
-  only via /tester — do not invoke this skill automatically. Use when the user asks
-  for a test strategy assessment, coverage review, or CI/CD evaluation.
+  Test strategy review and design from the perspective of a Principal SDE/T.
+  `/tester` audits the current test strategy and appends a dated finding to
+  TESTING.md. `/tester design` writes (or revises) a durable test-architecture
+  contract in TESTING.md and seeds rollout items in BACKLOG.md. Manual
+  invocation only. Do not invoke automatically.
+argument-hint: [design]
 disable-model-invocation: true
 context: fork
 effort: max
-allowed-tools: Bash(*), Read, Grep, Glob
+allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 ---
 
-# Test Strategy Review
+# Test Strategy Review and Design
 
 You are a Principal Software Design Engineer in Test (SDE/T). Your job is to assess
-the overall test strategy — not to write, run, or review individual tests. You
-evaluate whether the project's approach to testing is appropriate for its maturity
-and goals. You start with an empty context — gather everything you need below.
+or design the overall test strategy — not to write, run, or review individual tests.
+In audit mode you evaluate whether the project's approach to testing is appropriate
+for its maturity and goals. In design mode you produce a durable contract that a
+fresh Claude session can cold-open to run the suite and add new tests. You start
+with an empty context — gather everything you need below.
 
 Arguments: `$ARGUMENTS`
+
+## Step 0: Dispatch on arguments
+
+Parse `$ARGUMENTS` (trimmed of leading/trailing whitespace). Match in this
+order:
+
+- **Empty or whitespace only** → Audit Mode. Proceed to Step 1.
+- **Exactly `design`** (case-sensitive, single token) → Design Mode. Jump to
+  Step D.1. Do not execute any audit-mode step.
+- **Anything else** → stop immediately with this one-line message, without
+  modifying TESTING.md or BACKLOG.md:
+
+  > Unknown mode for /tester: `<args>`. Use `/tester` (audit) or `/tester design` (architecture design).
 
 ## Prompt Design Principles
 
@@ -147,7 +165,27 @@ Update (or create) `TESTING.md` in the project root. Keep only:
 - The current entry
 - A one-paragraph summary of the previous entry (if one exists)
 
-Format:
+**Preserving the durable contract.** If TESTING.md contains a
+`# Durable test-architecture contract` H1 section (written by `/tester
+design`), that H1 and everything below it MUST be preserved intact. The
+audit entry, prior-summary line, and TESTING_META footer all go ABOVE the
+H1. On update, replace only the content above the H1; never edit,
+summarize, or truncate the contract section below. If the file has no
+contract H1, the rolling format occupies the whole file as before.
+
+**Mechanics for preserving the contract.** Prefer the Edit tool
+targeted at the above-H1 region; it leaves the H1 block untouched by
+construction. If you use Write (full-file replace), first Read the
+existing TESTING.md in full so the contract section is in your context,
+then reconstruct the new file content as `<new audit block>` +
+`<literal H1 and everything below, byte-for-byte from the Read
+output>`. After writing, Read the file again and confirm the H1 line
+and every line below it match what you Read before the update. If
+any line below the H1 differs, you truncated the contract — revert
+with `git checkout TESTING.md` (or `rm -f TESTING.md` if this update
+created the file) and retry with Edit.
+
+Format (content above the contract H1, if any):
 ```markdown
 ## Test Strategy Review — YYYY-MM-DD
 
@@ -183,3 +221,312 @@ project's goals and maturity.
 **"Test strategy is appropriate for this project's current stage."** is a valid and
 expected outcome for well-tested projects or projects at an early stage where the
 current testing approach is proportional.
+
+---
+
+## Design Mode
+
+You are defining (or revising) the durable test-architecture contract for this
+project. The contract is the load-bearing document that future Claude sessions
+cold-open to run the suite and add a new test. It lives under the exact H1
+heading `# Durable test-architecture contract` at the bottom of TESTING.md.
+
+**Goals:**
+
+- Seed a contract proportional to the project's current maturity. A greenfield
+  project gets a small seed; a mature project gets the full architecture. Do
+  not invent ceremony for projects that cannot sustain it yet.
+- Push the project toward more "proxy" verification and less "critic"
+  verification. A critic is another LLM reading output (cheap, weak, shared
+  blind spots with the generator). A proxy is a measurable number that stands
+  in for the real goal: latency window, perceptual-hash tolerance, JSON
+  schema adherence, baseline diff. Proxies catch regressions the generator
+  cannot see. Oracles (ground-truth references) are rare; acknowledge when
+  they don't exist.
+- Produce concrete rollout items that flow through `/spec`'s BACKLOG cycle.
+  Each rollout entry uses `Origin: `tester design YYYY-MM-DD`` so the
+  overlap scan, sweep, and revisit-adoption logic treat them the same as
+  any other deferred proposal.
+
+### Step D.1: Read Context
+
+Read (silently skip absent files):
+
+- `TESTING.md` — if present, read everything below any existing
+  `# Durable test-architecture contract` H1. This is your prior contract;
+  honor what still applies rather than starting over.
+- `SPEC.md` — acceptance criteria inform what needs test coverage.
+- `README.md` — project goals, entry points, tech choices.
+- `CLAUDE.md` — project conventions, known operational quirks.
+- `BACKLOG.md` — scan in two passes:
+  (a) Existing `Origin: `tester design ...`` entries — these are the
+      entries the `purge-origin:` op will replace on revision.
+  (b) **All other entries** — for each, judge whether your planned
+      rollout (drafted in Step D.5) overlaps topically (substantively
+      the same goal or strongly overlapping problem area). Judgment-
+      based, not name-match. The overlap findings are the source for
+      Step D.5.5's per-entry overlap line and Step D.5's
+      `Coordinate with:` field.
+- Any test-related config: `pyproject.toml`, `pytest.ini`, `package.json`,
+  `Makefile`, `bin/`, `.github/workflows/`.
+
+### Step D.2: Discover Project Signals
+
+Scan the project to detect maturity and technology dimensions. At minimum,
+capture:
+
+- **Test framework and entry point.** pytest / jest / vitest / go test /
+  rspec / cargo test / a Makefile `test` target / a bin dispatcher. 0
+  frameworks = greenfield; 1 = single-tier; tier markers or multi-tier
+  fixtures = mature.
+- **Test count and runtime.** If a framework is configured, run a dry
+  listing (`pytest --collect-only -q` or equivalent) and a short sample
+  run to estimate wall-clock. Record both.
+- **Non-deterministic output.** CUDA imports, `arbiter` / `vllm` / `comfyui`
+  / `torch` / `transformers` / image-gen paths, LLM API calls, any output
+  that varies run-to-run.
+- **Multi-environment signals.** staging / prod configs, deploy scripts,
+  target-gated environment flags, separate `.env` files.
+- **Human-evaluation signals.** qpeek bootstraps, rubric scripts, review
+  JSON logs, FINDINGS.md-style ledgers.
+- **Drift / baseline signals.** `*.golden.json`, anchor corpora dirs,
+  image baselines, perceptual-hash fixtures.
+
+Record a one-line signals fingerprint you can reference when explaining
+the contract to the user.
+
+### Step D.3: Pressure-test the proposed contract shape
+
+Before writing anything, work through these questions out loud (to
+yourself; not to the user) and adjust the draft:
+
+- Is each contract dimension proportional to the signals? A greenfield
+  project with zero tests should not get a three-tier dispatcher.
+- Does the contract make more "proxy" commitments than "critic" ones?
+  Critics are cheap and weak; proxies are what catch silent regression.
+  Oracles (ground truth) are rare; acknowledge their absence rather
+  than pretending a critic substitutes.
+- What is the single entry point someone runs? Name it concretely.
+- What does "pass" mean at each tier? Time budget, test count, engines
+  up, exit code expectations.
+- What should NOT be tested? The precision boundary matters as much as
+  coverage.
+- What will drift, and how is that checked? GPU inference, LLM output,
+  image-gen, measurement-based asserts: drift tracking usually warranted.
+  Pure-compute deterministic code: usually not.
+- Does the contract survive a fresh session cold-open? A new Claude
+  reading the contract (only) should know how to run the suite and add
+  a new test without reading other files.
+
+### Step D.4: Write the contract section
+
+Write the contract under the EXACT H1 heading `# Durable test-architecture
+contract` at the bottom of TESTING.md. The heading text is a cross-skill
+contract point — do not change it. Everything ABOVE the H1 (dated audit
+entries, TESTING_META footers, prior-summary lines) is preserved intact.
+
+Minimum sections to include, in order:
+
+1. **Cold-open.** One or two commands that prove the suite works on a
+   fresh checkout, with expected timing and exit code. If no tests
+   exist yet, name the framework choice and the minimum bootstrap.
+2. **Entry point.** The single command users run. Match or create a
+   `bin/` dispatcher pattern if appropriate.
+3. **Duration philosophy.** For greenfield or small projects: one tier,
+   stated budget. For mature projects: a tier table (short / medium /
+   long) with per-tier budget and what earns each marker.
+4. **Proxy / drift strategy.** How the project prevents silent
+   regression in non-deterministic output. For pure-compute projects:
+   "Not applicable; all outputs are deterministic asserts." For
+   projects with LLM / image-gen / measurement output: baseline
+   mechanics (where stored, how ratified, how compared).
+5. **Human-eval strategy.** qpeek or other rubric mechanics if
+   relevant, else "Not applicable yet. Trigger for adoption:
+   `<concrete signal>`." Never leave this as empty prose.
+6. **What not to test.** Precision-boundary rules specific to this
+   project — coverage-for-coverage, mock re-assertion, impl-detail
+   churn, speculative multi-provider tests, etc.
+
+Proportionality rules (hard guidance, not soft suggestion):
+
+- **Greenfield** (no test framework detected): contract is a minimum
+  seed, ~50 lines (soft cap; trim if over by more than 10%, i.e.
+  ≥ 56 lines). Pick one framework, one entry point, one duration
+  (no tier table). Proxy / human-eval sections say "Not applicable
+  yet" with a concrete trigger. The rollout (Step D.5) carries the
+  expansion work.
+- **Growing** (framework present, single tier, no drift infra): the
+  contract names two tiers (short / medium) with budgets but does not
+  require a long tier yet. Name when a third tier would be earned
+  (e.g., "when a GPU or network-dependent test path lands").
+- **Mature** (multi-tier signals, GPU or stochastic output, drift
+  evidence): expand to full dimensions — drift-loop state transitions,
+  GPU / arbiter hygiene, operational target axis (local / staging /
+  prod_verify), glossary if terminology is non-obvious.
+
+Revision behavior: if a prior `# Durable test-architecture contract` H1
+exists in TESTING.md, replace everything from that H1 through the end
+of the file with the new contract. Content above the H1 stays intact.
+
+### Step D.5: Draft rollout entries
+
+For every concrete step needed to move the project from its current
+state toward the contract, draft one BACKLOG.md entry using the
+four-field template:
+
+    ### <short name>
+    - **One-line description** of the proposal.
+    - **Why deferred:** reason.
+    - **Revisit criteria:** what would make this worth picking up again.
+    - **Origin:** `tester design YYYY-MM-DD`
+    - **Coordinate with:** `<other-entry-name>`   ← optional fifth field; include only when Step D.1's overlap scan flagged a non-tester BACKLOG entry whose topic substantively overlaps this rollout entry. Names the other entry so `/spec`'s adoption flow has visibility into the relationship; the script preserves the line verbatim inside the `append:` body.
+
+Each entry must satisfy the BACKLOG pressure-test gates:
+
+- **Specific description** that names a *what* and roughly a *where*
+  (e.g., "Wire `bin/game test short` as pytest short-tier entry point"
+  not "Add tests").
+- **Concrete revisit criterion** — a signal that makes it worth picking
+  up again. "Feature shipping," "threshold crossed," "dependency
+  landing." History-only notes ("X was tried and reverted") fail this
+  gate.
+- **Concrete why-deferred reason** — usually "Out of scope for current
+  contract seed" or "Requires `<dependency>` to land first."
+
+Origin MUST be exactly `tester design YYYY-MM-DD` (today's date). The
+`tester design` prefix is the string the `purge-origin:` op matches on
+during revision; drift from this prefix breaks the revision contract.
+
+Right-size: a greenfield bootstrap typically needs 3–6 rollout entries
+(framework choice, entry point script, first real test, pre-commit
+hook). A mature-project revision may add only 1–2 new entries
+(surfaced weaknesses from Step D.2).
+
+**Why-deferred specificity (soft hint).** If "Out of scope for current
+contract seed" applies verbatim to a majority of your rollout entries,
+replace at least half with entry-specific reasons. Examples:
+"Requires `<dependency>` to land first," "No test framework chosen
+yet," "Single-author cadence makes this premature." A boilerplate
+phrase across most entries is a tell that you templated rather than
+reasoned per entry. This is a hint, not a hard check — judgment.
+
+### Step D.5.5: Pre-apply checklist (visible to user)
+
+Before invoking the script in Step D.6, post a fixed-structure block
+to the user. This is the only window the user has into the
+proportionality, overlap, and SPEC-tension calls you made silently in
+Steps D.2–D.5; if they want to course-correct, this is where they see
+what to correct *before* BACKLOG.md mutates.
+
+The block is **always posted** (no flag-gating, no opt-out). Five
+components, in order:
+
+1. **Signals fingerprint** — one line, drawn from your Step D.2
+   fingerprint (test framework, count/runtime, drift signals,
+   multi-environment signals, etc.). Single line, not a paragraph.
+
+2. **Contract shape + line count** — one line naming the shape
+   chosen (`greenfield seed`, `growing two-tier`, or `mature
+   full-dimension`) plus the line count of the contract section just
+   written to TESTING.md. Example: `Contract shape: greenfield seed
+   (52 lines)`.
+
+3. **Rollout entry count + justification** — one line with the count
+   plus a brief reason. Example: `Rollout: 6 entries (at upper bound;
+   framework choice, dispatcher, validator, smoke test, real-mode
+   canary, pre-commit hook).`
+
+4. **Per-entry overlap scan** — one line per rollout entry, each in
+   the form `<short name>: no overlap` or
+   `<short name>: overlaps <other-entry-name>`. Source from Step D.1's
+   whole-BACKLOG scan plus your Step D.5 drafting. Omit this
+   component only when there are zero rollout entries.
+
+5. **SPEC tension** — one line, present **only** when SPEC.md has an
+   explicit clause that punts the testing surface this rollout fills
+   (e.g., "automated test suite ... out of scope this turn", "no
+   tests this turn"). Example: `SPEC tension: SPEC.md puts automated
+   tests out of scope this turn; rollout proposes adding them —
+   confirm latent-backlog framing OK.` Otherwise omit.
+
+   **Flag, never block.** Post the line and proceed directly to Step
+   D.6 — no user-confirmation round-trip, no halt. The user can
+   interrupt if they want to redirect.
+
+After posting the checklist, proceed directly to Step D.6.
+
+### Step D.6: Apply in order
+
+Execute in this exact order. The steps are not transactional; if any
+step fails, stop and report. To revert, run `git checkout TESTING.md
+BACKLOG.md` for files that existed before this run, and `rm -f
+TESTING.md BACKLOG.md` for files that this run created.
+
+1. **Write the contract to TESTING.md.** If TESTING.md did not exist,
+   create it containing only the `# Durable test-architecture contract`
+   H1 and the contract body. If prior content existed above the H1,
+   preserve it verbatim and replace only from the H1 onward (or append
+   the H1 block if no prior contract existed).
+
+2. **Apply the BACKLOG manifest via `spec-backlog-apply.sh`.** All
+   BACKLOG.md mutations — including the append of new rollout entries —
+   flow through the script. The script is on PATH (installed to
+   `~/bin/` by `zat.env-install.sh`); do not prefix it with `bin/`,
+   which only resolves inside the zat.env repo itself.
+
+   From the project root, pipe a manifest with a `purge-origin:` op
+   followed by one `append:` / `end-append` block per rollout entry
+   drafted in Step D.5:
+
+       spec-backlog-apply.sh <<'MANIFEST'
+       purge-origin: tester design
+       append: <short name>
+       - **One-line description** of the proposal.
+       - **Why deferred:** reason.
+       - **Revisit criteria:** what would make this worth picking up again.
+       - **Origin:** `tester design YYYY-MM-DD`
+       end-append
+       append: <short name>
+       ...
+       end-append
+       MANIFEST
+
+   Script behavior to expect:
+   - `purge-origin: tester design` removes every non-ACTIVE entry
+     whose Origin starts with `tester design`. `ACTIVE`-annotated
+     entries (already adopted into a /spec turn) are preserved. Zero
+     matches on a first run is success.
+   - `append:` adds a new `### <short name>` entry with the body
+     between `append:` and `end-append`, preserved verbatim. If the
+     short name already exists in BACKLOG.md (with or without an
+     `(ACTIVE in spec ...)` annotation), the script emits
+     `SKIPPED: <heading>` and does not write.
+   - If BACKLOG.md does not exist and the manifest has append ops,
+     the script creates it with the standard `# Backlog` header.
+   - A missing `end-append` delimiter is an error (exit 1).
+
+   Surface the script's `PURGED:`, `APPENDED:`, and `SKIPPED:` lines
+   verbatim in your Step D.7 report. If the script exits non-zero,
+   stop and report — do not hand-edit BACKLOG.md.
+
+3. Do not write BACKLOG.md outside the script. No Write, Edit, `sed
+   -i`, shell redirect, or `cat >>` on BACKLOG.md. Every mutation
+   (delete, append, annotate, purge) goes through
+   `spec-backlog-apply.sh`. This is the invariant that lets LLM
+   non-compliance on state-mutation edits never silently rot
+   BACKLOG.md.
+
+### Step D.7: Report and close
+
+Emit a concise report to the user:
+
+- One line naming the contract shape written (greenfield seed /
+  growing two-tier / mature full-dimension).
+- The script's `PURGED:`, `APPENDED:`, and `SKIPPED:` lines verbatim.
+- The final BACKLOG.md entry count (from the script's trailing line).
+- A reminder: "Reject with `git checkout TESTING.md BACKLOG.md` (for
+  files that existed before) or `rm -f TESTING.md BACKLOG.md` (for
+  files this run created) if the contract doesn't match your intent."
+
+Design mode does NOT produce a TESTING_META footer (that belongs to
+audit mode) and does NOT run the audit steps. It stops here.

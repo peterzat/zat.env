@@ -169,7 +169,7 @@ Global skills are installed by `zat.env-install.sh` and available in all Claude 
 | Code Review | [`/codereview`](claude/skills/codereview/SKILL.md) | Auto (pre-push) + manual | Adversarial review of uncommitted changes |
 | Security | [`/security`](claude/skills/security/SKILL.md) | Manual + chained from codereview | Security audit (full repo or changes-only) |
 | Architect | [`/architect`](claude/skills/architect/SKILL.md) | Manual only | Strategic architecture review (10 dimensions, HEALTHY/WATCH/ACT) |
-| Tester | [`/tester`](claude/skills/tester/SKILL.md) | Manual only | Test strategy assessment |
+| Tester | [`/tester`](claude/skills/tester/SKILL.md) | Manual only | Test strategy assessment (`/tester`) and durable test-architecture design (`/tester design`) |
 | Pull Request | [`/pr`](claude/skills/pr/SKILL.md) | Manual only | Create, inspect, or merge GitHub PRs |
 
 ### Prompt Design Principles
@@ -293,20 +293,29 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **"No strategic concerns at this time"** is a valid and expected outcome. Most codebases have sound architecture.
 
-### [`/tester`](claude/skills/tester/SKILL.md): Test Strategy Review
+### [`/tester`](claude/skills/tester/SKILL.md): Test Strategy Review and Design
 
 **Persona:** Principal Software Design Engineer in Test (SDE/T).
 
-**Trigger:** Manual only (`/tester`). Not auto-invoked.
+**Trigger:** Manual only (`/tester` for audit, `/tester design` for architecture design). Not auto-invoked.
 
-**What it does:**
-1. Reads prior assessment from TESTING.md, SECURITY.md, CODEREVIEW.md, and SPEC.md (scoped reads)
-2. Discovers test infrastructure: test files, frameworks, CI/CD configs, coverage tools, pre-commit hooks, deployment configs
-3. Evaluates 9 dimensions: test coverage strategy (are the right things tested?), automation maturity, automatic test execution (tests that must be run manually are often not run), CI/CD integration, framework choices, fixture management, flaky test patterns, missing test categories, and development loop cadence (whether test timing supports autonomous iteration)
-4. Reports findings as BLOCK / WARN / NOTE. Does not write or run individual tests.
-5. Updates `TESTING.md` with dated assessment and status of prior recommendations
+**Two modes:**
 
-**"This is fine for now"** is valid. A new prototype with a few pytest files and no CI is fine. A production API with no integration tests is not. The assessment is always proportional to the project's maturity and goals.
+- **Audit mode** (`/tester`): reviews the live test strategy and appends a dated finding to TESTING.md. Reads prior assessment (scoped: most recent entry + metadata footer), discovers test infrastructure, evaluates 9 dimensions (test coverage strategy, automation maturity, automatic execution, CI/CD integration, framework choices, fixture management, flaky test patterns, missing categories, and development loop cadence), reports findings as BLOCK / WARN / NOTE.
+
+- **Design mode** (`/tester design`): writes or revises a durable test-architecture contract. The contract is a section under the exact H1 heading `# Durable test-architecture contract` appended to TESTING.md; a fresh Claude session can cold-open it and know how to run the suite and add a new test without reading other files. The section covers a cold-open command, the single entry point, a duration philosophy, a proxy/drift strategy, a human-eval strategy, and a "what not to test" precision boundary. Alongside the contract, design mode appends rollout entries to `BACKLOG.md` (each with `Origin: tester design YYYY-MM-DD`) for the concrete work needed to move the project toward the contract. Those rollout entries flow through `/spec`'s normal cycle: the overlap scan at draft, the Backlog Sweep at turn close, and revisit-candidate adoption when criteria fire.
+
+**Design-mode flows:**
+
+- *Greenfield bootstrap:* `/tester design` on a project with no contract yet seeds a minimum contract (~50 lines, soft cap) plus rollout entries. Proportional to the project's current maturity — a new prototype does not get a three-tier dispatcher.
+- *Revision:* `/tester design` again replaces the contract section and dedups prior `tester design`-origin rollout entries in BACKLOG.md, except entries annotated `(ACTIVE in spec YYYY-MM-DD)` which are preserved as committed spec work. `git diff` shows what changed.
+- *Reject:* `git checkout TESTING.md BACKLOG.md` reverts the design when the files existed before the run; `rm -f TESTING.md BACKLOG.md` clears them when this run created them. No marker files, no hidden state.
+- *Audit after design:* `/tester` appends its dated finding ABOVE the contract H1; the contract section below is preserved intact.
+- *Pre-apply checklist (visible to user):* before BACKLOG.md mutates, design mode posts a fixed five-component block — signals fingerprint, contract shape + line count, rollout count + justification, per-entry overlap scan, and a conditional SPEC tension line when SPEC.md punts the testing surface this rollout fills. Always-on, never gated. The SPEC tension line is flag-not-block (post and proceed; the user can interrupt). This is the user's course-correct surface for the proportionality and overlap calls the LLM made silently in earlier steps.
+
+**More proxy, less critic.** The design-mode prompt pushes projects toward measurable proxies (latency windows, perceptual-hash tolerance, JSON-schema adherence, baseline diffs) rather than adding another critic (an LLM reading output). This is the oracle/proxy/critic split from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/): critics are cheap and weak (shared blind spots with the generator); proxies catch regressions the generator cannot see.
+
+**"This is fine for now"** remains valid for audit mode. A new prototype with a few pytest files and no CI is fine. A production API with no integration tests is not. Audit is always proportional to the project's maturity and goals.
 
 ### [`/pr`](claude/skills/pr/SKILL.md): Pull Request Workflow
 
@@ -383,10 +392,10 @@ Four skills write per-project files to the project root. These files are working
 | File | Written by | Contents |
 |------|-----------|----------|
 | `SPEC.md` | `/spec` | Current acceptance criteria, goal, context |
-| `BACKLOG.md` | `/spec` (optional) | Deferred proposals register: ideas considered and deferred, with revisit criteria |
+| `BACKLOG.md` | `/spec` (optional), `/tester design` | Deferred proposals register: ideas considered and deferred, with revisit criteria |
 | `CODEREVIEW.md` | `/codereview` | Dated review history, findings, fixes applied |
 | `SECURITY.md` | `/security` | Security findings, resolved issues, accepted risks |
-| `TESTING.md` | `/tester` | Test strategy assessment, recommendation status |
+| `TESTING.md` | `/tester`, `/tester design` | Dated audit entries above a durable test-architecture contract section |
 
 ### Cross-Skill Context Graph
 
@@ -396,10 +405,11 @@ Skills read each other's persistent files to share context. The reading graph ha
                     SPEC.md (upstream of all review skills)
                        |
                        v
-spec        -> writes SPEC.md (reads CODEREVIEW.md, TESTING.md for context)
+spec        -> writes SPEC.md and BACKLOG.md (reads CODEREVIEW.md, TESTING.md for context)
 codereview  -> reads SPEC.md, SECURITY.md, TESTING.md
 security    -> reads SPEC.md, CODEREVIEW.md
-tester      -> reads SPEC.md, SECURITY.md, CODEREVIEW.md
+tester      -> audit: reads SPEC.md, SECURITY.md, CODEREVIEW.md; writes TESTING.md
+            -> design: reads TESTING.md, SPEC.md, BACKLOG.md; writes TESTING.md contract + BACKLOG.md rollout
 architect   -> reads all four (terminal node, produces no persistent file)
 pr          -> reads all four metadata footers (terminal node, produces no persistent file)
 ```
