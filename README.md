@@ -568,6 +568,7 @@ Post-install layout (annotated):
 ~/
 ├── bin/                              # Helper scripts (symlinked into ~/bin by install)
 │   ├── claude-fixed-reasoning        # Launch claude with fixed thinking budget (no adaptive)
+│   ├── codereview-marker             # Compute/write/locate the codereview push marker (single source of truth)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
 │   ├── spec-backlog-apply.sh         # Apply BACKLOG sweep manifest from stdin (used by /spec Step 3g)

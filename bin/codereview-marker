@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Compute or write the codereview push marker hash.
+#
+# Single source of truth for the UPSTREAM derivation, PROJ_HASH derivation,
+# and DIFF_HASH computation that codereview's Step 8 (marker write) and
+# the pre-push hook (marker verify) both depend on. Replaces the parallel
+# bash snippets that previously lived in claude/skills/codereview/SKILL.md
+# and hooks/pre-push-codereview.sh; those snippets had to stay byte-identical
+# for the push gate to work, and silently diverged when the LLM split the
+# Step 8 snippet across multiple Bash tool calls (shell variables don't
+# persist across Bash tool invocations, so ${UPSTREAM} went empty in the
+# second call and the else-branch wrote an empty-tree hash).
+#
+# Usage:
+#   codereview-marker hash    # print DIFF_HASH to stdout
+#   codereview-marker write   # compute hash and write to marker file
+#   codereview-marker path    # print marker file path to stdout
+#
+# Exit codes:
+#   0  success
+#   1  error (not in a git repo, bad usage)
+#   2  no reviewable changes (empty diff vs upstream after excluding review
+#      output files); informational, no marker written by `write`
+#
+# Upstream resolution (three cases):
+#   (a) `@{upstream}` resolves       -> diff against that ref
+#   (b) `@{upstream}` absent but
+#       `origin/<current-branch>`
+#       resolves                     -> diff against `origin/<current-branch>`
+#   (c) neither resolves             -> diff against the empty tree (first
+#                                       push of a new branch)
+
+EXCLUDES=(':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md')
+
+usage() {
+  cat >&2 <<'EOF'
+codereview-marker -- compute or write the codereview push marker hash.
+
+Usage:
+  codereview-marker hash    # print DIFF_HASH to stdout (exit 2 if nothing to review)
+  codereview-marker write   # compute hash and write to marker file
+  codereview-marker path    # print marker file path to stdout
+EOF
+  exit 1
+}
+
+require_git() {
+  git rev-parse --show-toplevel >/dev/null 2>&1 || {
+    echo "codereview-marker: not in a git repository" >&2
+    exit 1
+  }
+}
+
+proj_hash() {
+  git rev-parse --show-toplevel | md5sum | cut -c1-8
+}
+
+marker_path() {
+  printf '/tmp/.claude-codereview-%s\n' "$(proj_hash)"
+}
+
+resolve_base() {
+  local upstream
+  upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) \
+    || upstream="origin/$(git rev-parse --abbrev-ref HEAD)"
+  if git rev-parse "${upstream}" >/dev/null 2>&1; then
+    printf '%s' "${upstream}"
+  else
+    git hash-object -t tree /dev/null
+  fi
+}
+
+compute_hash() {
+  local base
+  base=$(resolve_base)
+  if git diff --quiet "${base}" -- "${EXCLUDES[@]}" 2>/dev/null; then
+    printf 'codereview-marker: no reviewable changes vs %s\n' "${base}" >&2
+    return 2
+  fi
+  git diff "${base}" -- "${EXCLUDES[@]}" 2>/dev/null | sha256sum | cut -c1-16
+}
+
+case "${1:-}" in
+  hash)
+    require_git
+    compute_hash
+    ;;
+  write)
+    require_git
+    if hash=$(compute_hash); then
+      printf '%s\n' "${hash}" > "$(marker_path)"
+    else
+      exit $?
+    fi
+    ;;
+  path)
+    require_git
+    marker_path
+    ;;
+  *)
+    usage
+    ;;
+esac

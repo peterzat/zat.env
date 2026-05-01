@@ -252,27 +252,66 @@ has "${SKILLS}/codereview/SKILL.md" "Do NOT write the marker.*BLOCK.*remain" \
 has "${SKILLS}/codereview/SKILL.md" "Do NOT write the marker.*tests regressed" \
   "codereview: no marker when tests regressed"
 
-# Marker hash exclusions must be identical between skill and hook.
-# Extract the exclusion patterns and compare them directly.
-SKILL_EXCL=$(grep -oP ":![A-Z_.]+" "${SKILLS}/codereview/SKILL.md" | sort -u | tr '\n' ' ')
-HOOK_EXCL=$(grep -oP ":![A-Z_.]+" "${HOOK}" | sort -u | tr '\n' ' ')
-if [[ "${SKILL_EXCL}" == "${HOOK_EXCL}" ]] && [[ -n "${SKILL_EXCL}" ]]; then
-  pass "marker: skill and hook exclude identical review files (${SKILL_EXCL% })"
+# Marker hash computation moved into the shared bin/codereview-marker
+# script (SPEC 2026-05-01: deterministic-marker-write). Codereview's
+# Step 8 and the pre-push hook both invoke `codereview-marker` rather
+# than each carrying parallel bash snippets that have to stay byte-
+# identical (the prior contract that drifted in PanelForge when the
+# LLM split Step 8's snippet across Bash tool calls and ${UPSTREAM}
+# went empty between calls). Exclusion list and sha256 truncation are
+# now single-sourced in bin/codereview-marker; lint enforces that the
+# OLD parallel patterns are gone from both the skill and the hook.
+
+CR_SKILL="${SKILLS}/codereview/SKILL.md"
+MARKER_SCRIPT="${REPO_DIR}/bin/codereview-marker"
+
+# The shared marker script must exist and be executable.
+TOTAL=$((TOTAL + 1))
+if [[ -x "${MARKER_SCRIPT}" ]]; then
+  pass "marker: bin/codereview-marker exists and is executable"
 else
-  fail "marker: exclusion mismatch -- skill=[${SKILL_EXCL% }] hook=[${HOOK_EXCL% }]"
+  FAILS=$((FAILS + 1))
+  printf '  FAIL marker: bin/codereview-marker missing or not executable\n'
 fi
 
-# Marker hash algorithm must match between skill and hook.
-# Both must use sha256sum truncated to 16 chars with the same diff command.
-SKILL_HASH_CMD=$(grep 'sha256sum.*cut' "${SKILLS}/codereview/SKILL.md" | head -1 | sed 's/.*|//' | xargs)
-HOOK_HASH_CMD=$(grep 'sha256sum.*cut' "${HOOK}" | head -1 | sed 's/.*|//' | xargs)
-if [[ "${SKILL_HASH_CMD}" == "${HOOK_HASH_CMD}" ]] && [[ -n "${SKILL_HASH_CMD}" ]]; then
-  pass "marker: skill and hook use identical hash truncation (${SKILL_HASH_CMD})"
-else
-  fail "marker: hash computation mismatch -- skill=[${SKILL_HASH_CMD}] hook=[${HOOK_HASH_CMD}]"
-fi
+# Codereview Step 8 must invoke the script by bare name (PATH-resolved),
+# not via a project-relative bin/ prefix. The bin/ prefix only resolves
+# inside the zat.env repo itself; downstream projects rely on the ~/bin/
+# symlink put in place by zat.env-install.sh.
+has "${CR_SKILL}" 'codereview-marker write' \
+  "codereview: Step 8 invokes 'codereview-marker write' (bare name)"
+hasnt "${CR_SKILL}" 'bin/codereview-marker' \
+  "codereview: SKILL.md does not prefix codereview-marker with bin/"
 
-# Hook blocks when marker missing or mismatched
+# Codereview SKILL.md must NOT carry the inline UPSTREAM=/sha256-truncate
+# patterns that previously duplicated bin/codereview-marker's logic. These
+# are the exact prose patterns that, when split by the LLM across Bash
+# tool calls, lost ${UPSTREAM} between calls and silently fell through to
+# the empty-tree hash in PanelForge. With the script, neither variable
+# nor inline truncation should appear anywhere in the SKILL.
+hasnt "${CR_SKILL}" '^UPSTREAM=' \
+  "codereview: SKILL.md has no 'UPSTREAM=' bash assignment (use inline or script)"
+hasnt "${CR_SKILL}" '\${UPSTREAM}' \
+  "codereview: SKILL.md has no \${UPSTREAM} variable reference (use inline or script)"
+hasnt "${CR_SKILL}" 'sha256sum.*cut -c1-16' \
+  "codereview: SKILL.md no longer carries inline hash truncation"
+hasnt "${CR_SKILL}" 'EMPTY_TREE=' \
+  "codereview: SKILL.md no longer carries inline EMPTY_TREE derivation"
+
+# The pre-push hook must invoke the script (verify side of the contract).
+has "${HOOK}" 'codereview-marker hash' \
+  "hook: invokes 'codereview-marker hash' for diff hash"
+
+# The hook must NOT re-derive UPSTREAM or compute sha256 inline anymore;
+# both moved into the script. Same parallel-snippet drift risk as above.
+hasnt "${HOOK}" '^UPSTREAM=' \
+  "hook: no inline UPSTREAM= bash assignment (use codereview-marker)"
+hasnt "${HOOK}" '\${UPSTREAM}' \
+  "hook: no \${UPSTREAM} variable reference (use codereview-marker)"
+hasnt "${HOOK}" 'sha256sum.*cut -c1-16' \
+  "hook: no inline hash truncation (use codereview-marker)"
+
+# Hook still has its own marker comparison; the script just supplies the hash.
 has "${HOOK}" "exit 2" \
   "hook: exits non-zero to block push"
 has "${HOOK}" 'STORED_HASH.*DIFF_HASH' \
@@ -298,12 +337,17 @@ for opt in "-C" "-c" "--git-dir" "--work-tree" "--namespace" "--exec-path" "--su
     "hook: is_git_push handles ${opt} option"
 done
 
-# Hook: empty non-excluded diff is explicitly allowed with a stderr log.
-# Without this, a review-files-only commit on an already-reviewed base would
-# be blocked because the stored marker hash wouldn't match the empty-diff hash.
-has "${HOOK}" "git diff --quiet.*:!CODEREVIEW" \
-  "hook: empty non-excluded diff allow path uses git diff --quiet"
-has "${HOOK}" "no reviewable changes" \
+# Empty non-excluded diff is allowed: the SCRIPT detects this and exits 2;
+# the HOOK observes exit 2 and lets the push through. Without this, a
+# review-files-only commit on an already-reviewed base would be blocked
+# because the stored marker hash wouldn't match the empty-diff hash.
+has "${MARKER_SCRIPT}" "git diff --quiet" \
+  "marker script: empty non-excluded diff detection uses git diff --quiet"
+has "${MARKER_SCRIPT}" "no reviewable changes" \
+  "marker script: stderr names the empty-diff cause"
+has "${HOOK}" 'HASH_EC.*-eq 2' \
+  "hook: handles codereview-marker exit 2 (no reviewable changes)"
+has "${HOOK}" "nothing to review" \
   "hook: empty-diff allow path logs a stderr explanation"
 
 # Hook: no leftover diagnostic trace from investigation.
@@ -321,10 +365,12 @@ has "${HOOK}" 'rm.*SKIP_MARKER' \
 has "${HOOK}" "Marker is kept" \
   "hook: codereview marker persists after push (documented)"
 
-# Marker file path format must match between skill and hook.
-# Both must use /tmp/.claude-codereview-${PROJ_HASH} (not skip variant).
-has "${SKILLS}/codereview/SKILL.md" '/tmp/.claude-codereview-' \
-  "codereview: marker path uses expected /tmp/.claude-codereview- prefix"
+# Marker file path format: the SCRIPT defines it (single source of truth);
+# the hook still uses /tmp/.claude-codereview-${PROJ_HASH} for marker reads
+# (the script could expose `path` for it, but the hook's local constant is
+# fine since both derive PROJ_HASH from `git rev-parse --show-toplevel`).
+has "${MARKER_SCRIPT}" '/tmp/\.claude-codereview-' \
+  "marker script: defines /tmp/.claude-codereview- path prefix"
 has "${HOOK}" '/tmp/.claude-codereview-\$' \
   "hook: marker path uses expected /tmp/.claude-codereview- prefix"
 
@@ -422,16 +468,24 @@ has "${HOOK}" "Do not offer to skip" \
 has "${HOOK}" "user explicitly says" \
   "hook: bypass requires explicit user instruction"
 
-# Risk: codereview writes marker via a bash snippet the LLM interprets.
-# If the PROJ_HASH computation drifts between skill and hook, hashes diverge
-# silently (review passes but push is blocked). Both must use the same formula.
-# Compare the hash derivation core (md5sum + cut), ignoring error handling.
-SKILL_PROJ_HASH=$(grep "PROJ_HASH=" "${SKILLS}/codereview/SKILL.md" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+')
-HOOK_PROJ_HASH=$(grep "PROJ_HASH=" "${HOOK}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+')
-if [[ "${SKILL_PROJ_HASH}" == "${HOOK_PROJ_HASH}" ]] && [[ -n "${SKILL_PROJ_HASH}" ]]; then
-  pass "marker: skill and hook use identical PROJ_HASH derivation (${SKILL_PROJ_HASH})"
+# PROJ_HASH derivation is now triplicated: bin/codereview-marker (new
+# authority for marker write), hooks/pre-push-codereview.sh (marker
+# read), and bin/codereview-skip (skip marker write). All three must
+# use the same `md5sum | cut -c1-8` derivation from `git rev-parse
+# --show-toplevel` so the marker file paths align. Compare the core
+# derivation across the three sites.
+MARKER_PROJ_HASH=$(grep "md5sum" "${MARKER_SCRIPT}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+' || true)
+HOOK_PROJ_HASH=$(grep "PROJ_HASH=" "${HOOK}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+' || true)
+SKIP_PROJ_HASH_DERIV=$(grep "PROJ_HASH=" "${SKIP_SCRIPT}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+' || true)
+TOTAL=$((TOTAL + 1))
+if [[ "${MARKER_PROJ_HASH}" == "${HOOK_PROJ_HASH}" ]] \
+  && [[ "${HOOK_PROJ_HASH}" == "${SKIP_PROJ_HASH_DERIV}" ]] \
+  && [[ -n "${MARKER_PROJ_HASH}" ]]; then
+  pass "marker: codereview-marker, hook, and codereview-skip use identical PROJ_HASH derivation (${MARKER_PROJ_HASH})"
 else
-  fail "marker: PROJ_HASH derivation mismatch -- skill=[${SKILL_PROJ_HASH}] hook=[${HOOK_PROJ_HASH}]"
+  FAILS=$((FAILS + 1))
+  printf '  FAIL marker: PROJ_HASH derivation mismatch -- marker=[%s] hook=[%s] skip=[%s]\n' \
+    "${MARKER_PROJ_HASH}" "${HOOK_PROJ_HASH}" "${SKIP_PROJ_HASH_DERIV}"
 fi
 
 # --- Plan-mode handoff contract ---

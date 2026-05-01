@@ -144,30 +144,28 @@ if [[ -f "${SKIP_MARKER}" ]]; then
   exit 0
 fi
 
-# Compute a hash of the total diff between upstream and the current working
-# tree, excluding review output files. This uses a single diff that spans
-# both unpushed commits and uncommitted changes, so the hash is stable
-# whether the user commits before or after running codereview.
+# Compute the diff hash via the shared script. The script encapsulates
+# UPSTREAM derivation (with the @{upstream} -> origin/<branch> -> empty-tree
+# fallback chain), the excluded-files diff, and the sha256 truncation. Both
+# this hook and codereview's Step 8 call the same script, so the two sites
+# are guaranteed to compute the same hash for the same project state — no
+# parallel-bash-snippet drift possible.
 #
-# git diff <upstream> = (upstream..HEAD commits) + (uncommitted working tree changes)
-UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
-if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
-  BASE="${UPSTREAM}"
-else
-  # No upstream ref (first push of a new branch) — diff against empty tree.
-  BASE=$(git hash-object -t tree /dev/null)
-fi
-
-# Empty non-excluded diff allow-path. If the only changes relative to upstream
-# are in the excluded review files (or there are no changes at all), there is
-# nothing that would need /codereview. Allow the push and log the reason to
-# stderr so the agent sees why the gate passed.
-if git diff --quiet "${BASE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' 2>/dev/null; then
-  echo "Pre-push gate: no reviewable changes vs ${BASE} (only review files or nothing). Allowed." >&2
+# Exit codes from `codereview-marker hash`:
+#   0 = hash printed on stdout
+#   2 = no reviewable changes (only excluded files differ, or no changes;
+#       the script writes its own explanation to stderr)
+#   1 = error (not in a git repo — already handled above)
+HASH_EC=0
+DIFF_HASH=$(codereview-marker hash) || HASH_EC=$?
+if [[ "${HASH_EC}" -eq 2 ]]; then
+  echo "Pre-push gate: nothing to review. Allowed." >&2
   exit 0
 fi
-
-DIFF_HASH=$(git diff "${BASE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' 2>/dev/null | sha256sum | cut -c1-16)
+if [[ "${HASH_EC}" -ne 0 ]]; then
+  echo "Pre-push gate: codereview-marker hash failed (exit ${HASH_EC}). Allowing push." >&2
+  exit 0
+fi
 
 # Check marker.
 if [[ -f "${MARKER}" ]]; then

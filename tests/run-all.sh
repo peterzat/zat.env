@@ -43,6 +43,7 @@ run_suite "${TESTS_DIR}/lint-skills.sh"
 run_suite "${TESTS_DIR}/test-review-external.sh"
 run_suite "${TESTS_DIR}/test-pre-push-hook.sh"
 run_suite "${TESTS_DIR}/test-spec-backlog-apply.sh"
+run_suite "${TESTS_DIR}/test-codereview-marker.sh"
 
 echo "━━━ Combined ━━━"
 echo ""

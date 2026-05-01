@@ -98,26 +98,31 @@ CODEREVIEW.md has REVIEW_META with `block: 0` and a `reviewed_up_to` commit
 that is an ancestor of HEAD:
 
 ```bash
-UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
-PRIOR_COMMIT=$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)
-PRIOR_BASE=$(grep -oP '"base"\s*:\s*"\K[^"]+' CODEREVIEW.md 2>/dev/null)
-PRIOR_BLOCKS=$(grep -oP '"block"\s*:\s*\K[0-9]+' CODEREVIEW.md 2>/dev/null)
+echo "UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")"
+echo "PRIOR_COMMIT=$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)"
+echo "PRIOR_BASE=$(grep -oP '"base"\s*:\s*"\K[^"]+' CODEREVIEW.md 2>/dev/null)"
+echo "PRIOR_BLOCKS=$(grep -oP '"block"\s*:\s*\K[0-9]+' CODEREVIEW.md 2>/dev/null)"
 ```
+
+Each `echo` is independent so the block is safe even if you split it across
+multiple Bash tool calls — there are no shell variables that need to persist.
 
 If all of these hold, classify as **refresh review**:
 1. `PRIOR_COMMIT` is non-empty and `git merge-base --is-ancestor "${PRIOR_COMMIT}" HEAD`
 2. `PRIOR_BLOCKS` equals `0`
-3. `PRIOR_BASE` matches the current `UPSTREAM` ref
+3. `PRIOR_BASE` matches the upstream ref printed above
 
 If any condition fails (missing fields, prior BLOCKs, rebase changed the base,
 commit no longer exists), fall back to full review.
 
-For a refresh review, compute two file sets:
+For a refresh review, compute two file sets (each diff is self-contained — the
+upstream and prior-commit references are derived inline so the block survives
+splitting across Bash tool calls):
 ```bash
 # Focus set: files changed since the prior review
-FOCUS=$(git diff --name-only "${PRIOR_COMMIT}"..HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md')
+git diff --name-only "$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)"..HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
 # Full set: all files changed since upstream
-FULL=$(git diff --name-only "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md')
+git diff --name-only "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
 ```
 
 - **Focus set**: files in FOCUS (new or re-modified since the prior review)
@@ -219,8 +224,9 @@ current state:
 3. **If no code changes since the last scan:** verify the prior scan covers the
    current security surface before skipping:
    ```bash
-   NEEDED=$(git diff --name-only "${UPSTREAM}" -- ':!*.md')
+   git diff --name-only "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!*.md'
    ```
+   Treat the output as `NEEDED`.
    - Prior scope is `"full"`, or `NEEDED` is empty: skip.
    - Prior scope is `"paths"` with `scanned_files` in SECURITY_META: skip only
      if every file in `NEEDED` appears in `scanned_files`.
@@ -236,13 +242,14 @@ current state:
    ```bash
    # All files changed since last security scan (committed + uncommitted).
    # git diff <ref> includes both committed and working-tree changes.
-   # If no prior scan, scope to all files changed vs upstream.
+   # If no prior scan, scope to all files changed vs upstream (derived inline).
    if [valid SECURITY_META commit]; then
-     SCAN_FILES=$(git diff --name-only <meta-commit> -- ':!*.md')
+     git diff --name-only <meta-commit> -- ':!*.md'
    else
-     SCAN_FILES=$(git diff --name-only "${UPSTREAM}" -- ':!*.md')
+     git diff --name-only "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!*.md'
    fi
    ```
+   Treat the output as `SCAN_FILES`.
    Invoke `/security $SCAN_FILES` with the computed file list. This covers
    both committed and uncommitted changes since the last scan without
    re-scanning files the prior review already covered. Incorporate its
@@ -255,9 +262,8 @@ current state:
 If `review-external.sh` is on PATH, run it synchronously with the diff:
 
 ```bash
-UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
-EXTERNAL_FINDINGS=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
+EXTERNAL_FINDINGS=$(git diff "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
 EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
 rm -f "${COST_LOG}"
 ```
@@ -332,19 +338,19 @@ attempt further fixes.
 
 ## Step 8: Write Marker File
 
-Only if all BLOCKs are resolved AND tests did not regress:
+Only if all BLOCKs are resolved AND tests did not regress, run the deterministic
+marker script in a single Bash invocation:
 
 ```bash
-PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
-UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD)"
-if git rev-parse "${UPSTREAM}" >/dev/null 2>&1; then
-  DIFF_HASH=$(git diff "${UPSTREAM}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
-else
-  EMPTY_TREE=$(git hash-object -t tree /dev/null)
-  DIFF_HASH=$(git diff "${EMPTY_TREE}" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
-fi
-echo "${DIFF_HASH}" > "/tmp/.claude-codereview-${PROJ_HASH}"
+codereview-marker write
 ```
+
+The script (on PATH; do not prefix with `bin/`) encapsulates PROJ_HASH derivation,
+UPSTREAM resolution (with the `@{upstream}` → `origin/<branch>` → empty-tree
+fallback chain), the excluded-files diff, and the marker file write. The pre-push
+hook calls the same script for hash verification, so byte-level parity between
+the two sites is guaranteed by shared implementation rather than two parallel
+bash snippets that have to be kept identical by hand.
 
 Do NOT write the marker if any BLOCK items remain or tests regressed.
 
