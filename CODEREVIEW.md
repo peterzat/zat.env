@@ -1,17 +1,17 @@
-## Review -- 2026-05-01 (commit: 38157a3)
+## Review -- 2026-05-01 (commit: 0ec93bb)
 
-**Review scope:** Light review. Working-tree diff touches only `README.md` (one plain documentation file). No code or configuration files modified. Two changes: (1) "Four modes" -> "Six modes" in the `/spec` section to match the existing six-bullet list, and (2) a new Roadmap preamble plus "Since v1.3 (ongoing)" section listing four already-shipped post-v1.3 enhancements.
+**Review scope:** Refresh review. Focus: CLAUDE.md and README.md (new working-tree edits since prior review). Already-reviewed (re-checked for interactions only): claude/skills/tester/SKILL.md, tests/lint-skills.sh. Prior review (same commit, working-tree diff) had 0 BLOCK / 0 WARN / 2 NOTE; both prior NOTEs are addressed by these working-tree changes.
 
-**Summary:** Documentation update reconciling the README with the current state of `main`. Light review scope (factual accuracy of docs, right change to make) per the codereview tier policy.
+**Summary:** CLAUDE.md bullet (3) and (4) under "Tester/spec cross-skill contracts" rewritten to reflect the new D.4-drafts / D.6-writes split, and README.md lines 316 and 685 expanded from "before BACKLOG.md mutates" to "before any TESTING.md or BACKLOG.md mutation" with a sentence explaining the draft/write split. Both updates are factually accurate per the current claude/skills/tester/SKILL.md prose. `tests/run-all.sh` passes with the 510-check baseline preserved (no new lint added in this slice). External reviewer (openai o3) emitted two BLOCK-tagged findings on tests/lint-skills.sh; both are false positives, downgraded with rationale.
 
 **External reviewers:**
-Skipped (light review).
+[openai] o3 (high) -- 5445 in / 2749 out / 2624 reasoning -- ~$.0538
 
 ### Findings
 
-No issues found.
-
-Verified: v1.3 is the most recent tag (`git tag --list 'v*'`); the six-bullet `/spec` mode list (Interview / Direct / Evolve / Propose / Plan / Backlog) at README.md:201-206 matches the new "Six modes" header; `# Durable test-architecture contract` H1 and `Origin: tester design YYYY-MM-DD` references resolve in `claude/skills/tester/SKILL.md`; Step D.5.5 pre-apply checklist exists in tester SKILL.md:413; `bin/codereview-marker` script is present and executable; `purge-origin:` / `append:` / `end-append` ops in `bin/spec-backlog-apply.sh` match the description. The four "Since v1.3" bullets are distinct from items already listed in "Done (v1.3)" (which covered Plan mode and the BACKLOG.md convention itself, not the post-v1.3 enhancements). No broken internal references, no accidental secret leaks, no factual errors.
+[NOTE] (openai) tests/lint-skills.sh:1135 and :1163 -- Reviewer flagged `${TESTER_D5_LINE}` / `${TESTER_D6_LINE}` as unbound under `set -u`; verified false positive
+  Evidence: o3 emitted `[BLOCK]` on both lines claiming the variables are referenced without being set. Both variables are unconditionally assigned at lines 1022 and 1024 of the same script (`grep -n ... | head -1 | cut -d: -f1`). Under `set -u`, `[[ -n "${VAR}" ]]` succeeds on an empty-but-set variable; only truly unset variables trigger `unbound variable`. The 510/510 test run confirms execution is clean. No code change warranted.
+  Suggested fix: None. Findings preserved in this report for audit trail per the provider-tag preservation rule.
 
 ### Fixes Applied
 
@@ -19,9 +19,11 @@ None.
 
 ### Accepted Risks
 
-None.
+- **PII in source files** (hw-bootstrap.sh, LICENSE, NOTICE, README.md, and other references to `peterzat`): Inherent to a personal dotfiles repo. Reviewed and accepted.
+- **Tag-bypass regex in pre-push hook** (hooks/pre-push-codereview.sh:111): Combined branch+tag push could skip codereview gate. Defense-in-depth gap, not actively exploitable since the hook is advisory and user-controlled.
+- **Predictable `/tmp/.claude-codereview-<8hex>` marker path** (`bin/codereview-marker`, `bin/codereview-skip`, `hooks/pre-push-codereview.sh`): Marker write follows symlinks at the predictable path; on a single-user dev box with sticky `/tmp` and non-secret payload, exploitation requires a co-resident UID.
 
 ---
-*Prior review (2026-05-01): refresh review of `bin/codereview-marker` extraction (commit ba621cf and follow-on commits 6240448, 38157a3). 0 BLOCK / 1 WARN auto-fixed (directory listing entries in README.md and CLAUDE.md) / 2 NOTE (hook fail-open behavior; COST_LOG split-Bash-call vulnerability noted as future spec evolution).*
+*Prior review (2026-05-01): full review of claude/skills/tester/SKILL.md (D.4/D.5.5/D.6 draft-then-write split), tests/lint-skills.sh (3 new structural checks), and SPEC.md replacement turn. 0 BLOCK / 0 WARN / 2 NOTE on CLAUDE.md and README.md drift, both scoped out of that turn and addressed by this refresh.*
 
-<!-- REVIEW_META: {"date":"2026-05-01","commit":"38157a3","reviewed_up_to":"38157a300190255a81c612a45e72542fe113cfbd","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-05-01","commit":"0ec93bb","reviewed_up_to":"0ec93bbabd6c23e76b9eb833563d05e80b8ddaaa","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":1} -->

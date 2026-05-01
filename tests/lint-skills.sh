@@ -1127,6 +1127,61 @@ hasnt "${TESTER}" 'total ≤ 50 lines' \
 has "${TESTER}" 'soft cap' \
   "tester: D.4 greenfield line cap is explicitly soft"
 
+# D.4 / D.5.5 / D.6 ordering: D.4 is draft-in-memory, D.5.5 fires before any
+# file mutation, D.6 step 1 owns the TESTING.md write. Without this ordering,
+# TESTING.md is mutated before D.5.5 fires and the LLM correctly reads D.5.5
+# as redundant with D.7's post-mortem report — collapsing it (the failure mode
+# observed on PanelForge runs after the D.5.5 hardening shipped).
+
+# D.4 must declare draft-in-memory semantics. The literal phrases below are
+# the structural anchors; if D.4 silently regains write semantics, one of
+# these checks should fail.
+TOTAL=$((TOTAL + 1))
+TESTER_D4_LINE=$(grep -n '^### Step D\.4: ' "${TESTER}" | head -1 | cut -d: -f1)
+if [[ -n "${TESTER_D4_LINE}" ]] && [[ -n "${TESTER_D5_LINE}" ]]; then
+  D4_BLOCK=$(sed -n "${TESTER_D4_LINE},${TESTER_D5_LINE}p" "${TESTER}")
+  if printf '%s\n' "${D4_BLOCK}" | grep -qE 'in memory|no file write|draft the contract|Draft the contract'; then
+    pass "tester: D.4 has draft-in-memory semantics (no immediate file write)"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: D.4 missing draft-in-memory marker (expected one of: "in memory" / "no file write" / "draft the contract")\n'
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL tester: could not locate D.4 / D.5 anchors for draft-semantics check\n'
+fi
+
+# D.4 must NOT carry the imperative-write phrase that previously placed the
+# write at D.4 instead of D.6. "at the bottom of TESTING.md" appearing in D.4
+# was the exact phrase that made D.5.5 dormant in the prior turn.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${TESTER_D4_LINE}" ]] && [[ -n "${TESTER_D5_LINE}" ]]; then
+  if printf '%s\n' "${D4_BLOCK}" | grep -qE 'at the bottom of TESTING\.md'; then
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: D.4 contains imperative-write phrase "at the bottom of TESTING.md" (must move to D.6 step 1)\n'
+  else
+    pass "tester: D.4 does not carry the imperative TESTING.md write phrase"
+  fi
+fi
+
+# D.6 step 1 must own the revision-behavior text (H1 replace) that previously
+# lived in D.4. This is the actual write step; the rules belong here so the
+# write site has full instructions.
+TOTAL=$((TOTAL + 1))
+TESTER_D7_LINE=$(grep -n '^### Step D\.7: ' "${TESTER}" | head -1 | cut -d: -f1)
+if [[ -n "${TESTER_D6_LINE}" ]] && [[ -n "${TESTER_D7_LINE}" ]]; then
+  D6_BLOCK=$(sed -n "${TESTER_D6_LINE},${TESTER_D7_LINE}p" "${TESTER}")
+  if printf '%s\n' "${D6_BLOCK}" | grep -qE 'replace everything from that H1'; then
+    pass "tester: D.6 step 1 owns the H1-replace revision-behavior text"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL tester: D.6 step 1 missing H1-replace revision-behavior text (must move from D.4 to D.6 step 1)\n'
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL tester: could not locate D.6 / D.7 anchors for revision-behavior check\n'
+fi
+
 # --- Skill frontmatter ---
 # Required fields for each skill.
 

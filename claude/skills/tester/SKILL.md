@@ -318,14 +318,22 @@ yourself; not to the user) and adjust the draft:
   reading the contract (only) should know how to run the suite and add
   a new test without reading other files.
 
-### Step D.4: Write the contract section
+### Step D.4: Draft the contract section
 
-Write the contract under the EXACT H1 heading `# Durable test-architecture
-contract` at the bottom of TESTING.md. The heading text is a cross-skill
-contract point — do not change it. Everything ABOVE the H1 (dated audit
-entries, TESTING_META footers, prior-summary lines) is preserved intact.
+Draft the contract content **in memory** at this step — no file write
+happens here. Step D.6 owns the TESTING.md write; this step decides
+*what* to write. Holding the draft in memory lets Step D.5.5 fire as a
+true pre-mutation gate (the user can interrupt and nothing has changed
+on disk yet).
 
-Minimum sections to include, in order:
+The draft will live under the EXACT H1 heading `# Durable
+test-architecture contract` when written. The heading text is a
+cross-skill contract point — do not change it. Everything that will
+sit ABOVE the H1 in TESTING.md (dated audit entries, TESTING_META
+footers, prior-summary lines) is preserved intact at write time; do
+not include such content in your draft.
+
+Minimum sections to include in the draft, in order:
 
 1. **Cold-open.** One or two commands that prove the suite works on a
    fresh checkout, with expected timing and exit code. If no tests
@@ -364,9 +372,8 @@ Proportionality rules (hard guidance, not soft suggestion):
   GPU / arbiter hygiene, operational target axis (local / staging /
   prod_verify), glossary if terminology is non-obvious.
 
-Revision behavior: if a prior `# Durable test-architecture contract` H1
-exists in TESTING.md, replace everything from that H1 through the end
-of the file with the new contract. Content above the H1 stays intact.
+Revision behavior is a write-time concern; see Step D.6 step 1 for the
+rules that apply when a prior contract H1 exists in TESTING.md.
 
 ### Step D.5: Draft rollout entries
 
@@ -412,11 +419,14 @@ reasoned per entry. This is a hint, not a hard check — judgment.
 
 ### Step D.5.5: Pre-apply checklist (visible to user)
 
-Before invoking the script in Step D.6, post a fixed-structure block
-to the user. This is the only window the user has into the
+Before any file mutation in Step D.6, post a fixed-structure block to
+the user. **This is a TRUE pre-mutation gate:** at this point your
+contract is drafted in memory (Step D.4) and your rollout entries are
+drafted in memory (Step D.5), but TESTING.md and BACKLOG.md have NOT
+been changed yet. The checklist is the user's window into the
 proportionality, overlap, and SPEC-tension calls you made silently in
 Steps D.2–D.5; if they want to course-correct, this is where they see
-what to correct *before* BACKLOG.md mutates.
+what to correct *before* anything on disk changes.
 
 The block is **always posted** (no flag-gating, no opt-out). Five
 components, in order:
@@ -427,9 +437,10 @@ components, in order:
 
 2. **Contract shape + line count** — one line naming the shape
    chosen (`greenfield seed`, `growing two-tier`, or `mature
-   full-dimension`) plus the line count of the contract section just
-   written to TESTING.md. Example: `Contract shape: greenfield seed
-   (52 lines)`.
+   full-dimension`) plus the line count of the contract section you
+   drafted in Step D.4 (counted from your in-memory draft; nothing has
+   been written to TESTING.md yet). Example: `Contract shape:
+   greenfield seed (52 lines)`.
 
 3. **Rollout entry count + justification** — one line with the count
    plus a brief reason. Example: `Rollout: 6 entries (at upper bound;
@@ -462,11 +473,15 @@ step fails, stop and report. To revert, run `git checkout TESTING.md
 BACKLOG.md` for files that existed before this run, and `rm -f
 TESTING.md BACKLOG.md` for files that this run created.
 
-1. **Write the contract to TESTING.md.** If TESTING.md did not exist,
-   create it containing only the `# Durable test-architecture contract`
-   H1 and the contract body. If prior content existed above the H1,
-   preserve it verbatim and replace only from the H1 onward (or append
-   the H1 block if no prior contract existed).
+1. **Write the contract drafted in Step D.4 to TESTING.md.** This is
+   the single TESTING.md mutation point in the design flow (Step D.4
+   only drafted; this step writes). Apply these revision-behavior
+   rules: if a prior `# Durable test-architecture contract` H1 exists
+   in TESTING.md, replace everything from that H1 through the end of
+   the file with the new contract — content above the H1 stays intact.
+   If no prior H1 existed, append the H1 block to the existing file.
+   If TESTING.md did not exist at all, create it containing only the
+   `# Durable test-architecture contract` H1 and the contract body.
 
 2. **Apply the BACKLOG manifest via `spec-backlog-apply.sh`.** All
    BACKLOG.md mutations — including the append of new rollout entries —
