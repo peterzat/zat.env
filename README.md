@@ -197,11 +197,13 @@ Beyond content-level instructions, skills use Claude Code's `effort` frontmatter
 
 Defines what done looks like before implementation begins. The output is `SPEC.md`: a verification contract with concrete acceptance criteria that an agent or human can check off. The value of a spec is the acceptance criteria. Everything else (numbered requirements, phased task lists, Given/When/Then ceremony) is optional and only added if the user asks for it.
 
-Four modes:
+Six modes:
 - **Interview mode** (`/spec new` or first run): asks the user focused questions about goals and acceptance criteria, then writes SPEC.md
 - **Direct mode** (`/spec <description>`): reads the codebase, drafts acceptance criteria for the described feature, pressure-tests them, and writes SPEC.md. Also activates automatically when SPEC.md contains a proposal section (see propose mode), using the proposal as the input brief.
 - **Evolve mode** (`/spec` with existing SPEC.md): assesses progress against current criteria, checks off met criteria, and reports progress. When all criteria are met, runs the turn-boundary transition: asks a retrospective ("what did you learn during this turn?"), then generates a proposal for the next turn grounded in git history and current state.
 - **Propose mode** (`/spec propose`): reads the current spec and git history, generates a proposal for the next turn (what happened, key questions, suggested directions), and writes it to SPEC.md for discussion. Useful when evolve was skipped or when pivoting mid-turn.
+- **Plan mode** (`/spec plan [<slug>]`): adopts a saved plan from `~/.claude/plans/` as the spec brief, pressure-testing prose outcomes into verifiable criteria. The keyword wins routing even when no SPEC.md exists; with no slug, the most recently modified plan is picked. Detailed handoff is described in the plan-mode paragraph below.
+- **Backlog mode** (`/spec backlog <description>` to append, `/spec backlog clear` to reset): captures a deferred idea as a structured `BACKLOG.md` entry with description, why-deferred, revisit criteria, and origin. Pressure-tested at write time (specific *what* and *where*, derivable revisit criterion, concrete why-deferred); fails write rather than admitting a vague entry. The turn-close sweep classifies BACKLOG entries as keep / revisit / recommend-delete with bias toward keep, and the consuming `/spec` applies approved deletions and ACTIVE annotations via `bin/spec-backlog-apply.sh` (also invoked by `/tester design` for rollout entries with `purge-origin:` and `append:` ops). Mechanism is opt-in per project: BACKLOG.md is created on first append and absent-file is a no-op at every read site.
 
 `SPEC.md` uses the same rolling format as other persistent files: current entry, one-line prior summary, structured metadata footer (`<!-- SPEC_META: {...} -->`). Each entry covers one unit of work, not the entire project.
 
@@ -674,6 +676,15 @@ Papers and posts that inform the design of this setup, particularly around long-
 ---
 
 ## Roadmap
+
+Releases are tagged as snapshots when a useful checkpoint has accumulated, not as a planning unit. v1.3 was the most recent tag; everything under "Since v1.3" below is shipped to `main` and in active use, and a future tag (whatever its name) will draw a line under some subset of it. Day-to-day development happens on `main`; new features land continuously.
+
+### Since v1.3 (ongoing)
+
+- [x] `/tester design` mode: writes or revises a durable test-architecture contract under the exact `# Durable test-architecture contract` H1 in `TESTING.md`, plus rollout entries in `BACKLOG.md` (each with `Origin: tester design YYYY-MM-DD`). Contract shape (greenfield seed / growing two-tier / mature full-dimension) is sized to project signals discovered at runtime — a new prototype does not get a three-tier dispatcher. The contract is a cold-open reference: a fresh session reads it and knows how to run the suite without reading anything else. Revision replaces the contract section; prior tester-design rollout entries are deduped (with ACTIVE-in-spec preservation).
+- [x] `/tester design` pre-apply checklist (Step D.5.5): a fixed five-component block posted to the user before `BACKLOG.md` mutates — signals fingerprint, contract shape + line count, rollout count + justification, per-entry overlap scan, and an optional SPEC-tension flag when the project's SPEC.md punts the testing surface this rollout fills. Always-on (no flag-gating); the SPEC-tension component is flag-not-block (post and proceed; the user can interrupt). Course-correct surface for the proportionality and overlap calls the LLM made silently in earlier steps.
+- [x] BACKLOG manifest extensions in `bin/spec-backlog-apply.sh`: `purge-origin:` op removes every entry whose Origin starts with a given prefix while preserving any heading annotated `(ACTIVE in spec YYYY-MM-DD)`, and `append:` / `end-append` block writes a new entry with verbatim body. The `Coordinate with: <other-entry-name>` field on rollout entries marks topical overlap with a non-tester BACKLOG entry. Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script, so LLM non-compliance on state-mutation edits cannot silently rot the register.
+- [x] `bin/codereview-marker` script: deterministic computation of the codereview push marker hash. Replaces parallel bash snippets in codereview's Step 8 and the pre-push hook (which had to stay byte-for-byte identical) with one shared implementation, eliminating an LLM-split-Bash-call failure mode where `${UPSTREAM}` was lost between Bash tool calls and the marker silently fell through to the empty-tree hash. Three-case upstream contract handles `@{upstream}` present, `@{upstream}` absent but `origin/<branch>` present, and neither.
 
 ### Next up
 
