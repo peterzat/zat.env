@@ -6,7 +6,11 @@ description: >-
   when the user asks to review code, check changes before pushing, or run a code
   review. Also use automatically before any git push, unless the user has
   explicitly said "push now" (unprompted); in that case run
-  `codereview-skip && git push` without invoking this skill.
+  `codereview-skip && git push` without invoking this skill. The `external`
+  mode (`/codereview external [<ref>|<from>..<to>]`) runs only the configured
+  external reviewers on an arbitrary diff with no CODEREVIEW.md / marker /
+  /codefix mutation, useful for span-of-release second opinions.
+argument-hint: [external [<ref> | <from>..<to>]]
 context: fork
 effort: max
 allowed-tools: Bash(*), Read, Grep, Glob, Skill(security), Skill(security *), Skill(codefix)
@@ -37,6 +41,137 @@ You start with an empty context — gather everything you need below.
   files (other than CODEREVIEW.md, SECURITY.md, and the marker file). When findings
   need fixing, delegate to `/codefix` via Step 7. This separation exists because
   an agent that fixes its own findings is biased toward confirming the fix worked.
+
+Arguments: `$ARGUMENTS`
+
+## Step 0: Dispatch on arguments
+
+Parse `$ARGUMENTS` (trimmed of leading/trailing whitespace):
+
+- **Empty or whitespace only** → Full Review Mode. Proceed to Step 1.
+- **First token is `external`** (case-sensitive) → External-Only Mode.
+  Jump to Step E.1. Treat the rest of `$ARGUMENTS` as the range
+  specification.
+- **Anything else** → stop immediately with this one-line message,
+  without reading or modifying any file:
+
+  > Unknown mode for /codereview: `<args>`. Use `/codereview` (full
+  > review) or `/codereview external [<ref>|<from>..<to>]` (external
+  > reviewers only).
+
+---
+
+## External-Only Mode
+
+External-Only Mode runs ONLY the configured external reviewers (OpenAI,
+Google, local Qwen) on a chosen diff. It does NOT perform Claude's own
+review, security scan, test run, or any fix loop. It does NOT write to
+CODEREVIEW.md, write the push marker, or invoke /codefix. Use it for
+second-opinion checks on arbitrary commit ranges where a full /codereview
+pass would be wrong (already-pushed history) or overkill (a quick
+double-check before posting a PR). Headline use case: `/codereview
+external v1.3` to review every commit between the v1.3 release tag and
+HEAD.
+
+### Step E.1: Pre-check Reviewer Configuration
+
+Run the configuration check before computing any diff:
+
+```bash
+review-external.sh --check
+```
+
+If the script exits non-zero, print its stderr to the user verbatim and
+stop. Do not proceed to range resolution. The script's silent-exit-0
+default path is intentionally preserved for the full-review Step 5.5;
+only `--check` fails loudly when no providers are configured.
+
+### Step E.2: Resolve Range
+
+Map the argument (`$ARGUMENTS` minus the leading `external` keyword) to
+a canonical git range:
+
+- **Empty** → `<UPSTREAM>..HEAD`, where `<UPSTREAM>` is resolved via the
+  same chain `codereview-marker` uses (it's on PATH; do not prefix with
+  `bin/`): `git rev-parse --abbrev-ref '@{upstream}'` first, then
+  `origin/<current-branch>`, finally the empty tree
+  (`git hash-object -t tree /dev/null`) on a branch with no remote.
+- **Single ref** (e.g., `v1.3`, `main`, `abc1234`) → `<ref>..HEAD`.
+- **Two-dot range** `<from>..<to>` → use verbatim.
+- **Three-dot range** `<from>...<to>` → use verbatim (merge-base form).
+- **Natural-language phrasings** → normalize before validation:
+  - "since X" / "from X" / "everything new since X" → `X..HEAD`
+  - "between X and Y" / "from X to Y" → `X..Y`
+  - "last N commits" → `HEAD~N..HEAD`
+
+Validate every named ref with `git rev-parse <ref> >/dev/null 2>&1`
+before continuing. On failure, stop with:
+
+> Cannot resolve `<ref>`. Run /codereview external with a valid git ref
+> or range.
+
+### Step E.2.5: Marker-Collision Warning
+
+If the resolved range is the default (`<UPSTREAM>..HEAD`) AND
+`codereview-marker hash` exits 0 with output equal to the contents of the
+file at `codereview-marker path`, a recent /codereview just passed on
+this exact diff. Print this one-line warning to the user and proceed —
+do not prompt:
+
+> External reviewers were just run on this exact diff during /codereview.
+> Re-running will produce near-identical findings at the same API cost.
+
+Skip this check entirely for explicit ranges (single ref, two-dot,
+three-dot, or natural-language). The user clearly asked for something
+specific.
+
+### Step E.3: Compute Diff
+
+Compute the diff with the standard exclusions, identical to Step 5.5:
+
+```bash
+git diff <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
+```
+
+If empty, stop with:
+
+> Empty diff for range `<range>`. Nothing to review.
+
+Print a one-line scope summary to the user before invoking reviewers
+so the cost surface is visible up front:
+
+> Reviewing `<range>`: N file(s) changed (+M / -K lines).
+
+### Step E.4: Run External Reviewers
+
+Pipe the diff to `review-external.sh`, capturing findings (stdout) and
+the cost log (stderr) separately, identical to the pattern in Step 5.5:
+
+```bash
+COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
+EXTERNAL_FINDINGS=$(git diff <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
+EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
+rm -f "${COST_LOG}"
+```
+
+### Step E.5: Print Output
+
+Emit a structured terminal block:
+
+> **External-only review of `<range>`** (N file(s), +M / -K lines)
+>
+> **Configured providers:**
+> [contents of EXTERNAL_COST — one provider per line]
+>
+> **Findings:**
+> [contents of EXTERNAL_FINDINGS, grouped by severity (BLOCK first,
+> then WARN, then NOTE), provider attribution preserved]
+> [or "No issues found by external reviewers." if empty]
+>
+> _This review did NOT update CODEREVIEW.md, write the push marker, or
+> invoke /codefix. To address findings, edit manually or run /codefix._
+
+Stop here. Do NOT proceed to any of Steps 1–9.
 
 ---
 

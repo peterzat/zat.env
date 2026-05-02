@@ -818,6 +818,116 @@ has "${SKILLS}/codereview/SKILL.md" "provider.*tag" \
 has "${SKILLS}/codereview/SKILL.md" "provider attribution" \
   "codereview: fixes section attributes external findings to provider"
 
+# --- /codereview external mode (Step 0 dispatch + External-Only Mode) ---
+# Mode dispatch is interpreted by the LLM, so structural lint must enforce
+# the contract points: (a) argument-hint advertises the mode, (b) Step 0
+# dispatches to both branches, (c) External-Only Mode invokes the
+# --check pre-flight gate, (d) External-Only Mode body does NOT mutate
+# the marker or invoke /codefix (those are full-review-only).
+
+CR_SKILL="${SKILLS}/codereview/SKILL.md"
+
+# (a) Frontmatter advertises external mode.
+has "${CR_SKILL}" "argument-hint:.*external" \
+  "codereview: argument-hint advertises external mode"
+
+# (b) Step 0 dispatch block exists with both branches named.
+has "${CR_SKILL}" "^## Step 0: Dispatch on arguments" \
+  "codereview: Step 0 dispatch block exists"
+has "${CR_SKILL}" "Full Review Mode.*Proceed to Step 1" \
+  "codereview: Step 0 dispatches empty-args to Full Review Mode"
+has "${CR_SKILL}" 'First token is `external`' \
+  "codereview: Step 0 dispatches external keyword"
+has "${CR_SKILL}" "Unknown mode for /codereview" \
+  "codereview: Step 0 rejects unknown args with explicit message"
+
+# (c) External-Only Mode section with Step E.1 invokes the pre-flight check.
+has "${CR_SKILL}" "^## External-Only Mode" \
+  "codereview: External-Only Mode section exists"
+has "${CR_SKILL}" "^### Step E.1: Pre-check Reviewer Configuration" \
+  "codereview: Step E.1 anchor exists"
+
+# Locate the External-Only Mode body (between section heading and Step 1).
+CR_EXTMODE_START=$(grep -n '^## External-Only Mode' "${CR_SKILL}" | head -1 | cut -d: -f1)
+CR_EXTMODE_END=$(grep -n '^## Step 1:' "${CR_SKILL}" | head -1 | cut -d: -f1)
+TOTAL=$((TOTAL + 1))
+if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]] \
+   && [[ "${CR_EXTMODE_START}" -lt "${CR_EXTMODE_END}" ]]; then
+  pass "codereview: External-Only Mode bracketed between section heading (line ${CR_EXTMODE_START}) and Step 1 (line ${CR_EXTMODE_END})"
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL codereview: could not locate External-Only Mode bounds (start=%s end=%s)\n' \
+    "${CR_EXTMODE_START:-?}" "${CR_EXTMODE_END:-?}"
+fi
+
+# Step E.1 in the External-Only Mode body invokes the --check pre-flight.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
+  if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
+       | grep -qE 'review-external\.sh --check'; then
+    pass "codereview: Step E.1 invokes review-external.sh --check"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL codereview: External-Only Mode missing review-external.sh --check invocation\n'
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL codereview: cannot check Step E.1 invocation without External-Only Mode bounds\n'
+fi
+
+# (d) External-Only Mode body does NOT contain `codereview-marker write`
+# (no marker write in external mode) or `/codefix` invocation (no fix loop).
+TOTAL=$((TOTAL + 1))
+if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
+  if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
+       | grep -qE 'codereview-marker write'; then
+    FAILS=$((FAILS + 1))
+    printf '  FAIL codereview: External-Only Mode contains codereview-marker write (must NOT mutate marker)\n'
+  else
+    pass "codereview: External-Only Mode does not write the push marker"
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL codereview: cannot check marker invariant without External-Only Mode bounds\n'
+fi
+
+TOTAL=$((TOTAL + 1))
+if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
+  if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
+       | grep -qE '(Skill\(codefix\)|invoke `?/codefix`?[^.])|/codefix'; then
+    # Footer says "edit manually or run /codefix" — that's a USER hint, not
+    # an invocation. Distinguish by checking for active-voice invocation prose.
+    if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
+         | grep -qE '(invoke `?/codefix`?[^.]|Skill\(codefix\)|/codefix to apply)'; then
+      FAILS=$((FAILS + 1))
+      printf '  FAIL codereview: External-Only Mode invokes /codefix (must NOT)\n'
+    else
+      pass "codereview: External-Only Mode does not invoke /codefix (only references it as user hint in footer)"
+    fi
+  else
+    pass "codereview: External-Only Mode does not reference /codefix"
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL codereview: cannot check codefix invariant without External-Only Mode bounds\n'
+fi
+
+# Footer disclaimer: the user-visible block must explicitly state that
+# CODEREVIEW.md, the marker, and /codefix were not mutated. This is the
+# load-bearing prose that prevents users from confusing external mode
+# with the gate semantics of full review. The disclaimer can wrap across
+# lines, so use grep -z to treat the section as a single string.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
+  if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
+       | grep -zqE 'did NOT update CODEREVIEW\.md[^.]*push marker[^.]*/codefix'; then
+    pass "codereview: External-Only Mode footer disclaims CODEREVIEW.md / marker / codefix mutation"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL codereview: External-Only Mode footer missing the no-mutation disclaimer\n'
+  fi
+fi
+
 # Script-level contracts (structural, not runtime)
 SCRIPT="${REPO_DIR}/bin/review-external.sh"
 has "${SCRIPT}" "REVIEW_TIMEOUT" \
