@@ -413,6 +413,177 @@ fi
 
 # ============================================================
 echo ""
+echo "==> --check: empty config exits 1 with pointer to env file"
+# ============================================================
+
+true > "${REVIEWER_ENV}"
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(bash "${SCRIPT}" --check 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 1 ]]; then
+  pass "--check empty: exit code 1"
+else
+  fail "--check empty: exit code ${EXIT_CODE} (should be 1)"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "--check empty: no stdout"
+else
+  fail "--check empty: unexpected stdout: ${STDOUT}"
+fi
+if [[ "${STDERR}" == *"No external reviewers configured"* ]]; then
+  pass "--check empty: stderr names the failure"
+else
+  fail "--check empty: missing failure message: ${STDERR}"
+fi
+if [[ "${STDERR}" == *"${REVIEWER_ENV}"* ]]; then
+  pass "--check empty: stderr names the env file path"
+else
+  fail "--check empty: missing env path: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --check: one provider configured exits 0 with one stderr line"
+# ============================================================
+
+cat > "${REVIEWER_ENV}" <<'EOF'
+OPENAI_API_KEY=sk-test-key
+EOF
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(bash "${SCRIPT}" --check 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "--check one provider: exit code 0"
+else
+  fail "--check one provider: exit code ${EXIT_CODE}"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "--check one provider: no stdout"
+else
+  fail "--check one provider: unexpected stdout: ${STDOUT}"
+fi
+if [[ "${STDERR}" == *"openai: o3 (high)"* ]]; then
+  pass "--check one provider: openai line with model + effort"
+else
+  fail "--check one provider: missing openai line: ${STDERR}"
+fi
+LINE_COUNT=$(printf '%s\n' "${STDERR}" | grep -c -E '^(openai|google|local):' || true)
+if [[ "${LINE_COUNT}" -eq 1 ]]; then
+  pass "--check one provider: exactly one provider line"
+else
+  fail "--check one provider: expected 1 provider line, got ${LINE_COUNT}: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --check: all three providers configured exits 0 with three stderr lines"
+# ============================================================
+
+LOCAL_SCRIPT=$(mktemp)
+LOCAL_VENV=$(mktemp -d)
+cat > "${REVIEWER_ENV}" <<EOF
+OPENAI_API_KEY=sk-test-key
+GEMINI_API_KEY=fake-google-key
+LOCAL_REVIEW_SCRIPT=${LOCAL_SCRIPT}
+LOCAL_REVIEW_VENV=${LOCAL_VENV}
+LOCAL_MODEL=Test-Local-Model
+EOF
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(bash "${SCRIPT}" --check 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}" "${LOCAL_SCRIPT}"
+rmdir "${LOCAL_VENV}" 2>/dev/null || true
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "--check three providers: exit code 0"
+else
+  fail "--check three providers: exit code ${EXIT_CODE}"
+fi
+if [[ "${STDERR}" == *"openai:"* ]]; then
+  pass "--check three providers: openai line"
+else
+  fail "--check three providers: missing openai line: ${STDERR}"
+fi
+if [[ "${STDERR}" == *"google: gemini-2.5-pro"* ]]; then
+  pass "--check three providers: google line with model"
+else
+  fail "--check three providers: missing google line: ${STDERR}"
+fi
+if [[ "${STDERR}" == *"local: Test-Local-Model"* ]]; then
+  pass "--check three providers: local line with model"
+else
+  fail "--check three providers: missing local line: ${STDERR}"
+fi
+LINE_COUNT=$(printf '%s\n' "${STDERR}" | grep -c -E '^(openai|google|local):' || true)
+if [[ "${LINE_COUNT}" -eq 3 ]]; then
+  pass "--check three providers: exactly three provider lines"
+else
+  fail "--check three providers: expected 3 provider lines, got ${LINE_COUNT}: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --check regression: default no-flag empty stdin no-config still silent exit 0"
+# ============================================================
+
+# This guards the fail-open contract that the full /codereview Step 5.5
+# depends on. The new --check flag must not change the default path.
+true > "${REVIEWER_ENV}"
+STDERR_FILE=$(mktemp)
+STDOUT=$(echo "diff content" | bash "${SCRIPT}" 2>"${STDERR_FILE}")
+EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 0 ]]; then
+  pass "default no-flag no-config: exit code 0 (fail-open preserved)"
+else
+  fail "default no-flag no-config: exit code ${EXIT_CODE} (regression)"
+fi
+if [[ -z "${STDOUT}" ]]; then
+  pass "default no-flag no-config: no stdout"
+else
+  fail "default no-flag no-config: unexpected stdout: ${STDOUT}"
+fi
+if [[ -z "${STDERR}" ]]; then
+  pass "default no-flag no-config: silent stderr (no --check leak)"
+else
+  fail "default no-flag no-config: unexpected stderr: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --check rejects extra positional args with exit 2"
+# ============================================================
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(bash "${SCRIPT}" --check extra 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 2 ]]; then
+  pass "--check extra arg: exit code 2"
+else
+  fail "--check extra arg: exit code ${EXIT_CODE} (should be 2)"
+fi
+if [[ "${STDERR}" == *"takes no further arguments"* ]]; then
+  pass "--check extra arg: descriptive error"
+else
+  fail "--check extra arg: missing descriptive error: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
 if [[ "${FAILS}" -eq 0 ]]; then
   echo "All ${TOTAL} checks passed."
 else

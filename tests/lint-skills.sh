@@ -837,9 +837,33 @@ has "${SCRIPT}" 'sed.*google' \
 has "${SCRIPT}" 'sed.*qwen' \
   "script: tags local findings with provider name"
 has "${SCRIPT}" "exit 0" \
-  "script: always exits 0 (fail-open)"
-hasnt "${SCRIPT}" "exit 1[^0-9]|exit 1$" \
-  "script: never exits non-zero on provider failure"
+  "script: default path exits 0 (fail-open)"
+
+# --check / default split (used by /codereview external as a pre-flight gate).
+# --check is the only fail-loud path: exit 1 when no providers are configured,
+# exit 2 on bad args. The default no-flag path must keep its silent-exit-0
+# fallback so the full /codereview Step 5.5 stays fail-open. Behavioral tests
+# in tests/test-review-external.sh exercise all four cases.
+has "${SCRIPT}" "CHECK_ONLY=true" \
+  "script: --check flag handled"
+has "${SCRIPT}" "No external reviewers configured" \
+  "script: --check emits clear no-config message on stderr"
+has "${SCRIPT}" 'if ! \${HAS_OPENAI} && ! \${HAS_GOOGLE} && ! \${HAS_LOCAL}' \
+  "script: default path retains no-providers silent-exit-0 fallback"
+
+# Provider call_* functions must use 'return' not 'exit' so a single provider
+# failure cannot abort the parallel run. Awk extracts function bodies and
+# fails on any 'exit' statement inside them.
+if awk '
+  /^call_(openai|google|local)\(\) \{/ { in_func=1; next }
+  in_func && /^\}/ { in_func=0; next }
+  in_func && /[[:space:]]exit[[:space:]]/ { bad=1 }
+  END { exit bad ? 1 : 0 }
+' "${SCRIPT}"; then
+  pass "script: provider call_* functions use return, not exit (fail-open)"
+else
+  fail "script: provider call_* function contains exit (should use return)"
+fi
 
 # --- Concurrency safety ---
 # Temp files must use mktemp (not fixed paths). Background processes must

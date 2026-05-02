@@ -5,7 +5,16 @@ set -euo pipefail
 # configured LLM providers, and writes findings to stdout. Cost and status
 # information goes to stderr. Exits 0 in all cases (fail-open).
 #
-# Usage: git diff origin/main | review-external.sh
+# Usage:
+#   git diff origin/main | review-external.sh   # default: review the piped diff
+#   review-external.sh --check                  # report configured providers
+#
+# --check: does not read stdin. Loads config and prints one stderr line per
+# configured provider (model + effort/budget). Exits 0 if any provider is
+# configured, exit 1 with a pointer to the env file if none are. Used by
+# /codereview external as a pre-flight gate so an explicit invocation fails
+# loudly when nothing is configured. The default no-flag path keeps its
+# silent-exit-0 fallback so /codereview Step 5.5 stays fail-open.
 #
 # Config: ~/.config/claude-reviewers/.env
 #   OPENAI_API_KEY, OPENAI_MODEL (default: o3), OPENAI_EFFORT (default: high)
@@ -16,14 +25,39 @@ set -euo pipefail
 # Output (stdout): [SEVERITY] (provider) file:line -- description
 # Output (stderr): cost logs, status messages
 #
-# If no providers are configured, exits 0 with no stdout output.
+# If no providers are configured, exits 0 with no stdout output (default path)
+# or exits 1 with a pointer message on stderr (--check path).
 # If a provider fails, that provider is skipped (warning on stderr).
 
-# --- Read diff from stdin ---
+# --- Argument parsing ---
 
-DIFF=$(cat)
-if [[ -z "${DIFF}" ]]; then
-  exit 0
+CHECK_ONLY=false
+case "${1:-}" in
+  --check)
+    if [[ $# -gt 1 ]]; then
+      echo "review-external.sh: --check takes no further arguments" >&2
+      echo "Usage: review-external.sh [--check]" >&2
+      exit 2
+    fi
+    CHECK_ONLY=true
+    ;;
+  '')
+    : # default: read diff from stdin
+    ;;
+  *)
+    echo "review-external.sh: unknown argument '${1}'" >&2
+    echo "Usage: review-external.sh [--check]  (default: read diff from stdin)" >&2
+    exit 2
+    ;;
+esac
+
+# --- Read diff from stdin (default path only) ---
+
+if ! ${CHECK_ONLY}; then
+  DIFF=$(cat)
+  if [[ -z "${DIFF}" ]]; then
+    exit 0
+  fi
 fi
 
 # --- Load config ---
@@ -44,6 +78,32 @@ HAS_LOCAL=false
 if [[ -n "${LOCAL_REVIEW_SCRIPT:-}" ]] && [[ -n "${LOCAL_REVIEW_VENV:-}" ]] && [[ -f "${LOCAL_REVIEW_SCRIPT:-}" ]]; then
   HAS_LOCAL=true
 fi
+
+# --- --check: report providers and exit (fail-loud if none configured) ---
+
+if ${CHECK_ONLY}; then
+  any_configured=false
+  if ${HAS_OPENAI}; then
+    echo "openai: ${OPENAI_MODEL:-o3} (${OPENAI_EFFORT:-high})" >&2
+    any_configured=true
+  fi
+  if ${HAS_GOOGLE}; then
+    echo "google: ${GEMINI_MODEL:-gemini-2.5-pro} (thinking budget ${GEMINI_EFFORT:-32768})" >&2
+    any_configured=true
+  fi
+  if ${HAS_LOCAL}; then
+    echo "local: ${LOCAL_MODEL:-Qwen2.5-Coder-14B-Instruct-AWQ}" >&2
+    any_configured=true
+  fi
+  if ! ${any_configured}; then
+    echo "No external reviewers configured." >&2
+    echo "Edit ${REVIEWER_ENV} to set OPENAI_API_KEY, GEMINI_API_KEY, or LOCAL_REVIEW_SCRIPT." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+# --- Default path: silent fail-open if no providers ---
 
 if ! ${HAS_OPENAI} && ! ${HAS_GOOGLE} && ! ${HAS_LOCAL}; then
   exit 0
