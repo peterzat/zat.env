@@ -3,26 +3,36 @@ set -euo pipefail
 
 # Compute or write the codereview push marker hash.
 #
-# Single source of truth for the UPSTREAM derivation, PROJ_HASH derivation,
-# and DIFF_HASH computation that codereview's Step 8 (marker write) and
-# the pre-push hook (marker verify) both depend on. Replaces the parallel
-# bash snippets that previously lived in claude/skills/codereview/SKILL.md
-# and hooks/pre-push-codereview.sh; those snippets had to stay byte-identical
+# Single source of truth for the marker directory, UPSTREAM derivation,
+# PROJ_HASH derivation, and DIFF_HASH computation that codereview's Step 8
+# (marker write), the pre-push hook (marker verify), and codereview-skip
+# (one-shot bypass) all depend on. Replaces the parallel bash snippets that
+# previously lived in claude/skills/codereview/SKILL.md and
+# hooks/pre-push-codereview.sh; those snippets had to stay byte-identical
 # for the push gate to work, and silently diverged when the LLM split the
 # Step 8 snippet across multiple Bash tool calls (shell variables don't
 # persist across Bash tool invocations, so ${UPSTREAM} went empty in the
 # second call and the else-branch wrote an empty-tree hash).
 #
 # Usage:
-#   codereview-marker hash    # print DIFF_HASH to stdout
-#   codereview-marker write   # compute hash and write to marker file
-#   codereview-marker path    # print marker file path to stdout
+#   codereview-marker hash       # print DIFF_HASH to stdout
+#   codereview-marker write      # compute hash and write to marker file
+#   codereview-marker path       # print marker file path to stdout
+#   codereview-marker skip-path  # print one-shot skip marker file path to stdout
 #
 # Exit codes:
 #   0  success
 #   1  error (not in a git repo, bad usage)
 #   2  no reviewable changes (empty diff vs upstream after excluding review
 #      output files); informational, no marker written by `write`
+#
+# Marker location:
+#   Markers live in ${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/
+#   (mode 0700, per-user). The directory is created on demand. Earlier
+#   versions wrote to /tmp/.claude-codereview-<hash>, which was vulnerable
+#   to a symlink race when another local user could pre-create the path.
+#   Stale markers in /tmp from earlier installs are harmless and may be
+#   removed manually.
 #
 # Upstream resolution (three cases):
 #   (a) `@{upstream}` resolves       -> diff against that ref
@@ -39,9 +49,10 @@ usage() {
 codereview-marker -- compute or write the codereview push marker hash.
 
 Usage:
-  codereview-marker hash    # print DIFF_HASH to stdout (exit 2 if nothing to review)
-  codereview-marker write   # compute hash and write to marker file
-  codereview-marker path    # print marker file path to stdout
+  codereview-marker hash       # print DIFF_HASH to stdout (exit 2 if nothing to review)
+  codereview-marker write      # compute hash and write to marker file
+  codereview-marker path       # print marker file path to stdout
+  codereview-marker skip-path  # print one-shot skip marker file path to stdout
 EOF
   exit 1
 }
@@ -57,8 +68,19 @@ proj_hash() {
   git rev-parse --show-toplevel | md5sum | cut -c1-8
 }
 
+marker_dir() {
+  local d="${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview"
+  mkdir -p "${d}"
+  chmod 700 "${d}"
+  printf '%s' "${d}"
+}
+
 marker_path() {
-  printf '/tmp/.claude-codereview-%s\n' "$(proj_hash)"
+  printf '%s/marker-%s\n' "$(marker_dir)" "$(proj_hash)"
+}
+
+skip_path() {
+  printf '%s/skip-%s\n' "$(marker_dir)" "$(proj_hash)"
 }
 
 resolve_base() {
@@ -98,6 +120,10 @@ case "${1:-}" in
   path)
     require_git
     marker_path
+    ;;
+  skip-path)
+    require_git
+    skip_path
     ;;
   *)
     usage

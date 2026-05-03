@@ -368,7 +368,7 @@ A Claude Code `PreToolUse` hook (configured in `~/.claude/settings.json`) interc
 **Flow:**
 1. Claude attempts `git push`
 2. Hook reads the JSON payload from stdin and checks if the command is `git push`
-3. Hook checks for a marker file at `/tmp/.claude-codereview-<project-hash>`
+3. Hook checks for a marker file at `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/marker-<project-hash>` (per-user, mode 0700)
 4. Marker contains a diff hash from the passing review: `sha256sum` of `git diff <upstream>` (excluding review output files), truncated to 16 hex chars. This makes the marker content-addressed: tied to the exact diff that was reviewed, not just "some review happened."
 5. If marker exists and hash matches current diff, push proceeds
 6. Otherwise, push is blocked; Claude is instructed to run `/codereview`
@@ -618,11 +618,13 @@ Post-install layout (annotated):
 │       │   ├── post-tool-exit-plan-mode.sh  # Reminds user to use /spec plan after exiting plan mode
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/
-│       │   ├── README.md               # Test documentation: lint checks and manual scenario traces
-│       │   ├── run-all.sh              # Run all test suites with combined summary
-│       │   ├── lint-skills.sh          # Structural lint for skills and hooks (230 checks)
-│       │   ├── test-pre-push-hook.sh   # Pre-push hook behavioral tests (39 checks)
-│       │   └── test-review-external.sh # Guard logic and output contract tests (35 checks)
+│       │   ├── README.md                  # Test documentation: lint checks and manual scenario traces
+│       │   ├── run-all.sh                 # Run all test suites with combined summary
+│       │   ├── lint-skills.sh             # Structural lint for skills and hooks (378 checks)
+│       │   ├── test-review-external.sh    # review-external.sh guard logic and output contract tests (61 checks)
+│       │   ├── test-pre-push-hook.sh      # Pre-push hook behavioral tests (41 checks)
+│       │   ├── test-spec-backlog-apply.sh # spec-backlog-apply.sh manifest parser tests (64 checks)
+│       │   └── test-codereview-marker.sh  # codereview-marker hash/write/path tests (37 checks)
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering
@@ -686,7 +688,8 @@ Releases are tagged as snapshots when a useful checkpoint has accumulated, not a
 - [x] `/tester design` mode: writes or revises a durable test-architecture contract under the exact `# Durable test-architecture contract` H1 in `TESTING.md`, plus rollout entries in `BACKLOG.md` (each with `Origin: tester design YYYY-MM-DD`). Contract shape (greenfield seed / growing two-tier / mature full-dimension) is sized to project signals discovered at runtime — a new prototype does not get a three-tier dispatcher. The contract is a cold-open reference: a fresh session reads it and knows how to run the suite without reading anything else. Revision replaces the contract section; prior tester-design rollout entries are deduped (with ACTIVE-in-spec preservation).
 - [x] `/tester design` pre-apply checklist (Step D.5.5): a fixed five-component block posted to the user before any TESTING.md or BACKLOG.md mutation — signals fingerprint, contract shape + line count, rollout count + justification, per-entry overlap scan, and an optional SPEC-tension flag when the project's SPEC.md punts the testing surface this rollout fills. The checklist is a true pre-mutation gate: Step D.4 drafts the contract in memory and Step D.6 step 1 owns the actual write, so nothing on disk has changed when the checklist appears. Always-on (no flag-gating); the SPEC-tension component is flag-not-block (post and proceed; the user can interrupt). Course-correct surface for the proportionality and overlap calls the LLM made silently in earlier steps.
 - [x] BACKLOG manifest extensions in `bin/spec-backlog-apply.sh`: `purge-origin:` op removes every entry whose Origin starts with a given prefix while preserving any heading annotated `(ACTIVE in spec YYYY-MM-DD)`, and `append:` / `end-append` block writes a new entry with verbatim body. The `Coordinate with: <other-entry-name>` field on rollout entries marks topical overlap with a non-tester BACKLOG entry. Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script, so LLM non-compliance on state-mutation edits cannot silently rot the register.
-- [x] `bin/codereview-marker` script: deterministic computation of the codereview push marker hash. Replaces parallel bash snippets in codereview's Step 8 and the pre-push hook (which had to stay byte-for-byte identical) with one shared implementation, eliminating an LLM-split-Bash-call failure mode where `${UPSTREAM}` was lost between Bash tool calls and the marker silently fell through to the empty-tree hash. Three-case upstream contract handles `@{upstream}` present, `@{upstream}` absent but `origin/<branch>` present, and neither.
+- [x] `bin/codereview-marker` script: deterministic computation of the codereview push marker hash. Replaces parallel bash snippets in codereview's Step 8 and the pre-push hook (which had to stay byte-for-byte identical) with one shared implementation, eliminating an LLM-split-Bash-call failure mode where `${UPSTREAM}` was lost between Bash tool calls and the marker silently fell through to the empty-tree hash. Three-case upstream contract handles `@{upstream}` present, `@{upstream}` absent but `origin/<branch>` present, and neither. Markers also moved from `/tmp/.claude-codereview-<hash>` to `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/` (mode 0700, per-user), closing a cross-user symlink-race vector; the pre-push hook now fails closed (exits 2) on any unexpected `codereview-marker` error so a missing-from-PATH script cannot silently bypass the gate.
+- [x] `/codereview external [<ref>|<from>..<to>]` mode: a Step 0 dispatch on `/codereview` runs only the configured external reviewers (OpenAI, Google, local Qwen) on an arbitrary diff, without mutating CODEREVIEW.md, writing the push marker, or invoking `/codefix`. Default scope is `<upstream>..HEAD`; a single ref expands to `<ref>..HEAD`; explicit two-dot or three-dot ranges are used verbatim; natural-language phrasings ("since v1.3", "last 5 commits") are normalized before validation. Pre-flight gate via `review-external.sh --check` fails loudly with a pointer to the env file when no providers are configured, while the default no-flag path keeps its silent-exit-0 fallback so the full-review Step 5.5 stays fail-open. The script's `--range` plumbing lines up the `=== COMMITS ===` context block with the user's range rather than the branch's upstream. Headline use case: span-of-release second opinions like `/codereview external v1.3` to ask the cloud models "what stands out across this whole release?" without disturbing any working files.
 
 ### Next up
 

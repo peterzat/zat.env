@@ -16,6 +16,11 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 HOOK="${REPO_DIR}/hooks/pre-push-codereview.sh"
 
+# Ensure the hook can find codereview-marker on PATH the same way it does
+# in production. The repo's bin/ is prepended so the test is self-contained
+# even on a fresh checkout where the user has not run zat.env-install.sh yet.
+export PATH="${REPO_DIR}/bin:${PATH}"
+
 FAILS=0
 TOTAL=0
 pass() { TOTAL=$((TOTAL + 1)); printf '  ok   %s\n' "$1"; }
@@ -69,10 +74,11 @@ setup_test_repo() {
   # Fake an upstream by creating refs/remotes/origin/main pointing at HEAD.
   # The hook does `git rev-parse origin/main` and expects this ref layout.
   git -C "${TEST_REPO}" update-ref refs/remotes/origin/main HEAD
-  # Compute the project hash the hook uses for marker paths.
-  TEST_PROJ_HASH=$(cd "${TEST_REPO}" && git rev-parse --show-toplevel | md5sum | cut -c1-8)
-  TEST_MARKER="/tmp/.claude-codereview-${TEST_PROJ_HASH}"
-  TEST_SKIP_MARKER="/tmp/.claude-codereview-skip-${TEST_PROJ_HASH}"
+  # Resolve marker paths via the same script the hook uses, so the test is
+  # invariant to the path scheme. codereview-marker requires a git context,
+  # so call it from inside the test repo.
+  TEST_MARKER=$(cd "${TEST_REPO}" && codereview-marker path)
+  TEST_SKIP_MARKER=$(cd "${TEST_REPO}" && codereview-marker skip-path)
   rm -f "${TEST_MARKER}" "${TEST_SKIP_MARKER}"
 }
 
@@ -301,6 +307,44 @@ else
   fail "git -C <dir> push: expected exit 2, got ${ec}"
 fi
 teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Fail-closed: codereview-marker missing from PATH blocks the push"
+# ============================================================
+#
+# Earlier versions of the hook treated any non-zero exit from
+# `codereview-marker hash` as "allow push", which silently bypassed the
+# gate whenever the script was missing from PATH (e.g. shell init order
+# or a fresh checkout without zat.env-install.sh having run). The hook
+# must now fail closed on unexpected error.
+
+setup_test_repo
+echo "modified" > "${TEST_REPO}/file.txt"
+# Strip codereview-marker from PATH for this single invocation. The hook
+# must still find git (needed for the in-a-repo check), so we keep the
+# system bin dirs only.
+ec=0
+PATH_SANITIZED="/usr/bin:/bin"
+payload=$(jq -n --arg c "git push" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+stderr_out=$(cd "${TEST_REPO}" && export PATH="${PATH_SANITIZED}" && printf '%s' "${payload}" | bash "${HOOK}" 2>&1 >/dev/null) || ec=$?
+if [[ "${ec}" -eq 2 ]] && printf '%s' "${stderr_out}" | grep -q "codereview-marker is unavailable"; then
+  pass "missing codereview-marker: hook exits 2 (fail closed)"
+else
+  fail "missing codereview-marker: expected exit 2 with 'codereview-marker is unavailable' stderr, got ec=${ec} stderr=${stderr_out}"
+fi
+teardown_test_repo
+
+# Pushes from outside any git repo still pass through (not our concern).
+ec=0
+payload=$(jq -n --arg c "git push" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+PATH_SANITIZED="/usr/bin:/bin"
+(cd "${SCRATCH_NOGIT}" && export PATH="${PATH_SANITIZED}" && printf '%s' "${payload}" | bash "${HOOK}" >/dev/null 2>&1) || ec=$?
+if [[ "${ec}" -eq 0 ]]; then
+  pass "outside any repo + missing codereview-marker: still exit 0"
+else
+  fail "outside any repo: expected exit 0, got ${ec}"
+fi
 
 # ============================================================
 echo ""

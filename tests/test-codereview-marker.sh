@@ -280,8 +280,48 @@ echo "==> path subcommand"
 P_LOCAL="${WORK_DIR}/case_p_local"
 init_repo "${P_LOCAL}"
 cd "${P_LOCAL}" || exit 1
+
+EXPECTED_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview"
+
 p=$("${SCRIPT}" path)
-if [[ "${p}" =~ ^/tmp/\.claude-codereview-[0-9a-f]{8}$ ]]; then pass "path: matches /tmp/.claude-codereview-<8hex>"; else fail "path: bad format '${p}'"; fi
+if [[ "${p}" =~ ^${EXPECTED_DIR}/marker-[0-9a-f]{8}$ ]]; then
+  pass "path: matches ${EXPECTED_DIR}/marker-<8hex>"
+else
+  fail "path: bad format '${p}' (expected match against ${EXPECTED_DIR}/marker-<8hex>)"
+fi
+
+# path must create the marker directory at mode 0700 (per-user).
+if [[ -d "${EXPECTED_DIR}" ]]; then
+  pass "path: marker directory exists"
+else
+  fail "path: marker directory missing"
+fi
+mode=$(stat -c '%a' "${EXPECTED_DIR}" 2>/dev/null)
+if [[ "${mode}" == "700" ]]; then
+  pass "path: marker directory mode 0700"
+else
+  fail "path: marker directory mode ${mode:-?} (expected 700)"
+fi
+
+# --- skip-path subcommand ---
+
+echo ""
+echo "==> skip-path subcommand"
+sp=$("${SCRIPT}" skip-path)
+if [[ "${sp}" =~ ^${EXPECTED_DIR}/skip-[0-9a-f]{8}$ ]]; then
+  pass "skip-path: matches ${EXPECTED_DIR}/skip-<8hex>"
+else
+  fail "skip-path: bad format '${sp}'"
+fi
+
+# skip-path and path must share the same project hash (same dir, same suffix).
+p_hash=$(echo "${p}" | sed -E 's,^.*/marker-,,')
+sp_hash=$(echo "${sp}" | sed -E 's,^.*/skip-,,')
+if [[ "${p_hash}" == "${sp_hash}" ]] && [[ -n "${p_hash}" ]]; then
+  pass "skip-path: shares project hash with path (${p_hash})"
+else
+  fail "skip-path: project-hash mismatch (path=${p_hash}, skip=${sp_hash})"
+fi
 
 # Restore original cwd before exit so trap cleanup of WORK_DIR is safe.
 cd "${START_DIR}" || exit 1

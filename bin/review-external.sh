@@ -6,8 +6,9 @@ set -euo pipefail
 # information goes to stderr. Exits 0 in all cases (fail-open).
 #
 # Usage:
-#   git diff origin/main | review-external.sh   # default: review the piped diff
-#   review-external.sh --check                  # report configured providers
+#   git diff origin/main | review-external.sh                    # default: review the piped diff
+#   git diff v1.3..HEAD  | review-external.sh --range v1.3..HEAD # match COMMITS context to range
+#   review-external.sh --check                                   # report configured providers
 #
 # --check: does not read stdin. Loads config and prints one stderr line per
 # configured provider (model + effort/budget). Exits 0 if any provider is
@@ -15,6 +16,12 @@ set -euo pipefail
 # /codereview external as a pre-flight gate so an explicit invocation fails
 # loudly when nothing is configured. The default no-flag path keeps its
 # silent-exit-0 fallback so /codereview Step 5.5 stays fail-open.
+#
+# --range <git-range>: use the given range for the COMMITS context block
+# prepended to the user message. When absent, the script falls back to
+# @{upstream}..HEAD (matches /codereview Step 5.5). /codereview external
+# passes --range so the COMMITS framing matches the user-supplied range
+# rather than the branch's upstream.
 #
 # Config: ~/.config/claude-reviewers/.env
 #   OPENAI_API_KEY, OPENAI_MODEL (default: o3), OPENAI_EFFORT (default: high)
@@ -32,6 +39,7 @@ set -euo pipefail
 # --- Argument parsing ---
 
 CHECK_ONLY=false
+RANGE=""
 case "${1:-}" in
   --check)
     if [[ $# -gt 1 ]]; then
@@ -41,12 +49,43 @@ case "${1:-}" in
     fi
     CHECK_ONLY=true
     ;;
+  --range)
+    if [[ $# -lt 2 ]]; then
+      echo "review-external.sh: --range requires a git range argument" >&2
+      echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
+      exit 2
+    fi
+    if [[ $# -gt 2 ]]; then
+      echo "review-external.sh: --range takes one argument" >&2
+      echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
+      exit 2
+    fi
+    RANGE="$2"
+    if [[ -z "${RANGE}" ]]; then
+      echo "review-external.sh: --range requires a non-empty git range argument" >&2
+      echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
+      exit 2
+    fi
+    ;;
+  --range=*)
+    if [[ $# -gt 1 ]]; then
+      echo "review-external.sh: --range takes one argument" >&2
+      echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
+      exit 2
+    fi
+    RANGE="${1#--range=}"
+    if [[ -z "${RANGE}" ]]; then
+      echo "review-external.sh: --range requires a git range argument" >&2
+      echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
+      exit 2
+    fi
+    ;;
   '')
     : # default: read diff from stdin
     ;;
   *)
     echo "review-external.sh: unknown argument '${1}'" >&2
-    echo "Usage: review-external.sh [--check]  (default: read diff from stdin)" >&2
+    echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
     exit 2
     ;;
 esac
@@ -112,11 +151,18 @@ fi
 TIMEOUT="${REVIEW_TIMEOUT:-300}"
 
 # --- Commit summary (provides context for the diff) ---
+# When --range is supplied, use it directly so the COMMITS block matches the
+# diff range piped on stdin. Otherwise fall back to @{upstream}..HEAD so the
+# default /codereview Step 5.5 path keeps its existing behavior.
 
-UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || UPSTREAM=""
 COMMIT_SUMMARY=""
-if [[ -n "${UPSTREAM}" ]]; then
-  COMMIT_SUMMARY=$(git log --oneline "${UPSTREAM}..HEAD" 2>/dev/null || true)
+if [[ -n "${RANGE}" ]]; then
+  COMMIT_SUMMARY=$(git log --oneline "${RANGE}" 2>/dev/null || true)
+else
+  UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || UPSTREAM="origin/$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || UPSTREAM=""
+  if [[ -n "${UPSTREAM}" ]]; then
+    COMMIT_SUMMARY=$(git log --oneline "${UPSTREAM}..HEAD" 2>/dev/null || true)
+  fi
 fi
 
 # --- Review prompt (system instructions) ---

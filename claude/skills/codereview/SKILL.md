@@ -145,11 +145,15 @@ so the cost surface is visible up front:
 ### Step E.4: Run External Reviewers
 
 Pipe the diff to `review-external.sh`, capturing findings (stdout) and
-the cost log (stderr) separately, identical to the pattern in Step 5.5:
+the cost log (stderr) separately. Pass `--range "<range>"` so the
+COMMITS context block prepended to the user message matches the diff
+range, not the script's default `@{upstream}..HEAD` fallback (which
+mismatches whenever the user's range differs from the branch's
+upstream):
 
 ```bash
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
-EXTERNAL_FINDINGS=$(git diff <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
+EXTERNAL_FINDINGS=$(git diff <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh --range "<range>" 2>"${COST_LOG}")
 EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
 rm -f "${COST_LOG}"
 ```

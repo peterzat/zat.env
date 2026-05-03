@@ -16,8 +16,10 @@ set -euo pipefail
 # passes cleanly. This hook verifies the marker exists and matches the current
 # diff before allowing the push.
 #
-# Marker file: /tmp/.claude-codereview-<project-hash>
+# Marker file: ${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/marker-<project-hash>
 # Marker content: <diff-hash> (16 hex chars)
+# Path is single-sourced via `codereview-marker path` and `codereview-marker
+# skip-path`; this hook never constructs the marker location itself.
 
 # --- git push detection ---
 #
@@ -130,13 +132,26 @@ if is_tag_only_push "${INVOKED_CMD}"; then
   exit 0
 fi
 
-# Determine per-project marker file path.
-PROJ_HASH=$(git rev-parse --show-toplevel 2>/dev/null | md5sum | cut -c1-8) || {
-  # Not in a git repo — allow the push (don't block non-project pushes).
-  exit 0
-}
-MARKER="/tmp/.claude-codereview-${PROJ_HASH}"
-SKIP_MARKER="/tmp/.claude-codereview-skip-${PROJ_HASH}"
+# Resolve marker paths via the shared script. Both this hook and
+# codereview-skip call `codereview-marker {path,skip-path}` so the marker
+# directory layout and PROJ_HASH derivation are single-sourced.
+#
+# Pass-through for pushes that aren't in a git repo at all. The hook is
+# registered globally; pushes outside any project are not our concern.
+git rev-parse --show-toplevel >/dev/null 2>&1 || exit 0
+
+# Inside a repo, codereview-marker MUST work, otherwise the gate is
+# blind to the diff and any push would be a silent bypass. Fail closed.
+if ! MARKER=$(codereview-marker path 2>/dev/null); then
+  echo "Pre-push gate: codereview-marker is unavailable (not on PATH or broken)." >&2
+  echo "Cannot verify the diff; refusing to push. Investigate, then retry." >&2
+  exit 2
+fi
+if ! SKIP_MARKER=$(codereview-marker skip-path 2>/dev/null); then
+  echo "Pre-push gate: codereview-marker skip-path failed." >&2
+  echo "Refusing to push. Investigate, then retry." >&2
+  exit 2
+fi
 
 # "push now" bypass: skip codereview for this one push.
 if [[ -f "${SKIP_MARKER}" ]]; then
@@ -154,8 +169,12 @@ fi
 # Exit codes from `codereview-marker hash`:
 #   0 = hash printed on stdout
 #   2 = no reviewable changes (only excluded files differ, or no changes;
-#       the script writes its own explanation to stderr)
-#   1 = error (not in a git repo — already handled above)
+#       the script writes its own explanation to stderr) -- pass through
+#   1 (or anything else) = unexpected failure; the gate cannot vouch for
+#       the diff, so refuse the push (fail closed). Earlier versions
+#       allowed the push on unexpected error, which silently bypassed
+#       the gate whenever codereview-marker was missing from PATH or
+#       otherwise broken.
 HASH_EC=0
 DIFF_HASH=$(codereview-marker hash) || HASH_EC=$?
 if [[ "${HASH_EC}" -eq 2 ]]; then
@@ -163,8 +182,10 @@ if [[ "${HASH_EC}" -eq 2 ]]; then
   exit 0
 fi
 if [[ "${HASH_EC}" -ne 0 ]]; then
-  echo "Pre-push gate: codereview-marker hash failed (exit ${HASH_EC}). Allowing push." >&2
-  exit 0
+  echo "Pre-push gate: codereview-marker hash failed (exit ${HASH_EC})." >&2
+  echo "Refusing to push -- the gate cannot verify the diff. Investigate the" >&2
+  echo "codereview-marker install (likely PATH or shell-init issue), then retry." >&2
+  exit 2
 fi
 
 # Check marker.

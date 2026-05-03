@@ -584,6 +584,165 @@ fi
 
 # ============================================================
 echo ""
+echo "==> --range without value: exit 2"
+# ============================================================
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(echo "diff" | bash "${SCRIPT}" --range 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 2 ]]; then
+  pass "--range no value: exit code 2"
+else
+  fail "--range no value: exit code ${EXIT_CODE}"
+fi
+if [[ "${STDERR}" == *"requires a git range argument"* ]]; then
+  pass "--range no value: descriptive error"
+else
+  fail "--range no value: missing error: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --range= empty value: exit 2"
+# ============================================================
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(echo "diff" | bash "${SCRIPT}" --range= 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 2 ]]; then
+  pass "--range= empty: exit code 2"
+else
+  fail "--range= empty: exit code ${EXIT_CODE}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --range with explicit empty-string value: exit 2"
+# ============================================================
+#
+# Regression guard: the space-separated form previously accepted an
+# explicit empty string ($# == 2 passes the arity check; RANGE="" then
+# fell through to the @{upstream}..HEAD fallback silently). Validation
+# must be symmetric with the --range= form.
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(echo "diff" | bash "${SCRIPT}" --range "" 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 2 ]]; then
+  pass "--range '': exit code 2"
+else
+  fail "--range '': exit code ${EXIT_CODE} (regression - silent UPSTREAM fallback)"
+fi
+if [[ "${STDERR}" == *"non-empty git range argument"* ]]; then
+  pass "--range '': descriptive error names the empty cause"
+else
+  fail "--range '': missing empty-cause error: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --range with extra positional arg: exit 2"
+# ============================================================
+
+STDERR_FILE=$(mktemp)
+EXIT_CODE=0
+STDOUT=$(echo "diff" | bash "${SCRIPT}" --range v1.3..HEAD extra 2>"${STDERR_FILE}") || EXIT_CODE=$?
+STDERR=$(cat "${STDERR_FILE}")
+rm -f "${STDERR_FILE}"
+
+if [[ "${EXIT_CODE}" -eq 2 ]]; then
+  pass "--range extra arg: exit code 2"
+else
+  fail "--range extra arg: exit code ${EXIT_CODE}"
+fi
+if [[ "${STDERR}" == *"takes one argument"* ]]; then
+  pass "--range extra arg: descriptive error"
+else
+  fail "--range extra arg: missing error: ${STDERR}"
+fi
+
+# ============================================================
+echo ""
+echo "==> --range plumbs to COMMITS block (end-to-end via fake local provider)"
+# ============================================================
+
+# Stand up a fake local provider that emits a [NOTE] containing the commit
+# hashes from the COMMITS section of the user message. This proves --range
+# changes the COMMIT_SUMMARY input, end to end, without a real API call.
+FAKE_VENV=$(mktemp -d)
+mkdir -p "${FAKE_VENV}/bin"
+cat > "${FAKE_VENV}/bin/python3" <<'PYEOF'
+#!/usr/bin/env bash
+exec bash "$@"
+PYEOF
+chmod +x "${FAKE_VENV}/bin/python3"
+
+FAKE_SCRIPT=$(mktemp)
+cat > "${FAKE_SCRIPT}" <<'SHEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+INPUT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --system) shift 2 ;;
+    --input)  INPUT="$2"; shift 2 ;;
+    *)        shift ;;
+  esac
+done
+HASHES=$(awk '/^=== COMMITS ===$/{f=1;next} f && /^$/{exit} f && NF{print $1}' "${INPUT}" | tr '\n' ',' | sed 's/,$//')
+echo "[NOTE] commits.txt:1 -- range_commits=${HASHES}"
+SHEOF
+chmod +x "${FAKE_SCRIPT}"
+
+cat > "${REVIEWER_ENV}" <<EOF
+LOCAL_REVIEW_SCRIPT=${FAKE_SCRIPT}
+LOCAL_REVIEW_VENV=${FAKE_VENV}
+EOF
+
+# Use HEAD~3..HEAD and HEAD~1..HEAD as two distinguishable ranges.
+EXPECTED_3=$(git -C "${REPO_DIR}" log --oneline HEAD~3..HEAD | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
+EXPECTED_1=$(git -C "${REPO_DIR}" log --oneline HEAD~1..HEAD | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
+
+if [[ -z "${EXPECTED_3}" ]] || [[ -z "${EXPECTED_1}" ]]; then
+  fail "--range end-to-end: cannot resolve HEAD~N ranges in repo (skipping)"
+else
+  STDOUT=$(echo "diff content" | (cd "${REPO_DIR}" && bash "${SCRIPT}" --range "HEAD~3..HEAD") 2>/dev/null || true)
+  if [[ "${STDOUT}" == *"range_commits=${EXPECTED_3}"* ]]; then
+    pass "--range HEAD~3..HEAD: COMMITS block matches the supplied range"
+  else
+    fail "--range HEAD~3..HEAD: expected commits=${EXPECTED_3}, got: ${STDOUT}"
+  fi
+
+  STDOUT=$(echo "diff content" | (cd "${REPO_DIR}" && bash "${SCRIPT}" --range "HEAD~1..HEAD") 2>/dev/null || true)
+  if [[ "${STDOUT}" == *"range_commits=${EXPECTED_1}"* ]]; then
+    pass "--range HEAD~1..HEAD: COMMITS block changes when range changes"
+  else
+    fail "--range HEAD~1..HEAD: expected commits=${EXPECTED_1}, got: ${STDOUT}"
+  fi
+
+  # =--range= form should also work.
+  STDOUT=$(echo "diff content" | (cd "${REPO_DIR}" && bash "${SCRIPT}" --range="HEAD~1..HEAD") 2>/dev/null || true)
+  if [[ "${STDOUT}" == *"range_commits=${EXPECTED_1}"* ]]; then
+    pass "--range=HEAD~1..HEAD: equals form parses identically"
+  else
+    fail "--range=HEAD~1..HEAD: expected commits=${EXPECTED_1}, got: ${STDOUT}"
+  fi
+fi
+
+rm -rf "${FAKE_VENV}"
+rm -f "${FAKE_SCRIPT}"
+
+# ============================================================
+echo ""
 if [[ "${FAILS}" -eq 0 ]]; then
   echo "All ${TOTAL} checks passed."
 else

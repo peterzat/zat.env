@@ -365,33 +365,77 @@ has "${HOOK}" 'rm.*SKIP_MARKER' \
 has "${HOOK}" "Marker is kept" \
   "hook: codereview marker persists after push (documented)"
 
-# Marker file path format: the SCRIPT defines it (single source of truth);
-# the hook still uses /tmp/.claude-codereview-${PROJ_HASH} for marker reads
-# (the script could expose `path` for it, but the hook's local constant is
-# fine since both derive PROJ_HASH from `git rev-parse --show-toplevel`).
-has "${MARKER_SCRIPT}" '/tmp/\.claude-codereview-' \
-  "marker script: defines /tmp/.claude-codereview- path prefix"
-has "${HOOK}" '/tmp/.claude-codereview-\$' \
-  "hook: marker path uses expected /tmp/.claude-codereview- prefix"
-
-# Skip marker path must match between codereview-skip script and hook.
+# Marker file path: the SCRIPT is the single source of truth. The hook and
+# codereview-skip MUST source the path via `codereview-marker {path,skip-path}`,
+# not by constructing the path inline. Earlier versions duplicated the
+# /tmp/.claude-codereview-${PROJ_HASH} template across all three sites,
+# which silently drifted; consolidating the marker location into the script
+# also closed the /tmp symlink-attack vector by moving markers under
+# ${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/ (mode 0700, per-user).
 SKIP_SCRIPT="${REPO_DIR}/bin/codereview-skip"
-SKIP_PATH_SCRIPT=$(grep -oP '/tmp/\.claude-codereview-skip-[^"]+' "${SKIP_SCRIPT}" | head -1)
-SKIP_PATH_HOOK=$(grep -oP '/tmp/\.claude-codereview-skip-[^"]+' "${HOOK}" | head -1)
-if [[ "${SKIP_PATH_SCRIPT}" == "${SKIP_PATH_HOOK}" ]] && [[ -n "${SKIP_PATH_SCRIPT}" ]]; then
-  pass "skip marker: script and hook use identical path template"
-else
-  fail "skip marker: path mismatch -- script=[${SKIP_PATH_SCRIPT}] hook=[${SKIP_PATH_HOOK}]"
-fi
 
-# codereview-skip PROJ_HASH must use the same derivation as the hook.
-SKIP_PROJ_HASH=$(grep "PROJ_HASH=" "${SKIP_SCRIPT}" | grep -oP 'md5sum \| cut -c\d+-\d+')
-HOOK_PROJ_HASH_M=$(grep "PROJ_HASH=" "${HOOK}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+')
-if [[ "${SKIP_PROJ_HASH}" == "${HOOK_PROJ_HASH_M}" ]] && [[ -n "${SKIP_PROJ_HASH}" ]]; then
-  pass "skip marker: codereview-skip and hook use identical PROJ_HASH derivation"
+# Marker script defines the per-user directory and file naming conventions.
+has "${MARKER_SCRIPT}" 'XDG_CACHE_HOME.*HOME.*\.cache.*claude-codereview' \
+  "marker script: marker_dir uses XDG_CACHE_HOME with ~/.cache fallback"
+has "${MARKER_SCRIPT}" 'mkdir -p .*\$\{d\}' \
+  "marker script: marker_dir creates the directory"
+has "${MARKER_SCRIPT}" 'chmod 700 .*\$\{d\}' \
+  "marker script: marker_dir chmods directory to 0700"
+has "${MARKER_SCRIPT}" 'marker_dir\(\)' \
+  "marker script: defines marker_dir function"
+has "${MARKER_SCRIPT}" 'skip_path\(\)' \
+  "marker script: defines skip_path function"
+has "${MARKER_SCRIPT}" 'marker_path\(\)' \
+  "marker script: defines marker_path function"
+has "${MARKER_SCRIPT}" 'marker-%s' \
+  "marker script: marker filename uses 'marker-<hash>' format"
+has "${MARKER_SCRIPT}" 'skip-%s' \
+  "marker script: skip filename uses 'skip-<hash>' format"
+has "${MARKER_SCRIPT}" 'skip-path\)' \
+  "marker script: handles skip-path subcommand"
+
+# Hook and codereview-skip must NOT contain the legacy /tmp path template.
+# This is the regression guard: a future edit that re-adds an inline
+# /tmp/.claude-codereview-* path would re-open the symlink-attack vector.
+hasnt "${HOOK}" '/tmp/\.claude-codereview-' \
+  "hook: no inline /tmp/.claude-codereview- path (must source via codereview-marker)"
+hasnt "${SKIP_SCRIPT}" '/tmp/\.claude-codereview-' \
+  "codereview-skip: no inline /tmp/.claude-codereview- path"
+
+# Hook and codereview-skip must NOT derive PROJ_HASH inline. Both must call
+# the script. The previous parallel `git rev-parse | md5sum | cut -c1-8`
+# pattern duplicated across three sites is now exclusively in marker_dir.
+hasnt "${HOOK}" 'md5sum \| cut -c1-8' \
+  "hook: no inline PROJ_HASH derivation (must source via codereview-marker)"
+hasnt "${SKIP_SCRIPT}" 'md5sum \| cut -c1-8' \
+  "codereview-skip: no inline PROJ_HASH derivation"
+
+# Hook must source MARKER and SKIP_MARKER via codereview-marker.
+has "${HOOK}" 'MARKER=\$\(codereview-marker path' \
+  "hook: MARKER sourced from codereview-marker path"
+has "${HOOK}" 'SKIP_MARKER=\$\(codereview-marker skip-path' \
+  "hook: SKIP_MARKER sourced from codereview-marker skip-path"
+
+# codereview-skip must source SKIP_PATH via codereview-marker.
+has "${SKIP_SCRIPT}" 'codereview-marker skip-path' \
+  "codereview-skip: skip path sourced from codereview-marker"
+
+# Hook must fail CLOSED on unexpected codereview-marker error. Earlier
+# versions exited 0 on any non-2 non-zero exit, silently bypassing the
+# gate when codereview-marker was missing from PATH or otherwise broken.
+# The fail-closed branch must exit 2, and the message must direct the
+# user to investigate (not acknowledge the bypass). grep is line-based
+# so we can't use a multi-line regex; extract the block with awk and
+# verify it actually contains `exit 2`.
+if awk '/HASH_EC.*-ne 0/,/^fi/' "${HOOK}" | grep -q 'exit 2'; then
+  pass "hook: fail-closed branch exists for HASH_EC != 0 (exits 2)"
 else
-  fail "skip marker: PROJ_HASH mismatch -- script=[${SKIP_PROJ_HASH}] hook=[${HOOK_PROJ_HASH_M}]"
+  fail "hook: fail-closed branch exists for HASH_EC != 0 (exits 2)"
 fi
+hasnt "${HOOK}" 'Allowing push' \
+  "hook: no 'Allowing push' messages on error paths (regression guard for fail-open)"
+has "${HOOK}" 'Refusing to push' \
+  "hook: fail-closed messages explicitly refuse the push"
 
 # --- REVIEW_META field contract ---
 # Fields written by codereview Step 9 must match fields read by
@@ -468,25 +512,14 @@ has "${HOOK}" "Do not offer to skip" \
 has "${HOOK}" "user explicitly says" \
   "hook: bypass requires explicit user instruction"
 
-# PROJ_HASH derivation is now triplicated: bin/codereview-marker (new
-# authority for marker write), hooks/pre-push-codereview.sh (marker
-# read), and bin/codereview-skip (skip marker write). All three must
-# use the same `md5sum | cut -c1-8` derivation from `git rev-parse
-# --show-toplevel` so the marker file paths align. Compare the core
-# derivation across the three sites.
-MARKER_PROJ_HASH=$(grep "md5sum" "${MARKER_SCRIPT}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+' || true)
-HOOK_PROJ_HASH=$(grep "PROJ_HASH=" "${HOOK}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+' || true)
-SKIP_PROJ_HASH_DERIV=$(grep "PROJ_HASH=" "${SKIP_SCRIPT}" | head -1 | grep -oP 'md5sum \| cut -c\d+-\d+' || true)
-TOTAL=$((TOTAL + 1))
-if [[ "${MARKER_PROJ_HASH}" == "${HOOK_PROJ_HASH}" ]] \
-  && [[ "${HOOK_PROJ_HASH}" == "${SKIP_PROJ_HASH_DERIV}" ]] \
-  && [[ -n "${MARKER_PROJ_HASH}" ]]; then
-  pass "marker: codereview-marker, hook, and codereview-skip use identical PROJ_HASH derivation (${MARKER_PROJ_HASH})"
-else
-  FAILS=$((FAILS + 1))
-  printf '  FAIL marker: PROJ_HASH derivation mismatch -- marker=[%s] hook=[%s] skip=[%s]\n' \
-    "${MARKER_PROJ_HASH}" "${HOOK_PROJ_HASH}" "${SKIP_PROJ_HASH_DERIV}"
-fi
+# PROJ_HASH derivation: only bin/codereview-marker derives it. The hook and
+# codereview-skip must NOT compute it inline -- both source paths via the
+# script. The earlier triplicated derivation is now consolidated. The
+# absence of inline derivation in hook/codereview-skip is enforced by the
+# `hasnt ... md5sum` checks above; here we just verify the marker script
+# does it.
+has "${MARKER_SCRIPT}" 'md5sum \| cut -c1-8' \
+  "marker script: PROJ_HASH derivation present (single source of truth)"
 
 # --- Plan-mode handoff contract ---
 # The /spec plan mode and the post-ExitPlanMode hook are a two-piece contract.
@@ -875,6 +908,25 @@ else
   printf '  FAIL codereview: cannot check Step E.1 invocation without External-Only Mode bounds\n'
 fi
 
+# Step E.4 must pipe the diff through review-external.sh with --range "<range>"
+# so the COMMITS context block prepended to the user message matches the user's
+# range, not the script's @{upstream}..HEAD fallback. Without this the reviewer
+# sees a commit-summary that mismatches the diff whenever the user-supplied
+# range differs from the branch's upstream.
+TOTAL=$((TOTAL + 1))
+if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
+  if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
+       | grep -qE 'review-external\.sh --range'; then
+    pass "codereview: Step E.4 invokes review-external.sh --range"
+  else
+    FAILS=$((FAILS + 1))
+    printf '  FAIL codereview: External-Only Mode missing review-external.sh --range invocation\n'
+  fi
+else
+  FAILS=$((FAILS + 1))
+  printf '  FAIL codereview: cannot check Step E.4 invocation without External-Only Mode bounds\n'
+fi
+
 # (d) External-Only Mode body does NOT contain `codereview-marker write`
 # (no marker write in external mode) or `/codefix` invocation (no fix loop).
 TOTAL=$((TOTAL + 1))
@@ -960,6 +1012,17 @@ has "${SCRIPT}" "No external reviewers configured" \
   "script: --check emits clear no-config message on stderr"
 has "${SCRIPT}" 'if ! \${HAS_OPENAI} && ! \${HAS_GOOGLE} && ! \${HAS_LOCAL}' \
   "script: default path retains no-providers silent-exit-0 fallback"
+
+# --range flag: paired with /codereview external Step E.4 so the COMMITS
+# context block matches the user's range. Default no-flag path must keep
+# its @{upstream}..HEAD fallback so /codereview Step 5.5 (which does NOT
+# pass --range) is unchanged.
+has "${SCRIPT}" '\-\-range\)' \
+  "script: --range flag parsed"
+has "${SCRIPT}" 'git log --oneline "\${RANGE}"' \
+  "script: --range used for COMMIT_SUMMARY"
+has "${SCRIPT}" '\$\{UPSTREAM\}\.\.HEAD' \
+  "script: @{upstream}..HEAD fallback retained when --range absent"
 
 # Provider call_* functions must use 'return' not 'exit' so a single provider
 # failure cannot abort the parallel run. Awk extracts function bodies and

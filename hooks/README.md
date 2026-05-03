@@ -13,19 +13,24 @@ current diff.
 
 **How it works:**
 1. When Claude attempts a `git push`, the `PreToolUse` hook fires (filtered by `"if": "Bash(git push*)"` in the hook config, so it only runs for push commands)
-2. The hook checks for a marker file at `/tmp/.claude-codereview-<project-hash>`
+2. The hook resolves the marker path via `codereview-marker path` (single source of truth). Markers live under `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/marker-<project-hash>` (per-user, mode 0700)
 3. The marker contains the diff hash (SHA-256, 16 chars) from the passing review
 4. If the marker exists and the diff hash matches the current diff → push allowed
 5. If no marker or hash mismatch → push blocked; Claude is instructed to run `/codereview`
 
 The marker is per-project (project hash = `md5sum` of git root path) so multiple
-projects don't share gate state. The marker is consumed on push (deleted after use).
+projects don't share gate state. The codereview marker is content-addressed by
+diff hash and persists across pushes (a failed network push or remote rejection
+does not force a re-review; the next push of the same diff still passes the
+gate). Only the one-shot bypass marker created by `codereview-skip` is consumed
+on use. If `codereview-marker` is missing from PATH or otherwise broken, the
+hook fails closed (exits 2) rather than silently allowing the push.
 
 **Flow:**
 ```
 Claude attempts git push
   → PreToolUse hook fires
-  → marker present + hash matches? → allow push, delete marker
+  → marker present + hash matches? → allow push (marker preserved)
   → otherwise → block, tell Claude to run /codereview
       → Claude runs /codereview
       → review passes → codereview writes marker with current diff hash
@@ -85,10 +90,9 @@ To test the hook script directly:
 # Should block (no marker)
 echo '{}' | bash ~/src/zat.env/hooks/pre-push-codereview.sh 2>&1; echo "exit: $?"
 
-# Should pass (correct marker)
-PROJ_HASH=$(git rev-parse --show-toplevel | md5sum | cut -c1-8)
-DIFF_HASH=$(git diff HEAD | sha256sum | cut -c1-16)
-echo "${DIFF_HASH}" > "/tmp/.claude-codereview-${PROJ_HASH}"
+# Should pass (correct marker). The path comes from codereview-marker so
+# the test stays consistent with whatever the script computes.
+codereview-marker write
 echo '{}' | bash ~/src/zat.env/hooks/pre-push-codereview.sh; echo "exit: $?"
 ```
 
