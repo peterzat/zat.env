@@ -486,7 +486,7 @@ Format the checklist exactly as:
 ```
 
 After posting the checklist as the visible text of your response,
-proceed directly to Step D.6 in the next response.
+proceed directly to Step D.6.
 
 ### Step D.6: Apply in order
 
