@@ -420,13 +420,20 @@ reasoned per entry. This is a hint, not a hard check — judgment.
 ### Step D.5.5: Pre-apply checklist (visible to user)
 
 Before any file mutation in Step D.6, post a fixed-structure block to
-the user. **This is a TRUE pre-mutation gate:** at this point your
-contract is drafted in memory (Step D.4) and your rollout entries are
-drafted in memory (Step D.5), but TESTING.md and BACKLOG.md have NOT
-been changed yet. The checklist is the user's window into the
-proportionality, overlap, and SPEC-tension calls you made silently in
-Steps D.2–D.5; if they want to course-correct, this is where they see
-what to correct *before* anything on disk changes.
+the user **as a text message before any further tool call**. Your next
+response after Step D.5 must contain the literal H2 heading `## Pre-apply
+checklist`. Do not invoke Edit, Write, or Bash until that message has
+been emitted as a standalone visible response — collapsing the checklist
+into the Step D.7 report (after mutations have already landed) defeats
+the gate's whole purpose.
+
+**This is a TRUE pre-mutation gate:** at this point your contract is
+drafted in memory (Step D.4) and your rollout entries are drafted in
+memory (Step D.5), but TESTING.md and BACKLOG.md have NOT been changed
+yet. The checklist is the user's window into the proportionality,
+overlap, and SPEC-tension calls you made silently in Steps D.2–D.5; if
+they want to course-correct, this is where they see what to correct
+*before* anything on disk changes.
 
 The block is **always posted** (no flag-gating, no opt-out). Five
 components, in order:
@@ -464,7 +471,22 @@ components, in order:
    D.6 — no user-confirmation round-trip, no halt. The user can
    interrupt if they want to redirect.
 
-After posting the checklist, proceed directly to Step D.6.
+Format the checklist exactly as:
+
+```
+## Pre-apply checklist
+
+1. **Signals fingerprint:** <one line drawn from Step D.2>
+2. **Contract shape + line count:** <greenfield seed | growing two-tier | mature full-dimension> (<N> lines)
+3. **Rollout: <N> entries** — <one-line justification>
+4. **Per-entry overlap scan:**
+   - <short-name>: <no overlap | overlaps <other-entry-name>>
+   - <short-name>: <no overlap | overlaps <other-entry-name>>
+5. **SPEC tension:** <one line>   ← omit this entire line when SPEC.md has no out-of-scope clause for the testing surface
+```
+
+After posting the checklist as the visible text of your response,
+proceed directly to Step D.6 in the next response.
 
 ### Step D.6: Apply in order
 

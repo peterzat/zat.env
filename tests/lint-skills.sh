@@ -1285,6 +1285,42 @@ if [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]]; then
     FAILS=$((FAILS + 1))
     printf '  FAIL tester: D.5.5 SPEC tension missing flag-not-block guard\n'
   fi
+
+  # Visible-heading template: D.5.5 must pin the literal '## Pre-apply
+  # checklist' H2 so the user can grep their transcript for it and so the
+  # model has a copy-fillable scaffold rather than only prose. Added after
+  # a daydream run where the model collapsed the checklist into the D.7
+  # report and skipped the gate entirely.
+  TOTAL=$((TOTAL + 1))
+  if printf '%s\n' "${D55_BLOCK}" | grep -qF '## Pre-apply checklist'; then
+    pass "tester: D.5.5 pins the literal '## Pre-apply checklist' heading"
+  else
+    FAILS=$((FAILS + 1))
+    printf "  FAIL tester: D.5.5 missing literal '## Pre-apply checklist' heading template\n"
+  fi
+
+  # Hard-gate phrase: D.5.5 must explicitly forbid Edit/Write/Bash before
+  # the checklist is emitted. Without this, the model can interpret "post
+  # a fixed-structure block" as "include in your response alongside tool
+  # calls" rather than "emit as a standalone message first."
+  TOTAL=$((TOTAL + 1))
+  if printf '%s\n' "${D55_BLOCK}" | grep -qF 'Do not invoke Edit, Write, or Bash'; then
+    pass "tester: D.5.5 carries the no-tool-call-before-checklist hard gate"
+  else
+    FAILS=$((FAILS + 1))
+    printf "  FAIL tester: D.5.5 missing hard-gate phrase 'Do not invoke Edit, Write, or Bash'\n"
+  fi
+
+  # Text-message framing: the checklist must be emitted as a visible text
+  # message, not buried in a multi-tool-call response. The phrase below is
+  # what makes that explicit and is paired with the hard gate above.
+  TOTAL=$((TOTAL + 1))
+  if printf '%s\n' "${D55_BLOCK}" | grep -qF 'as a text message before any further tool call'; then
+    pass "tester: D.5.5 frames checklist as a text message before any tool call"
+  else
+    FAILS=$((FAILS + 1))
+    printf "  FAIL tester: D.5.5 missing 'as a text message before any further tool call' framing\n"
+  fi
 fi
 
 # Coordinate-with field appears in Step D.5's template (between D.5 and D.5.5).
