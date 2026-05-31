@@ -86,6 +86,9 @@ err=$("${SCRIPT}" hash 2>&1 >/dev/null) ; ec=$?
 if [[ "${ec}" -eq 1 ]]; then pass "hash outside git: exit 1"; else fail "hash outside git: expected exit 1 got ${ec}"; fi
 if printf '%s' "${err}" | grep -q "not in a git repository"; then pass "hash outside git: stderr names cause"; else fail "hash outside git: stderr missing"; fi
 
+err=$("${SCRIPT}" base 2>&1 >/dev/null) ; ec=$?
+if [[ "${ec}" -eq 1 ]]; then pass "base outside git: exit 1"; else fail "base outside git: expected exit 1 got ${ec}"; fi
+
 # --- Case (a): @{upstream} resolves ---
 
 echo ""
@@ -111,6 +114,12 @@ if [[ "${hash}" =~ ^[0-9a-f]{16}$ ]]; then pass "case a: hash is 16 hex chars"; 
 inline=$(inline_hash) ; iec=$?
 if [[ "${ec}" -eq "${iec}" ]]; then pass "case a: script and inline exit codes match"; else fail "case a: exit codes diverge (script ${ec} inline ${iec})"; fi
 if [[ "${hash}" == "${inline}" ]]; then pass "case a: script hash == inline hash"; else fail "case a: hash divergence (script ${hash} inline ${inline})"; fi
+
+# `base` subcommand exposes resolve_base for codereview's Step 2, so the human
+# review scope matches the gate's diff base in every resolution case.
+base=$("${SCRIPT}" base) ; bec=$?
+if [[ "${bec}" -eq 0 ]]; then pass "case a: base exit 0"; else fail "case a: base expected exit 0 got ${bec}"; fi
+if [[ "${base}" == "origin/main" ]]; then pass "case a: base resolves to upstream ref (origin/main)"; else fail "case a: base expected origin/main got '${base}'"; fi
 
 # --- Case (b): @{upstream} absent but origin/<branch> resolves (PanelForge) ---
 
@@ -143,6 +152,9 @@ if [[ "${hash}" =~ ^[0-9a-f]{16}$ ]]; then pass "case b: hash is 16 hex chars"; 
 inline=$(inline_hash) ; iec=$?
 if [[ "${ec}" -eq "${iec}" ]]; then pass "case b: script and inline exit codes match"; else fail "case b: exit codes diverge (script ${ec} inline ${iec})"; fi
 if [[ "${hash}" == "${inline}" ]]; then pass "case b: script hash == inline hash"; else fail "case b: hash divergence (script ${hash} inline ${inline})"; fi
+
+base=$("${SCRIPT}" base)
+if [[ "${base}" == "origin/main" ]]; then pass "case b: base falls back to origin/main (no upstream)"; else fail "case b: base expected origin/main got '${base}'"; fi
 
 # The hash MUST NOT be the empty-tree hash. That was the PanelForge bug:
 # codereview silently fell through to empty-tree because ${UPSTREAM} was
@@ -186,6 +198,9 @@ expected=$(git diff "${empty_tree}" \
   -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' 2>/dev/null \
   | sha256sum | cut -c1-16)
 if [[ "${hash}" == "${expected}" ]]; then pass "case c: hash IS the empty-tree fallback (legitimately)"; else fail "case c: hash did not match empty-tree expected"; fi
+
+base=$("${SCRIPT}" base)
+if [[ "${base}" == "${empty_tree}" ]]; then pass "case c: base IS the empty-tree hash (first-push whole-tree scope)"; else fail "case c: base expected empty-tree ${empty_tree} got '${base}'"; fi
 
 # --- Empty diff: only excluded files differ -> exit 2 ---
 

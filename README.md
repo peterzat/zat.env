@@ -572,7 +572,7 @@ Post-install layout (annotated):
 ~/
 ├── bin/                              # Helper scripts (symlinked into ~/bin by install)
 │   ├── claude-fixed-reasoning        # Launch claude with fixed thinking budget (no adaptive)
-│   ├── codereview-marker             # Compute/write/locate the codereview push marker (single source of truth)
+│   ├── codereview-marker             # Resolve base, compute/write/locate the codereview push marker (single source of truth)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
 │   ├── spec-backlog-apply.sh         # Apply BACKLOG sweep manifest from stdin (used by /spec Step 3g)
@@ -620,11 +620,11 @@ Post-install layout (annotated):
 │       ├── tests/
 │       │   ├── README.md                  # Test documentation: lint checks and manual scenario traces
 │       │   ├── run-all.sh                 # Run all test suites with combined summary
-│       │   ├── lint-skills.sh             # Structural lint for skills and hooks (378 checks)
-│       │   ├── test-review-external.sh    # review-external.sh guard logic and output contract tests (61 checks)
+│       │   ├── lint-skills.sh             # Structural lint for skills and hooks (391 checks)
+│       │   ├── test-review-external.sh    # review-external.sh guard logic and output contract tests (63 checks)
 │       │   ├── test-pre-push-hook.sh      # Pre-push hook behavioral tests (41 checks)
 │       │   ├── test-spec-backlog-apply.sh # spec-backlog-apply.sh manifest parser tests (64 checks)
-│       │   └── test-codereview-marker.sh  # codereview-marker hash/write/path tests (37 checks)
+│       │   └── test-codereview-marker.sh  # codereview-marker hash/write/base/path tests (42 checks)
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering

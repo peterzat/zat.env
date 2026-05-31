@@ -298,6 +298,49 @@ hasnt "${CR_SKILL}" 'sha256sum.*cut -c1-16' \
 hasnt "${CR_SKILL}" 'EMPTY_TREE=' \
   "codereview: SKILL.md no longer carries inline EMPTY_TREE derivation"
 
+# Review-base single-sourcing (Step 2 <-> codereview-marker base).
+# Step 2 must resolve the review scope via `codereview-marker base` so the diff
+# it reviews is the same diff the gate hashes. The empty-tree fallback (first
+# push / no upstream) lives ONLY in the script; if Step 2 stops calling `base`
+# and resolves the base inline, a brand-new repo reads as "nothing to review"
+# while the gate still hashes the whole tree -- the IC-Panel failure mode.
+has "${CR_SKILL}" 'codereview-marker base' \
+  "codereview: Step 2 resolves review base via 'codereview-marker base'"
+has "${MARKER_SCRIPT}" 'codereview-marker base' \
+  "marker script: documents the base subcommand (usage text)"
+has "${MARKER_SCRIPT}" '^  base\)' \
+  "marker script: handles base subcommand (case arm)"
+# Step 2 must name the first-review / empty-tree case as a FULL review and
+# forbid improvising a hand-picked subset (the IC-Panel spot-check regression).
+has "${CR_SKILL}" 'empty-tree case' \
+  "codereview: Step 2 names the first-review empty-tree case explicitly"
+has "${CR_SKILL}" 'Do not improvise a narrower review' \
+  "codereview: Step 2 forbids improvising a narrower review (anti-spot-check guard)"
+
+# Step 5 (security) and Step 5.5 (external reviewers) resolve the review base via
+# `codereview-marker base`, same as Step 2. A first push (empty-tree base) then
+# routes security to a full audit and feeds external reviewers the whole tree,
+# instead of the inline @{upstream}->origin fallback that errored on no-upstream
+# (security) and produced an empty diff that silently skipped external review.
+# Guard the Step 5..Step 6 region against a revert to the inline fallback.
+CR_S5_START=$(grep -n '^## Step 5: Security Review' "${CR_SKILL}" | head -1 | cut -d: -f1)
+CR_S6_START=$(grep -n '^## Step 6: Report' "${CR_SKILL}" | head -1 | cut -d: -f1)
+if [[ -n "${CR_S5_START}" ]] && [[ -n "${CR_S6_START}" ]] && [[ "${CR_S5_START}" -lt "${CR_S6_START}" ]]; then
+  CR_S5_BLOCK=$(sed -n "${CR_S5_START},${CR_S6_START}p" "${CR_SKILL}")
+  if printf '%s\n' "${CR_S5_BLOCK}" | grep -qF 'codereview-marker base'; then
+    pass "codereview: Step 5/5.5 resolve review base via codereview-marker base"
+  else
+    fail "codereview: Step 5/5.5 missing codereview-marker base (base unification reverted?)"
+  fi
+  if printf '%s\n' "${CR_S5_BLOCK}" | grep -qF 'echo "origin/'; then
+    fail "codereview: Step 5/5.5 carries inline origin fallback (use codereview-marker base)"
+  else
+    pass "codereview: Step 5/5.5 has no inline @{upstream}->origin fallback"
+  fi
+else
+  fail "codereview: could not locate Step 5/Step 6 anchors (base-unification checks)"
+fi
+
 # The pre-push hook must invoke the script (verify side of the contract).
 has "${HOOK}" 'codereview-marker hash' \
   "hook: invokes 'codereview-marker hash' for diff hash"

@@ -17,6 +17,7 @@ set -euo pipefail
 # Usage:
 #   codereview-marker hash       # print DIFF_HASH to stdout
 #   codereview-marker write      # compute hash and write to marker file
+#   codereview-marker base       # print the review base (ref or empty-tree hash)
 #   codereview-marker path       # print marker file path to stdout
 #   codereview-marker skip-path  # print one-shot skip marker file path to stdout
 #
@@ -51,6 +52,7 @@ codereview-marker -- compute or write the codereview push marker hash.
 Usage:
   codereview-marker hash       # print DIFF_HASH to stdout (exit 2 if nothing to review)
   codereview-marker write      # compute hash and write to marker file
+  codereview-marker base       # print the review base (ref or empty-tree hash)
   codereview-marker path       # print marker file path to stdout
   codereview-marker skip-path  # print one-shot skip marker file path to stdout
 EOF
@@ -116,6 +118,10 @@ case "${1:-}" in
     else
       exit $?
     fi
+    ;;
+  base)
+    require_git
+    printf '%s\n' "$(resolve_base)"
     ;;
   path)
     require_git

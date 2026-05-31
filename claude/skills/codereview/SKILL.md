@@ -200,19 +200,54 @@ the current branch's base commit.
 
 ## Step 2: Gather Changes and Classify Review Tier
 
+Orient on the working-tree state:
+
 ```bash
-git diff              # unstaged changes
-git diff --cached     # staged changes
 git status --short    # overview
 git log --oneline -5  # recent context
+git diff              # unstaged changes
+git diff --cached     # staged changes
 ```
 
-If no uncommitted or staged changes exist, check for unpushed commits:
+**Determine the review scope.** Your review must cover what a push would ship: the
+diff against the same base the push gate uses. Resolve that base with the shared
+script (on PATH; do not prefix with `bin/`):
+
 ```bash
-git log --oneline @{upstream}..HEAD 2>/dev/null
+codereview-marker base   # upstream ref, origin/<branch>, or the empty-tree hash
 ```
 
-If there is truly nothing to review, report that and stop.
+The review scope is the full diff against that base, excluding review-output files:
+
+```bash
+git diff "$(codereview-marker base)" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
+```
+
+This diff includes committed-but-unpushed work, not just uncommitted changes, so it
+is the authoritative scope even when `git diff` and `git diff --cached` above are
+empty.
+
+**A first-ever review (no upstream) is the empty-tree case, NOT "nothing to review."**
+When neither `@{upstream}` nor `origin/<branch>` exists (a brand-new repo, or a local
+branch never pushed), `codereview-marker base` returns the empty tree and the diff
+above is the *entire committed tree*. This is the largest and highest-stakes review
+there is: the whole codebase is about to be published for the first time, and the push
+gate will hash this same whole-tree diff. It is not a degenerate empty case. Review
+all of it.
+
+Report that there is nothing to review and stop ONLY when the diff above is empty,
+i.e. `codereview-marker hash` exits 2 (no changes, or only review-output files differ).
+
+**Do not improvise a narrower review.** Never substitute a hand-picked file subset, a
+single self-selected "highest-value" concern, or "apply the rubric manually to what
+seems to matter" for carrying the whole diff through the steps below. Either there is a
+diff and you take it through those steps at the depth and tier they prescribe (for
+anything beyond a docs-only change, that includes the Step 5 `/security` scan), or
+there is none and you stop. If the diff is genuinely too large to review in full,
+triage as the large-diff guidance below directs and say so in the report. Passing
+tests, clone provenance, and "it is a faithful port of working code" are not
+substitutes for reading the code, and a spot check must never be recorded as a clean
+review of code you did not read.
 
 **Classify the review tier** based on the files changed:
 
@@ -363,7 +398,7 @@ current state:
 3. **If no code changes since the last scan:** verify the prior scan covers the
    current security surface before skipping:
    ```bash
-   git diff --name-only "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!*.md'
+   git diff --name-only "$(codereview-marker base)" -- ':!*.md'
    ```
    Treat the output as `NEEDED`.
    - Prior scope is `"full"`, or `NEEDED` is empty: skip.
@@ -376,16 +411,22 @@ current state:
    When skipping, carry forward existing findings, noting:
    "Security: no code changes since last scan (commit abc1234), N BLOCK /
    N WARN / N NOTE carried forward." Use the counts from SECURITY_META.
-4. **If there are code changes, or no valid SECURITY_META exists:** compute the
-   files that need scanning:
+4. **If there are code changes, or no valid SECURITY_META exists:** determine the
+   security surface.
+
+   **First push (no prior scan, empty-tree base):** if there is no valid
+   SECURITY_META and `codereview-marker base` returns the empty tree, the whole
+   repository is the surface and is about to be published. Invoke `/security`
+   with no arguments for a full audit (scope `"full"`, which also scans docs for
+   committed secrets), and skip the file-list computation below.
+
+   Otherwise, compute the files that need scanning:
    ```bash
-   # All files changed since last security scan (committed + uncommitted).
    # git diff <ref> includes both committed and working-tree changes.
-   # If no prior scan, scope to all files changed vs upstream (derived inline).
    if [valid SECURITY_META commit]; then
-     git diff --name-only <meta-commit> -- ':!*.md'
+     git diff --name-only <meta-commit> -- ':!*.md'               # changes since last scan
    else
-     git diff --name-only "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!*.md'
+     git diff --name-only "$(codereview-marker base)" -- ':!*.md' # no prior scan: surface vs base
    fi
    ```
    Treat the output as `SCAN_FILES`.
@@ -402,7 +443,7 @@ If `review-external.sh` is on PATH, run it synchronously with the diff:
 
 ```bash
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
-EXTERNAL_FINDINGS=$(git diff "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
+EXTERNAL_FINDINGS=$(git diff "$(codereview-marker base)" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh 2>"${COST_LOG}")
 EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
 rm -f "${COST_LOG}"
 ```
