@@ -1,19 +1,19 @@
-## Review — 2026-05-07 (commit: 73f1d6b)
+## Review — 2026-05-31 (commit: f0d7670)
 
-**Review scope:** Refresh review. Focus: 3 file(s) changed since prior review (commit 9533660): `CLAUDE.md`, `claude/skills/tester/SKILL.md`, `tests/lint-skills.sh`. Intermediate commits cb72ae9 (CODEREVIEW.md update) and b86abad (SPEC.md close) only touched excluded meta files; no already-reviewed code requires regression checking. tests/run-all.sh: 589/589 green across 5 suites (was 586; +3 for the new D.5.5 model-compliance lint anchors).
+**Review scope:** Refresh review. Focus: 6 file(s) changed since prior review (commit 73f1d6b) — the f0d7670 shipping diff (`origin/main..HEAD`): `bin/codereview-marker`, `claude/skills/codereview/SKILL.md`, `tests/lint-skills.sh`, `tests/test-codereview-marker.sh`, `CLAUDE.md`, `README.md`. All reviewed at full depth; 0 already-reviewed-only files (the focus and shipping sets coincide here). tests/run-all.sh: 601/601 green across 5 suites (was 589; +5 marker base tests, +7 lint contract checks).
 
-**Summary:** Two-commit turn that gates `/tester design` Step D.5.5 against silent collapse into the D.7 post-mutation report (the failure mode observed when the skill ran on `~/src/daydream` earlier today). Commit 9d845e6 added three model-compliance anchors to the SKILL.md prose (literal `## Pre-apply checklist` H2 heading, hard-gate phrase forbidding Edit/Write/Bash before checklist emission, "as a text message before any further tool call" framing) plus three corresponding lint assertions in `tests/lint-skills.sh`, and updated CLAUDE.md cross-skill contract bullet (4) to document them. Self-review surfaced one WARN (ambiguous "in the next response" suffix on the new wrap-up line that contradicted the in-section "no halt" contract); resolved by codefix in the same turn. Security: no scan needed -- every file in `git diff --name-only 8cb06bc -- ':!*.md'` already appears in SECURITY_META `scanned_files` (paths scope), 0 BLOCK / 0 WARN / 0 NOTE carried forward.
+**Summary:** Single-sources the codereview review base through a new `codereview-marker base` subcommand (exposing the existing `@{upstream}` → `origin/<branch>` → empty-tree `resolve_base` chain), and routes Step 2 (review scope), Step 5 (security surface), and Step 5.5 (external reviewers) through it. Fixes the IC-Panel failure mode where a no-upstream first push resolved to an empty inline diff and read as "nothing to review" (Step 2) or silently skipped external review (Step 5.5): a first push now reviews the whole committed tree, and security routes to a docs-inclusive full audit rather than a paths scan that would exclude `.md`. Step 2 also gains an anti-spot-check guard (no hand-picked subset recorded as a clean review), scoped so it does not contradict the light-review, refresh-depth, or large-diff-triage rules below it. Adds `base` behavioral coverage across all three resolution cases and lint guards that the empty-tree case is named and that Steps 5/5.5 do not regress to the inline fallback. Developed with an extended manual adversarial pass that caught and fixed one defect (the Step 2 guard's unconditional "/security" and "every dimension" claims, which contradicted the light/refresh/large-diff rules) before this commit.
 
 **External reviewers:**
 Skipped silently (review-external.sh produced empty output; no providers configured in `${CLAUDE_REVIEWER_ENV:-${HOME}/.config/claude-reviewers/.env}` on this host).
 
 ### Findings
 
-No open issues. The single WARN raised in this turn was fixed in the same turn (see Fixes Applied).
+No issues found. 0 BLOCK / 0 WARN / 0 NOTE. Independent `/security` pass on the three changed non-doc files returned 0/0/0: the `base` arm is read-only git with no new input/secret/network/eval surface, and the two test scripts have no production surface. Spec note: this change is orthogonal to the active SPEC (v2.0 `/loop` bookkeeping, not yet started) — independent gate maintenance, neither advancing nor contradicting a criterion. Its "no SKILL.md outside loop/" constraint scopes the future `/loop` implementation, not this commit.
 
 ### Fixes Applied
 
-- [WARN] claude/skills/tester/SKILL.md:489 -- dropped the ambiguous trailing phrase "in the next response" from the wrap-up sentence. Line now reads "After posting the checklist as the visible text of your response, proceed directly to Step D.6." This restores the in-section "Flag, never block / no halt" contract: the hard-gate clause at the top of D.5.5 already enforces text-before-tool-calls ordering within a single turn, so the suffix added friction (and a turn-boundary implication) without value.
+None. (The single defect found during development — the Step 2 guard contradiction — was corrected before commit, not via the fix loop.)
 
 ### Accepted Risks
 
@@ -22,6 +22,6 @@ No open issues. The single WARN raised in this turn was fixed in the same turn (
 - **API key in `curl -H "Authorization: Bearer ${api_key}"`** (`bin/review-external.sh:246, 337`): Header argument is visible in `/proc/<pid>/cmdline` to local users during the curl invocation window. Not exploitable on this single-user dev box. Recorded by SECURITY.md 2026-05-03 entry.
 
 ---
-*Prior review (2026-05-03): Refresh review of 12 files at commit 9533660 covering the marker XDG hardening, fail-closed push gate, and `--range` plumbing into `/codereview external`. 0 BLOCK / 0 WARN / 1 NOTE (stale SPEC_META criteria_met:0 against 8/8 implemented; resolved by commit b86abad).*
+*Prior review (2026-05-07, commit 73f1d6b): Refresh review gating `/tester design` Step D.5.5 against silent collapse into the D.7 post-mutation report (three model-compliance anchors plus lint). 0 BLOCK / 0 WARN / 0 NOTE; one WARN raised and fixed in the same turn.*
 
-<!-- REVIEW_META: {"date":"2026-05-07","commit":"73f1d6b","reviewed_up_to":"73f1d6b553535c78b14793aea4941d052880f96f","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-05-31","commit":"f0d7670","reviewed_up_to":"f0d767036c1115480e77a99be92c3c29a284e7ae","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
