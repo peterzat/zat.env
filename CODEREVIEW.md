@@ -1,19 +1,19 @@
-## Review — 2026-05-31 (commit: f0d7670)
+## Review — 2026-06-03 (commit: edfe7cb)
 
-**Review scope:** Refresh review. Focus: 6 file(s) changed since prior review (commit 73f1d6b) — the f0d7670 shipping diff (`origin/main..HEAD`): `bin/codereview-marker`, `claude/skills/codereview/SKILL.md`, `tests/lint-skills.sh`, `tests/test-codereview-marker.sh`, `CLAUDE.md`, `README.md`. All reviewed at full depth; 0 already-reviewed-only files (the focus and shipping sets coincide here). tests/run-all.sh: 601/601 green across 5 suites (was 589; +5 marker base tests, +7 lint contract checks).
+**Review scope:** Refresh review. Focus: 3 file(s) changed since prior review (commit f0d7670): `hw-bootstrap.sh`, `README.md`, `docs/hardware-setup.md`. Focus and full sets coincide (no already-reviewed-only files). `hw-bootstrap.sh` is a shell script, so full review tier (security chain + test suite). tests/run-all.sh: 601/601 green across 5 suites (unchanged; no test files touched).
 
-**Summary:** Single-sources the codereview review base through a new `codereview-marker base` subcommand (exposing the existing `@{upstream}` → `origin/<branch>` → empty-tree `resolve_base` chain), and routes Step 2 (review scope), Step 5 (security surface), and Step 5.5 (external reviewers) through it. Fixes the IC-Panel failure mode where a no-upstream first push resolved to an empty inline diff and read as "nothing to review" (Step 2) or silently skipped external review (Step 5.5): a first push now reviews the whole committed tree, and security routes to a docs-inclusive full audit rather than a paths scan that would exclude `.md`. Step 2 also gains an anti-spot-check guard (no hand-picked subset recorded as a clean review), scoped so it does not contradict the light-review, refresh-depth, or large-diff-triage rules below it. Adds `base` behavioral coverage across all three resolution cases and lint guards that the empty-tree case is named and that Steps 5/5.5 do not regress to the inline fallback. Developed with an extended manual adversarial pass that caught and fixed one defect (the Step 2 guard's unconditional "/security" and "every dimension" claims, which contradicted the light/refresh/large-diff rules) before this commit.
+**Summary:** Adds GitHub CLI (`gh`, via GitHub's pinned APT repo) and Node.js (NodeSource current LTS) install steps to `hw-bootstrap.sh`, placed before the NVIDIA driver check so both come up on run 1 (the run that exits at the driver step on a fresh box) and are skipped on run 2 via `command -v` guards. Docs synced: the README install summary and the walkthrough's run-1 summary now list `gh` and Node, and Phase 6 drops the now-redundant manual `gh` install block (the script installs it), leaving only `gh auth login`.
 
 **External reviewers:**
 Skipped silently (review-external.sh produced empty output; no providers configured in `${CLAUDE_REVIEWER_ENV:-${HOME}/.config/claude-reviewers/.env}` on this host).
 
 ### Findings
 
-No issues found. 0 BLOCK / 0 WARN / 0 NOTE. Independent `/security` pass on the three changed non-doc files returned 0/0/0: the `base` arm is read-only git with no new input/secret/network/eval surface, and the two test scripts have no production surface. Spec note: this change is orthogonal to the active SPEC (v2.0 `/loop` bookkeeping, not yet started) — independent gate maintenance, neither advancing nor contradicting a criterion. Its "no SKILL.md outside loop/" constraint scopes the future `/loop` implementation, not this commit.
+No issues found. 0 BLOCK / 0 WARN / 0 NOTE. Both install blocks are the standard vendor-documented methods, idempotent under `command -v` guards, with the gh APT key pinned via `signed-by=`; placement before the NVIDIA check correctly lands them on run 1; the doc edits accurately track the new tool list and the removed manual step. Independent `/security` pass on `hw-bootstrap.sh` returned 0 BLOCK / 0 WARN / 1 NOTE — the one NOTE (CUDA keyring downloaded to a fixed `/tmp/cuda-keyring.deb` path, a TOCTOU vector only on a multi-user host) is pre-existing code outside this diff and immaterial on the documented single-user target; recorded in SECURITY.md, not auto-fixed. Spec note: orthogonal to the active v2.0 SPEC (provisioning maintenance, neither advancing nor contradicting a criterion).
 
 ### Fixes Applied
 
-None. (The single defect found during development — the Step 2 guard contradiction — was corrected before commit, not via the fix loop.)
+None.
 
 ### Accepted Risks
 
@@ -22,6 +22,6 @@ None. (The single defect found during development — the Step 2 guard contradic
 - **API key in `curl -H "Authorization: Bearer ${api_key}"`** (`bin/review-external.sh:246, 337`): Header argument is visible in `/proc/<pid>/cmdline` to local users during the curl invocation window. Not exploitable on this single-user dev box. Recorded by SECURITY.md 2026-05-03 entry.
 
 ---
-*Prior review (2026-05-07, commit 73f1d6b): Refresh review gating `/tester design` Step D.5.5 against silent collapse into the D.7 post-mutation report (three model-compliance anchors plus lint). 0 BLOCK / 0 WARN / 0 NOTE; one WARN raised and fixed in the same turn.*
+*Prior review (2026-05-31, commit f0d7670): Refresh review of the `codereview-marker base` single-sourcing change (Steps 2/5/5.5 routed through the shared base resolver, fixing the IC-Panel empty-diff failure mode). 0 BLOCK / 0 WARN / 0 NOTE; independent /security pass 0/0/0.*
 
-<!-- REVIEW_META: {"date":"2026-05-31","commit":"f0d7670","reviewed_up_to":"f0d767036c1115480e77a99be92c3c29a284e7ae","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-06-03","commit":"edfe7cb","reviewed_up_to":"edfe7cb37620637d9ac9544e956be68b93b2a8a5","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
