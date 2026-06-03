@@ -55,6 +55,39 @@ sudo apt-get install -y \
 
 git lfs install || true
 
+# gh and Node both install here, before the NVIDIA driver check below exits
+# run 1. They are box-level dev tooling, not GPU-dependent, so they come up on
+# the first run and are skipped (via command -v guards) on run 2.
+
+echo "==> Installing GitHub CLI (gh)"
+# Ubuntu 22.04 universe ships gh 2.4.0 (early 2022, unmaintained). Add GitHub's
+# own APT repo instead so we get the current, security-updated gh. Still apt,
+# just a different source.
+if ! command -v gh >/dev/null 2>&1; then
+  sudo mkdir -p -m 755 /etc/apt/keyrings
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+    sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+  sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+    sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+  sudo apt-get update
+  sudo apt-get install -y gh
+else
+  echo "gh already installed"
+fi
+
+echo "==> Installing Node.js (NodeSource LTS)"
+# Ubuntu 22.04 universe ships an old Node; add NodeSource's APT repo for a
+# current LTS (Node 22, "Jod"). This is a box-level runtime for project tooling
+# and web UIs (Gradio/FastAPI frontends, Jupyter extensions, etc.). Claude Code
+# bundles its own runtime, so this is for projects, not the agent.
+if ! command -v node >/dev/null 2>&1; then
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+else
+  echo "Node already installed ($(node -v))"
+fi
+
 echo "==> Checking NVIDIA driver"
 if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo
@@ -213,7 +246,7 @@ echo "  2. Authenticate Tailscale:"
 echo "       sudo tailscale up --ssh"
 echo "     or, with an auth key:"
 echo "       sudo tailscale up --ssh --authkey=tskey-xxxxx"
-echo "  3. Set up GitHub access (SSH key + gh CLI — see README Phase 6)"
+echo "  3. Set up GitHub access (SSH key + 'gh auth login' — see README Phase 6)"
 echo "  4. Install zat.env config (repo should already be cloned at ~/src/zat.env):"
 echo "       ~/src/zat.env/zat.env-install.sh"
 echo "  5. Authenticate Claude Code:"

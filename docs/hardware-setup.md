@@ -50,7 +50,7 @@ cd ~/src/zat.env
 bash hw-bootstrap.sh
 ```
 
-The script installs base packages (build-essential, emacs, ripgrep, Python 3, etc.), then stops at the NVIDIA driver section. It prints a list of available GPGPU drivers from `ubuntu-drivers list --gpgpu` and exits with instructions. Do not reboot yet.
+The script installs base packages (build-essential, emacs, ripgrep, Python 3, etc.), the GitHub CLI, and Node.js (LTS), then stops at the NVIDIA driver section. It prints a list of available GPGPU drivers from `ubuntu-drivers list --gpgpu` and exits with instructions. Do not reboot yet.
 
 **Phase 3: NVIDIA driver (manual)**
 
@@ -203,17 +203,9 @@ Add the public key at https://github.com/settings/keys, then verify access:
 ssh -T git@github.com
 ```
 
-You should see "Hi peterzat! You've successfully authenticated". Then install the GitHub CLI (`gh` is not in Ubuntu 22.04's default repos, so the fallback adds GitHub's APT repository):
+You should see "Hi peterzat! You've successfully authenticated". `gh` was already installed by `hw-bootstrap.sh` (from GitHub's APT repo, since it is not in Ubuntu 22.04's default repos); just authenticate it:
 
 ```bash
-sudo apt-get update -qq && sudo apt-get install -y gh || {
-  sudo sh -c 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-    -o /usr/share/keyrings/githubcli-archive-keyring.gpg &&
-  chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg &&
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-    > /etc/apt/sources.list.d/github-cli.list &&
-  apt-get update -qq && apt-get install -y gh'
-}
 gh auth login
 ```
 

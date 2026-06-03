@@ -560,7 +560,7 @@ These are per-machine values. See `claude/references/networking.md` for the full
 
 ### Setup From Scratch
 
-Two scripts take a bare Hetzner Ubuntu 22.04 install to a fully provisioned agentic dev box: `hw-bootstrap.sh` handles system packages, NVIDIA drivers, CUDA, Docker, Tailscale, and Claude Code. `zat.env-install.sh` wires skills, hooks, and conventions into the live system. The process requires two bootstrap runs (one before and one after the NVIDIA driver install and reboot) plus a manual driver selection step.
+Two scripts take a bare Hetzner Ubuntu 22.04 install to a fully provisioned agentic dev box: `hw-bootstrap.sh` handles system packages, the GitHub CLI, Node.js (LTS), NVIDIA drivers, CUDA, Docker, Tailscale, and Claude Code. `zat.env-install.sh` wires skills, hooks, and conventions into the live system. The process requires two bootstrap runs (one before and one after the NVIDIA driver install and reboot) plus a manual driver selection step.
 
 See [docs/hardware-setup.md](docs/hardware-setup.md) for the full step-by-step walkthrough.
 
