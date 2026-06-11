@@ -310,6 +310,147 @@ teardown_test_repo
 
 # ============================================================
 echo ""
+echo "==> Regression: tight-packed operators and newlines must not bypass the gate"
+# ============================================================
+#
+# Before is_git_push normalized shell operators, a compound command whose
+# separator was not surrounded by whitespace glued "git"/"push" to a
+# neighbour, so the whitespace tokenizer never saw a bare token and detection
+# returned false — a real code push silently bypassed the gate. This covers
+# tight-packed control operators (;, &&, ||, |, &) and newline separators
+# (common in multi-line agent-issued Bash). Each is a genuine push and must
+# be detected and blocked (exit 2) when a diff exists and no marker is present.
+bypass_cmds=(
+  'echo hi;git push'
+  'true&&git push'
+  'false||git push'
+  'git add .;git push'
+  'git push;echo done'
+  'git push&'
+  'cat x|git push'
+  $'git add -A\ngit push'
+  $'git commit -m wip\ngit push origin main'
+  $'git add -A\ngit commit -m wip\ngit push'
+)
+for cmd in "${bypass_cmds[@]}"; do
+  setup_test_repo
+  echo "modified" > "${TEST_REPO}/file.txt"
+  ec=0
+  invoke_in_test_repo "${cmd}" >/dev/null 2>&1 || ec=$?
+  if [[ "${ec}" -eq 2 ]]; then
+    pass "compound push detected+blocked: $(printf '%q' "${cmd}")"
+  else
+    fail "compound push NOT gated (bypass): $(printf '%q' "${cmd}") (got exit ${ec})"
+  fi
+  teardown_test_repo
+done
+
+# ============================================================
+echo ""
+echo "==> Over-detection guard: non-push compounds still pass through"
+# ============================================================
+#
+# Operator normalization is biased toward over-detection, but it must not
+# turn a command that merely contains other git subcommands (or mentions
+# push) into a spurious block. Run in a real repo with a diff so a
+# false-positive detection would surface as an unexpected exit 2.
+nonpush_cmds=(
+  'git status&&git diff'
+  'echo done;ls -la'
+  "echo 'git push';true"
+  $'git status\ngit diff'
+  $'echo building\nmake all'
+)
+for cmd in "${nonpush_cmds[@]}"; do
+  setup_test_repo
+  echo "modified" > "${TEST_REPO}/file.txt"
+  ec=0
+  invoke_in_test_repo "${cmd}" >/dev/null 2>&1 || ec=$?
+  if [[ "${ec}" -eq 0 ]]; then
+    pass "non-push compound passes through: $(printf '%q' "${cmd}")"
+  else
+    fail "non-push compound spuriously gated: $(printf '%q' "${cmd}") (got exit ${ec})"
+  fi
+  teardown_test_repo
+done
+
+# ============================================================
+echo ""
+echo "==> Regression: tag-only detection is scoped to the push's own refspecs"
+# ============================================================
+#
+# is_tag_only_push previously scanned EVERY token in the command, so a stray
+# version-like token anywhere (a commit message, an echo, an unrelated file)
+# made a real code push look tag-only and SKIPPED the gate entirely. Each of
+# these is a genuine code push and MUST be gated (exit 2) despite the stray
+# token or the --tags flag.
+tagfp_cmds=(
+  'git push origin main && echo "deployed v1.0"'
+  'git commit -m v2-prep && git push origin main'
+  'git push origin main; cat v1.txt'
+  'git push --tags origin main'
+  'git push origin main v1.0'
+  'git push origin v1.0 && git push origin main'
+  'git push origin HEAD'
+)
+for cmd in "${tagfp_cmds[@]}"; do
+  setup_test_repo
+  echo "modified" > "${TEST_REPO}/file.txt"
+  ec=0
+  invoke_in_test_repo "${cmd}" >/dev/null 2>&1 || ec=$?
+  if [[ "${ec}" -eq 2 ]]; then
+    pass "code push with stray tag-like token gated: $(printf '%q' "${cmd}")"
+  else
+    fail "code push wrongly skipped as tag-only: $(printf '%q' "${cmd}") (got exit ${ec})"
+  fi
+  teardown_test_repo
+done
+
+# ============================================================
+echo ""
+echo "==> Genuine tag-only pushes still skip the gate (no over-gating)"
+# ============================================================
+#
+# The conservative rewrite must not over-gate the common tag-push forms.
+# These carry no reviewable code, so they short-circuit to exit 0 even with
+# an uncommitted diff and no marker present.
+tagok_cmds=(
+  'git push --tags'
+  'git push --tags origin'
+  'git push origin v2.0.0'
+  'git push origin refs/tags/v2.0.0'
+  'git push origin v1.0 v2.0'
+)
+for cmd in "${tagok_cmds[@]}"; do
+  setup_test_repo
+  echo "modified" > "${TEST_REPO}/file.txt"
+  ec=0
+  invoke_in_test_repo "${cmd}" >/dev/null 2>&1 || ec=$?
+  if [[ "${ec}" -eq 0 ]]; then
+    pass "genuine tag-only push skips gate: $(printf '%q' "${cmd}")"
+  else
+    fail "genuine tag-only push wrongly gated: $(printf '%q' "${cmd}") (got exit ${ec})"
+  fi
+  teardown_test_repo
+done
+
+# ============================================================
+echo ""
+echo "==> Regression: glued subshell (git push) is detected and gated"
+# ============================================================
+setup_test_repo
+echo "modified" > "${TEST_REPO}/file.txt"
+ec=0
+invoke_in_test_repo '(git push)' >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "(git push) subshell detected and blocked"
+else
+  fail "(git push) subshell NOT gated (bypass): got exit ${ec}"
+fi
+teardown_test_repo
+
+# ============================================================
+echo ""
 echo "==> Fail-closed: codereview-marker missing from PATH blocks the push"
 # ============================================================
 #

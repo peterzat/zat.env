@@ -372,12 +372,19 @@ has "${HOOK}" "is_git_push" \
 hasnt "${HOOK}" '!= git\\ push\*' \
   "hook: no legacy 'git push*' prefix match (regression guard)"
 
-# Hook: tokenizer must handle git-level options that take separate arguments.
-# If any of these are missing from the case block, commands like `git -C dir push`
-# would fall through and be missed.
+# Hook: the push-detection walk (command-position rule + git-level option
+# handling) is single-sourced in _push_subcommand_indices and consumed by both
+# is_git_push and is_tag_only_push, so the two cannot drift apart. Reintroducing
+# a divergent inline walk would silently weaken this regression guard.
+has "${HOOK}" "_push_subcommand_indices" \
+  "hook: push detection single-sourced via _push_subcommand_indices"
+
+# Hook: the push-detection walk must handle git-level options that take
+# separate arguments. If any of these are missing from the case block,
+# commands like `git -C dir push` would fall through and be missed.
 for opt in "-C" "-c" "--git-dir" "--work-tree" "--namespace" "--exec-path" "--super-prefix" "--config-env"; do
   has "${HOOK}" "${opt}" \
-    "hook: is_git_push handles ${opt} option"
+    "hook: push-detection walk handles ${opt} option"
 done
 
 # Empty non-excluded diff is allowed: the SCRIPT detects this and exits 2;
