@@ -1,18 +1,32 @@
 ## Security Review — 2026-06-29 (scope: paths)
 
-**Summary:** Reviewed `hw-bootstrap.sh` at HEAD a07c9df (full file). No new security
-issues. Every potential concern maps to a previously reviewed and accepted risk: the
-first-party `curl | bash` vendor installers (NodeSource, Tailscale, Claude Code), the
-predictable `/tmp/cuda-keyring.deb` download path, and repo-wide PII. APT third-party
-repos (gh, NVIDIA Container Toolkit) use `signed-by=` pinned keyrings, the correct
-pattern. No hardcoded secrets in the file or its git history; the only token-shaped
-string is the `tskey-xxxxx` documentation placeholder (line 268). `docker` group
-membership (line 196) is root-equivalent but intrinsic to the single-user dev-box
-target and unchanged from prior accepted state.
+**Summary:** Reviewed `hooks/pre-push-codereview.sh` and `tests/test-pre-push-hook.sh`
+at HEAD 4fa3ca5. 0 BLOCK / 0 WARN / 1 NOTE. The hook parses the agent-supplied command
+string as text only (tokenize + `case`/regex compare); it never `eval`/`exec`/`source`s
+it (verified: the lone `source` grep hit is prose on line 77). All error paths fail
+closed (exit 2) on a missing or broken `codereview-marker`; only genuine
+not-a-push / not-in-a-repo / nothing-to-review states pass through (exit 0). The marker
+and skip-marker paths are single-sourced from `codereview-marker` (out of scope) and
+resolve to a per-user 0700 cache dir (`/home/peter/.cache/claude-codereview`), so the
+old cross-user `/tmp` symlink race is gone. The only diff since the last review of these
+files (85189b4) is cosmetic block-message wording plus the test's matching assertion;
+the reworded message also stops printing the inline `codereview-skip` bypass recipe,
+which is security-neutral-to-positive. All 69 hook tests pass. The one NOTE is a
+hardcoded home path in a test fixture.
 
 ### Findings
 
-No security issues identified in the reviewed scope.
+[NOTE] tests/test-pre-push-hook.sh:127 — hardcoded owner home path `/home/peter/src/zat.env`
+  Attack vector: None (informational PII). The string is an illustrative input to the
+  `git -C <dir> push` detection test, run in a scratch non-git dir; the path is never
+  opened and need not exist. It discloses the box username `peter` / home layout.
+  Evidence: line 127 `"git -C /home/peter/src/zat.env push" \`. Present since f5e9082
+  (2026-04-11); seen but not flagged by the 2026-06-11 review of this file.
+  Remediation: genericize to a placeholder (e.g. `/tmp/repo` or `/home/user/repo`), the
+  test is path-agnostic; or, if intentional, broaden the accepted owner-identity PII
+  entry below to name the `peter` username / `/home/peter` home path explicitly so it is
+  not re-surfaced. Same identity class already accepted for `peterzat`; severity is NOTE,
+  not WARN, because it is the owner's own username in the owner's personal dotfiles repo.
 
 ### Accepted Risks
 
@@ -24,6 +38,6 @@ No security issues identified in the reviewed scope.
 - **API key in `curl -H "Authorization: Bearer ${api_key}"`** (`bin/review-external.sh:246, 337`): The header argument is visible in `/proc/<pid>/cmdline` to any local user during the curl invocation window. Not exploitable on this single-user dev box. Out of scope for this review; retained.
 
 ---
-*Prior review (2026-06-11, scope: paths): Reviewed `hooks/pre-push-codereview.sh`, `tests/lint-skills.sh`, and `tests/test-pre-push-hook.sh` at 85189b4 (push-gate detection hardening). 0 BLOCK / 0 WARN / 1 NOTE. The hook parses the inspected command as text only (no eval/exec), fails closed on a missing or broken `codereview-marker`, and the one NOTE (heuristic push detection missing wrapper/prefix invocations) was recorded as an accepted advisory-gate limit.*
+*Prior review (2026-06-29, scope: paths): Reviewed `hw-bootstrap.sh` at a07c9df (full file). 0 BLOCK / 0 WARN / 0 NOTE. No new issues; every concern mapped to an accepted risk (first-party `curl | bash` vendor installers, predictable `/tmp/cuda-keyring.deb`, repo-wide PII). APT third-party repos use `signed-by=` pinned keyrings; no hardcoded secrets in the file or its git history.*
 
-<!-- SECURITY_META: {"date":"2026-06-29","commit":"a07c9dffe3f69cc02bc3fac3e90a57e1ba211918","scope":"paths","scanned_files":["hw-bootstrap.sh"],"block":0,"warn":0,"note":0} -->
+<!-- SECURITY_META: {"date":"2026-06-29","commit":"4fa3ca53f92524abd77c117dba78757acc88db1a","scope":"paths","scanned_files":["hooks/pre-push-codereview.sh","tests/test-pre-push-hook.sh"],"block":0,"warn":0,"note":1} -->
