@@ -88,6 +88,18 @@ else
   echo "Node already installed ($(node -v))"
 fi
 
+echo "==> Installing NVIDIA precompiled-module pin"
+sudo tee /etc/apt/preferences.d/no-precompiled-nvidia >/dev/null <<'PINEOF'
+# DKMS-only NVIDIA driver. Refuse precompiled per-kernel module packages:
+# they collided with DKMS at the shared install path
+# /lib/modules/<k>/kernel/nvidia-595srv/ on 2026-06-29 and wedged the
+# kernel upgrade. DKMS handles all kernel rebuilds.
+Package: linux-modules-nvidia-* linux-objects-nvidia-* linux-signatures-nvidia-*
+Pin: release *
+Pin-Priority: -1
+PINEOF
+sudo chmod 0644 /etc/apt/preferences.d/no-precompiled-nvidia
+
 echo "==> Checking NVIDIA driver"
 if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo
@@ -111,17 +123,25 @@ if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo
   echo "  sudo apt-get install -y linux-headers-\$(uname -r)"
   echo
-  echo "Then install the driver. Replace 590 with whichever server branch"
-  echo "number appeared highest in the list above:"
+  echo "Then install the driver. Replace 595 with whichever server branch"
+  echo "number appeared highest in the list above (595 is current as of"
+  echo "2026-06-29):"
   echo
   echo "  sudo apt-get install -y \\"
-  echo "    linux-modules-nvidia-590-server-\$(uname -r) \\"
-  echo "    nvidia-driver-590-server \\"
-  echo "    nvidia-utils-590-server"
+  echo "    nvidia-driver-595-server \\"
+  echo "    nvidia-dkms-595-server \\"
+  echo "    nvidia-utils-595-server"
   echo
-  echo "The linux-modules-nvidia package provides pre-built kernel modules."
-  echo "If it is not available for your running kernel, the DKMS fallback"
-  echo "builds from source (requires the headers installed above)."
+  echo "Use the DKMS package (nvidia-dkms-NNN-server). Do NOT install the"
+  echo "linux-modules-nvidia-NNN-server-* precompiled packages. They"
+  echo "collide with DKMS at the shared install path and have wedged"
+  echo "kernel upgrades on this hardware twice (2026-03 /boot-full"
+  echo "retirement of 590-server, 2026-06-29 install-path collision)."
+  echo "The apt pin written above prevents this; do not bypass it."
+  echo
+  echo "Mark the packages manual so apt autoremove cannot remove them:"
+  echo
+  echo "  sudo apt-mark manual nvidia-driver-595-server nvidia-dkms-595-server"
   echo
   echo "Validate BEFORE rebooting:"
   echo
