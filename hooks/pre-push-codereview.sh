@@ -272,16 +272,15 @@ fi
 
 # No valid marker — block and instruct.
 cat >&2 <<EOF
-Pre-push gate: /codereview has not been run on the current changes.
+Pre-push gate: this push has not passed /codereview.
 
-Run /codereview now. After the review passes (all BLOCK items resolved
-and tests stable), retry the push. Do not offer to skip the review.
+Run /codereview now, without asking the user first. When the gate blocks,
+running the review is the routine next step, not a choice to put to the user.
+On success (all BLOCK items resolved, tests stable) it writes the marker;
+then retry the push.
 
-If the user explicitly says "push now", create the
-bypass marker then push (two separate commands, not combined, so the
-hook sees the marker before the push re-runs):
-  codereview-skip
-  git push
+Do not offer to skip the review. The one-time bypass is only for when the
+user explicitly says "push now" unprompted; never suggest it.
 EOF
 
 exit 2

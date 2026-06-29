@@ -189,7 +189,7 @@ if [[ "${ec}" -eq 2 ]]; then
 else
   fail "diff-no-marker: expected exit 2, got ${ec}"
 fi
-if [[ "${out}" == *"codereview has not been run"* ]]; then
+if [[ "${out}" == *"Run /codereview now"* ]]; then
   pass "diff-no-marker: stderr explains the block"
 else
   fail "diff-no-marker: expected block message on stderr"

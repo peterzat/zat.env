@@ -58,6 +58,13 @@ When editing acceptance criteria outside `/spec`, apply the same pressure-test r
 - Do not push, open PRs, or modify remote state unless explicitly asked. Committing
   is local and reversible; pushing is a shared-state action for the user to decide.
 
+## Pre-push review gate
+
+zat.env installs a hook that blocks `git push` until `/codereview` passes. When it
+blocks, run `/codereview` automatically. Do not ask the user first or offer to skip.
+The bypass (`codereview-skip && git push`) is only for when the user says "push now"
+unprompted; never suggest it.
+
 ## Writing Style
 
 When writing human-readable output (commit messages, review findings, explanations,
