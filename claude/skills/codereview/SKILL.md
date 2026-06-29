@@ -448,10 +448,13 @@ EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
 rm -f "${COST_LOG}"
 ```
 
-If the script is not on PATH, or produces no output, skip silently. If it
-produces findings, include them in your report (Step 6) with provider tags
-preserved. Include the cost log lines in the "External reviewers" section
-of CODEREVIEW.md (Step 9).
+If the script is not on PATH, or produces no output, skip silently: print no
+status echoes, no "running external reviewers" preamble, and no empty-findings
+block. The sole record of the no-reviewer case is one line in the "External
+reviewers" section (Step 9): `None configured.`. If it produces findings,
+include them in your report (Step 6) with provider tags preserved, and include
+the cost log lines in the "External reviewers" section of CODEREVIEW.md
+(Step 9).
 
 External reviewers run once at initial review. Do NOT re-run them during
 fix/re-review cycles (Step 7).
