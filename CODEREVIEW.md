@@ -1,21 +1,19 @@
-## Review — 2026-06-29 (commit: f94582b)
+## Review — 2026-08-03 (commit: 2646eff)
 
-**Review scope:** Refresh review. Focus: 4 files changed since prior review (commit a07c9df): `hooks/pre-push-codereview.sh`, `claude/global-claude.md`, `claude/skills/codereview/SKILL.md`, `tests/test-pre-push-hook.sh`. 0 already-reviewed files. tests/run-all.sh: 630/630 green across 5 suites.
+**Review scope:** Refresh review. Focus: 3 files changed since prior review (commit f94582b): `claude/skills/codereview/SKILL.md`, `tests/lint-skills.sh`, `CLAUDE.md`. 0 already-reviewed files. tests/run-all.sh: 633/633 green across 5 suites (630 baseline plus the 3 lint checks added by this change).
 
-**Summary:** Two-commit workflow cleanup plus one in-turn fix. (1) Pre-push gate auto-run robustness: the hook block message now drives automatic `/codereview` ("without asking", "routine next step, not a choice to put to the user") and drops the inline skip recipe; a new `## Pre-push review gate` section in `global-claude.md` documents the behavior as a shared convention so it no longer depends on a per-machine memory. (2) External-reviewer output: `/codereview` Step 5.5 now collapses the no-reviewer case to a single `None configured.` line. Self-review caught one BLOCK (the relocated bypass was documented as a combined `&&` command, which the hook blocks for Claude-driven pushes); fixed in commit f94582b.
+**Summary:** Subagent completion-delivery guard, prompted by a downstream OrgSmith incident (an improvised `until ! pgrep -f "codefix" ...; do sleep 10; done` background loop whose pgrep matched its own command line and ran orphaned for 20+ hours). Step 7 of /codereview now states that codefix completion arrives from the harness (direct Skill result or task notification), forbids polling, and extends the rule to the Step 5 /security invocation; lint-skills.sh pins the three anchor phrases; CLAUDE.md documents the contract point. Verified: all three anchors sit on single lines in the SKILL.md wrap, the pre-existing pinned sentence "After codefix completes, re-review" is untouched and its lint check still passes, the new lint comment's pgrep example is inert (comment only), and the CLAUDE.md bullet's claims match the lint checks exactly. Security ran a scoped scan of tests/lint-skills.sh (the one non-md file in the diff): 0 BLOCK / 0 WARN / 0 NOTE. This review's own /security wait exercised the new rule: the fork ran in the background and the result arrived by task notification, no polling.
 
 **External reviewers:**
 None configured.
 
 ### Findings
 
-One BLOCK found and fixed this turn (see Fixes Applied); no open issues remain. Plus one carried-forward NOTE from the security scan.
-
-- [NOTE] tests/test-pre-push-hook.sh:127 — hardcoded `/home/peter/...` path discloses the box username (pre-existing line, not in this diff; same accepted-risk PII class as `peterzat`). From the Step 5 security scan (0 BLOCK / 0 WARN / 1 NOTE, 2026-06-29 SECURITY.md entry). Informational; no fix required.
+No issues found.
 
 ### Fixes Applied
 
-- [BLOCK] claude/global-claude.md — the relocated "push now" bypass was documented as the combined command `codereview-skip && git push`. For Claude-driven pushes that fails: the PreToolUse hook (`pre-push-codereview.sh:227`) evaluates the whole Bash command before `codereview-skip` runs, so the skip marker does not exist yet and the combined form blocks. Reworded to two separate commands (`codereview-skip` then `git push`) with an explicit warning against the `&&` form. Fixed via /codefix; 630/630 tests green after.
+None.
 
 ### Accepted Risks
 
@@ -24,6 +22,6 @@ One BLOCK found and fixed this turn (see Fixes Applied); no open issues remain. 
 - **API key in `curl -H "Authorization: Bearer ${api_key}"`** (`bin/review-external.sh:246, 337`): Header argument is visible in `/proc/<pid>/cmdline` to local users during the curl invocation window. Not exploitable on this single-user dev box. Recorded by SECURITY.md 2026-05-03 entry.
 
 ---
-*Prior review (2026-06-29, commit a07c9df): Refresh review of the hw-bootstrap.sh NVIDIA DKMS-only fix. 0 BLOCK / 0 WARN / 0 NOTE.*
+*Prior review (2026-06-29, commit f94582b): Pre-push gate auto-run wording plus external-reviewer no-config output; 1 BLOCK found and auto-fixed in-turn (the bypass documented as a combined `codereview-skip && git push`, which the hook blocks), 1 carried NOTE (hardcoded home path in tests/test-pre-push-hook.sh:127; that file is outside this diff, so the NOTE lives on in SECURITY.md history rather than as a current finding).*
 
-<!-- REVIEW_META: {"date":"2026-06-29","commit":"f94582b","reviewed_up_to":"f94582b19fe07547da6ff6a4c10641e71883b81c","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":1} -->
+<!-- REVIEW_META: {"date":"2026-08-03","commit":"2646eff","reviewed_up_to":"2646effa2670dd8431a3cf027d78c496cf5ba9d7","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
