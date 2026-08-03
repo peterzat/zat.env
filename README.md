@@ -701,67 +701,67 @@ Candidate increments for the multi-dev arc. None are scheduled: each starts when
 
 ### Done (v1.4)
 
-- [x] `/tester design` mode: writes or revises a durable test-architecture contract under the exact `# Durable test-architecture contract` H1 in `TESTING.md`, plus rollout entries in `BACKLOG.md` (each with `Origin: tester design YYYY-MM-DD`). Contract shape (greenfield seed / growing two-tier / mature full-dimension) is sized to project signals discovered at runtime — a new prototype does not get a three-tier dispatcher. The contract is a cold-open reference: a fresh session reads it and knows how to run the suite without reading anything else. Revision replaces the contract section; prior tester-design rollout entries are deduped (with ACTIVE-in-spec preservation).
-- [x] `/tester design` pre-apply checklist (Step D.5.5): a fixed five-component block posted to the user before any TESTING.md or BACKLOG.md mutation — signals fingerprint, contract shape + line count, rollout count + justification, per-entry overlap scan, and an optional SPEC-tension flag when the project's SPEC.md punts the testing surface this rollout fills. The checklist is a true pre-mutation gate: Step D.4 drafts the contract in memory and Step D.6 step 1 owns the actual write, so nothing on disk has changed when the checklist appears. Always-on (no flag-gating); the SPEC-tension component is flag-not-block (post and proceed; the user can interrupt). Course-correct surface for the proportionality and overlap calls the LLM made silently in earlier steps.
-- [x] BACKLOG manifest extensions in `bin/spec-backlog-apply.sh`: `purge-origin:` op removes every entry whose Origin starts with a given prefix while preserving any heading annotated `(ACTIVE in spec YYYY-MM-DD)`, and `append:` / `end-append` block writes a new entry with verbatim body. The `Coordinate with: <other-entry-name>` field on rollout entries marks topical overlap with a non-tester BACKLOG entry. Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script, so LLM non-compliance on state-mutation edits cannot silently rot the register.
-- [x] `bin/codereview-marker` script: deterministic computation of the codereview push marker hash. Replaces parallel bash snippets in codereview's Step 8 and the pre-push hook (which had to stay byte-for-byte identical) with one shared implementation, eliminating an LLM-split-Bash-call failure mode where `${UPSTREAM}` was lost between Bash tool calls and the marker silently fell through to the empty-tree hash. Three-case upstream contract handles `@{upstream}` present, `@{upstream}` absent but `origin/<branch>` present, and neither. Markers also moved from `/tmp/.claude-codereview-<hash>` to `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/` (mode 0700, per-user), closing a cross-user symlink-race vector; the pre-push hook now fails closed (exits 2) on any unexpected `codereview-marker` error so a missing-from-PATH script cannot silently bypass the gate.
-- [x] `/codereview external [<ref>|<from>..<to>]` mode: a Step 0 dispatch on `/codereview` runs only the configured external reviewers (OpenAI, Google, local Qwen) on an arbitrary diff, without mutating CODEREVIEW.md, writing the push marker, or invoking `/codefix`. Default scope is `<upstream>..HEAD`; a single ref expands to `<ref>..HEAD`; explicit two-dot or three-dot ranges are used verbatim; natural-language phrasings ("since v1.3", "last 5 commits") are normalized before validation. Pre-flight gate via `review-external.sh --check` fails loudly with a pointer to the env file when no providers are configured, while the default no-flag path keeps its silent-exit-0 fallback so the full-review Step 5.5 stays fail-open. The script's `--range` plumbing lines up the `=== COMMITS ===` context block with the user's range rather than the branch's upstream. Headline use case: span-of-release second opinions like `/codereview external v1.3` to ask the cloud models "what stands out across this whole release?" without disturbing any working files.
+- `/tester design` mode: writes or revises a durable test-architecture contract under the exact `# Durable test-architecture contract` H1 in `TESTING.md`, plus rollout entries in `BACKLOG.md` (each with `Origin: tester design YYYY-MM-DD`). Contract shape (greenfield seed / growing two-tier / mature full-dimension) is sized to project signals discovered at runtime — a new prototype does not get a three-tier dispatcher. The contract is a cold-open reference: a fresh session reads it and knows how to run the suite without reading anything else. Revision replaces the contract section; prior tester-design rollout entries are deduped (with ACTIVE-in-spec preservation).
+- `/tester design` pre-apply checklist (Step D.5.5): a fixed five-component block posted to the user before any TESTING.md or BACKLOG.md mutation — signals fingerprint, contract shape + line count, rollout count + justification, per-entry overlap scan, and an optional SPEC-tension flag when the project's SPEC.md punts the testing surface this rollout fills. The checklist is a true pre-mutation gate: Step D.4 drafts the contract in memory and Step D.6 step 1 owns the actual write, so nothing on disk has changed when the checklist appears. Always-on (no flag-gating); the SPEC-tension component is flag-not-block (post and proceed; the user can interrupt). Course-correct surface for the proportionality and overlap calls the LLM made silently in earlier steps.
+- BACKLOG manifest extensions in `bin/spec-backlog-apply.sh`: `purge-origin:` op removes every entry whose Origin starts with a given prefix while preserving any heading annotated `(ACTIVE in spec YYYY-MM-DD)`, and `append:` / `end-append` block writes a new entry with verbatim body. The `Coordinate with: <other-entry-name>` field on rollout entries marks topical overlap with a non-tester BACKLOG entry. Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script, so LLM non-compliance on state-mutation edits cannot silently rot the register.
+- `bin/codereview-marker` script: deterministic computation of the codereview push marker hash. Replaces parallel bash snippets in codereview's Step 8 and the pre-push hook (which had to stay byte-for-byte identical) with one shared implementation, eliminating an LLM-split-Bash-call failure mode where `${UPSTREAM}` was lost between Bash tool calls and the marker silently fell through to the empty-tree hash. Three-case upstream contract handles `@{upstream}` present, `@{upstream}` absent but `origin/<branch>` present, and neither. Markers also moved from `/tmp/.claude-codereview-<hash>` to `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/` (mode 0700, per-user), closing a cross-user symlink-race vector; the pre-push hook now fails closed (exits 2) on any unexpected `codereview-marker` error so a missing-from-PATH script cannot silently bypass the gate.
+- `/codereview external [<ref>|<from>..<to>]` mode: a Step 0 dispatch on `/codereview` runs only the configured external reviewers (OpenAI, Google, local Qwen) on an arbitrary diff, without mutating CODEREVIEW.md, writing the push marker, or invoking `/codefix`. Default scope is `<upstream>..HEAD`; a single ref expands to `<ref>..HEAD`; explicit two-dot or three-dot ranges are used verbatim; natural-language phrasings ("since v1.3", "last 5 commits") are normalized before validation. Pre-flight gate via `review-external.sh --check` fails loudly with a pointer to the env file when no providers are configured, while the default no-flag path keeps its silent-exit-0 fallback so the full-review Step 5.5 stays fail-open. The script's `--range` plumbing lines up the `=== COMMITS ===` context block with the user's range rather than the branch's upstream. Headline use case: span-of-release second opinions like `/codereview external v1.3` to ask the cloud models "what stands out across this whole release?" without disturbing any working files.
 
 ### Done (v1.3)
 
-- [x] Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
-- [x] External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google/local GPU, called synchronously by `/codereview`, fail-open
-- [x] Structural lint suite (215 checks across 21 categories) covering builder/verifier separation, marker contracts, agent boundary risks, concurrency safety, and cross-skill field identity
-- [x] `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
-- [x] Install script prunes stale hook entries from settings.json on re-run
-- [x] Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
-- [x] Test runner (`tests/run-all.sh`) with combined summary across all suites
-- [x] Plan-mode handoff: `/spec plan [<slug>]` adopts a saved plan as the spec brief, pressure-tests outcomes into verifiable criteria, and writes SPEC.md. PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` so the handoff is visible. `/spec` with an under-specified brief now suggests exploring in plan mode first. Supersedes the earlier advisory plan read in Step 1.
-- [x] BACKLOG.md convention: persistent register for deferred proposals that would otherwise be lost at turn boundaries. `/spec backlog <description>` appends a pressure-tested entry; the turn-close sweep classifies entries as keep/revisit/delete with bias toward keep; approved deletions auto-apply on the next `/spec` when the proposal is consumed, and revived entries are annotated `(ACTIVE in spec YYYY-MM-DD)`. `/spec backlog clear` resets the register. Opt-in per project; absent-file is a no-op at every read site.
+- Builder/verifier separation: `/codefix` skill runs in a separate forked context; `/codereview` no longer fixes its own findings
+- External multi-model reviewers: `review-external.sh` pipes diff to OpenAI/Google/local GPU, called synchronously by `/codereview`, fail-open
+- Structural lint suite (215 checks across 21 categories) covering builder/verifier separation, marker contracts, agent boundary risks, concurrency safety, and cross-skill field identity
+- `/spec` direct mode fix: write SPEC.md immediately instead of asking for confirmation in a forked context that cannot do multi-turn
+- Install script prunes stale hook entries from settings.json on re-run
+- Prompt/infrastructure boundary documented (CLAUDE.md for developers, README for users)
+- Test runner (`tests/run-all.sh`) with combined summary across all suites
+- Plan-mode handoff: `/spec plan [<slug>]` adopts a saved plan as the spec brief, pressure-tests outcomes into verifiable criteria, and writes SPEC.md. PostToolUse hook on `ExitPlanMode` prints a reminder about `/spec plan` so the handoff is visible. `/spec` with an under-specified brief now suggests exploring in plan mode first. Supersedes the earlier advisory plan read in Step 1.
+- BACKLOG.md convention: persistent register for deferred proposals that would otherwise be lost at turn boundaries. `/spec backlog <description>` appends a pressure-tested entry; the turn-close sweep classifies entries as keep/revisit/delete with bias toward keep; approved deletions auto-apply on the next `/spec` when the proposal is consumed, and revived entries are annotated `(ACTIVE in spec YYYY-MM-DD)`. `/spec backlog clear` resets the register. Opt-in per project; absent-file is a no-op at every read site.
 
 ### Done (v1.2)
 
-- [x] Turn-based development loop: `/spec` evolve mode now runs a turn-boundary transition when all criteria are met (retrospective question, proposal generation, "run `/spec` to start the next turn")
-- [x] Propose mode (`/spec propose`): generate a next-turn proposal grounded in git history and current spec state, independent of conversation memory
-- [x] Stale proposal guard: when a proposal exists with 5+ commits since its date, flag it for confirmation before consuming
-- [x] Proposal-as-input-brief: `/spec` with no arguments auto-detects a proposal section and enters direct mode using it as the input brief
-- [x] "Context loss at turn boundaries" anti-pattern documented with mitigation
-- [x] Advisory plan file reading: `/spec` checks `~/.claude/plans/` for recent planning context
-- [x] `/spec` documented as replacement for Claude Code's built-in plan mode
-- [x] Development loop cadence dimension added to `/tester` skill
-- [x] Shared system boundary and upstream fix pattern documented in global conventions
-- [x] Memory section added to global conventions with promotion guidance
-- [x] Global permissions allowlist/denylist managed by install script
-- [x] Pre-push hook: bypass marker consumed on use; "push now" bypass for trivial changes
-- [x] Hero image updated (iPhone with tmux via ShellFish)
-- [x] Pre-push hook skips codereview gate for tag-only pushes
-- [x] Coding practice: do not push or modify remote state without explicit user instruction
+- Turn-based development loop: `/spec` evolve mode now runs a turn-boundary transition when all criteria are met (retrospective question, proposal generation, "run `/spec` to start the next turn")
+- Propose mode (`/spec propose`): generate a next-turn proposal grounded in git history and current spec state, independent of conversation memory
+- Stale proposal guard: when a proposal exists with 5+ commits since its date, flag it for confirmation before consuming
+- Proposal-as-input-brief: `/spec` with no arguments auto-detects a proposal section and enters direct mode using it as the input brief
+- "Context loss at turn boundaries" anti-pattern documented with mitigation
+- Advisory plan file reading: `/spec` checks `~/.claude/plans/` for recent planning context
+- `/spec` documented as replacement for Claude Code's built-in plan mode
+- Development loop cadence dimension added to `/tester` skill
+- Shared system boundary and upstream fix pattern documented in global conventions
+- Memory section added to global conventions with promotion guidance
+- Global permissions allowlist/denylist managed by install script
+- Pre-push hook: bypass marker consumed on use; "push now" bypass for trivial changes
+- Hero image updated (iPhone with tmux via ShellFish)
+- Pre-push hook skips codereview gate for tag-only pushes
+- Coding practice: do not push or modify remote state without explicit user instruction
 
 ### Done (v1.1)
 
-- [x] Reduce global-claude.md instruction density: trim redundant directives, shorten to what the model actually needs
-- [x] Extract reference files: networking and ML/GPU details moved to `claude/references/` (read on demand, not always loaded)
-- [x] Skill frontmatter: add `argument-hint` and `effort:high` across skills for better Claude Code integration
-- [x] Hook `if`-field filtering: install script now writes conditional hooks (push-only filtering) instead of relying on in-script guards
-- [x] README trajectory summary: added design philosophy paragraph explaining where zat.env is headed
-- [x] Documentation consistency: firewall status, coding practices, and directory overview kept in sync across all files
+- Reduce global-claude.md instruction density: trim redundant directives, shorten to what the model actually needs
+- Extract reference files: networking and ML/GPU details moved to `claude/references/` (read on demand, not always loaded)
+- Skill frontmatter: add `argument-hint` and `effort:high` across skills for better Claude Code integration
+- Hook `if`-field filtering: install script now writes conditional hooks (push-only filtering) instead of relying on in-script guards
+- README trajectory summary: added design philosophy paragraph explaining where zat.env is headed
+- Documentation consistency: firewall status, coding practices, and directory overview kept in sync across all files
 
 ### Done (v1.0)
 
-- [x] Machine provisioning script (`hw-bootstrap.sh`)
-- [x] Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
-- [x] Global git conventions (aliases, ignore-global)
-- [x] Machine-wide Claude conventions (`claude/global-claude.md`)
-- [x] Adversarial code review (`/codereview`) with pre-push hook gate
-- [x] Security review (`/security`) with persistent `SECURITY.md`
-- [x] Architecture review (`/architect`)
-- [x] Test strategy review (`/tester`) with persistent `TESTING.md`
-- [x] Content-addressed push gate (diff hash + project hash)
-- [x] Auto-fix with escalating conservatism and 3-iteration cap
-- [x] Spec-driven development (`/spec`) with persistent `SPEC.md` and cross-skill integration
-- [x] Cross-skill context graph with bounded amplification prevention
-- [x] Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
-- [x] GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
+- Machine provisioning script (`hw-bootstrap.sh`)
+- Install script wiring (`zat.env-install.sh`): git config, CLAUDE.md symlink, skills, hooks
+- Global git conventions (aliases, ignore-global)
+- Machine-wide Claude conventions (`claude/global-claude.md`)
+- Adversarial code review (`/codereview`) with pre-push hook gate
+- Security review (`/security`) with persistent `SECURITY.md`
+- Architecture review (`/architect`)
+- Test strategy review (`/tester`) with persistent `TESTING.md`
+- Content-addressed push gate (diff hash + project hash)
+- Auto-fix with escalating conservatism and 3-iteration cap
+- Spec-driven development (`/spec`) with persistent `SPEC.md` and cross-skill integration
+- Cross-skill context graph with bounded amplification prevention
+- Prompt design: precision bias, evidence grounding, confidence thresholds, halt conditions
+- GitHub PR workflow (`/pr`): create, inspect, and merge PRs with auto-composed descriptions from review metadata
 
 ---
 
