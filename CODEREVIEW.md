@@ -1,11 +1,9 @@
-## Review — 2026-08-03 (commit: 2646eff)
+## Review — 2026-08-03 (commit: ecea95b)
 
-**Review scope:** Refresh review. Focus: 3 files changed since prior review (commit f94582b): `claude/skills/codereview/SKILL.md`, `tests/lint-skills.sh`, `CLAUDE.md`. 0 already-reviewed files. tests/run-all.sh: 633/633 green across 5 suites (630 baseline plus the 3 lint checks added by this change).
-
-**Summary:** Subagent completion-delivery guard, prompted by a downstream OrgSmith incident (an improvised `until ! pgrep -f "codefix" ...; do sleep 10; done` background loop whose pgrep matched its own command line and ran orphaned for 20+ hours). Step 7 of /codereview now states that codefix completion arrives from the harness (direct Skill result or task notification), forbids polling, and extends the rule to the Step 5 /security invocation; lint-skills.sh pins the three anchor phrases; CLAUDE.md documents the contract point. Verified: all three anchors sit on single lines in the SKILL.md wrap, the pre-existing pinned sentence "After codefix completes, re-review" is untouched and its lint check still passes, the new lint comment's pgrep example is inert (comment only), and the CLAUDE.md bullet's claims match the lint checks exactly. Security ran a scoped scan of tests/lint-skills.sh (the one non-md file in the diff): 0 BLOCK / 0 WARN / 0 NOTE. This review's own /security wait exercised the new rule: the fork ran in the background and the result arrived by task notification, no polling.
+**Summary:** Light review (docs only): README.md roadmap reset for the v1.4 release. The since-v1.3 accumulation moves to a Done (v1.4) section; the stale Next up entries (/verify, loop orchestrator, worktree A/B testing, all shelved or locked out) are replaced by the multi-dev arc (merge-safe review artifacts, PR-side review, server-side gate, issue-backed backlog, none scheduled); a Direction statement is added to the Roadmap, and the top-of-README teaser and autonomy-spectrum position paragraph are updated to match. Verified: no intra-doc links reference the renamed section anchors (grep for #next-up/#future/#done-v1/#since-v1 is empty), the agent-hypervisors link is preserved in the new Future bullet, the Roadmap region reads intro > Direction > Next up > Future > Done (v1.4) > Done (v1.3) with intact heading levels and spacing, the five Done (v1.4) bullets are byte-identical to the former Since v1.3 list, and the "drafted and shelved twice" claim matches history (v2.0 /loop spec adopted at b5bf210, shelved at 6092677; /verify implementation discarded 2026-05-27 without landing). "v1.4 is the most recent tag" becomes true when this release pass tags this commit, the same pattern used for the v1.1 roadmap commit. No secrets in prose. tests/run-all.sh: 633/633 green across 5 suites.
 
 **External reviewers:**
-None configured.
+Skipped (light review).
 
 ### Findings
 
@@ -22,6 +20,6 @@ None.
 - **API key in `curl -H "Authorization: Bearer ${api_key}"`** (`bin/review-external.sh:246, 337`): Header argument is visible in `/proc/<pid>/cmdline` to local users during the curl invocation window. Not exploitable on this single-user dev box. Recorded by SECURITY.md 2026-05-03 entry.
 
 ---
-*Prior review (2026-06-29, commit f94582b): Pre-push gate auto-run wording plus external-reviewer no-config output; 1 BLOCK found and auto-fixed in-turn (the bypass documented as a combined `codereview-skip && git push`, which the hook blocks), 1 carried NOTE (hardcoded home path in tests/test-pre-push-hook.sh:127; that file is outside this diff, so the NOTE lives on in SECURITY.md history rather than as a current finding).*
+*Prior review (2026-08-03, commit 2646eff): Refresh review of the subagent completion-delivery guard (codereview Step 7 no-polling rule, lint anchors, CLAUDE.md contract point); 0 BLOCK / 0 WARN / 0 NOTE, scoped security scan of tests/lint-skills.sh clean.*
 
-<!-- REVIEW_META: {"date":"2026-08-03","commit":"2646eff","reviewed_up_to":"2646effa2670dd8431a3cf027d78c496cf5ba9d7","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":0} -->
+<!-- REVIEW_META: {"date":"2026-08-03","commit":"ecea95b","reviewed_up_to":"ecea95bdbc583bc1fa5b578964a141278fd69024","base":"origin/main","tier":"light","block":0,"warn":0,"note":0} -->
