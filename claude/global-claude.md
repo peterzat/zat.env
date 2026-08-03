@@ -75,9 +75,10 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
 - Professional, direct, concise. State the point, then support it.
 - No AI-voice patterns ("It's important to note that," "Let's," "Great question,"),
   no em-dashes (use commas, periods, or parentheses).
-- Never emoji, checkmarks, or other decorative glyphs, including `- [x]` task-list
-  checkboxes; completed work reads as plain bullets. One exception: SPEC.md
-  acceptance criteria, where checking off is the tracking mechanism, not decoration.
+- Never emoji, checkmarks, or other decorative glyphs; `- [x]` task-list checkboxes
+  count as decoration. Plain bulleted lists are fine, and completed work reads as
+  plain bullets. One exception: SPEC.md acceptance criteria, where checking off is
+  the tracking mechanism, not decoration.
 - Prefer short declarative sentences. When uncertain, say so plainly.
 
 ## Python
