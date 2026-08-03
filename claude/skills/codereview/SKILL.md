@@ -503,6 +503,14 @@ invoke `/codefix` to apply fixes. The codefix skill runs in a separate forked
 context: it reads CODEREVIEW.md findings as a spec and applies minimal fixes
 without self-evaluation.
 
+Codefix completion is delivered by the harness: the Skill invocation either
+returns the result directly or, when the fork runs as a background task, a
+task notification arrives when it finishes. Wait for that delivery and
+do not poll for completion: no `until`/`while` + `sleep` loops, no `pgrep`,
+no watching task-output files. The harness signal always arrives; improvised
+polling loops have produced runaway orphaned processes. The same
+applies to the `/security` invocation in Step 5.
+
 After codefix completes, re-review the changes. This is a refresh review within
 the current context: re-read the modified files, check whether findings are
 resolved, and check for new issues introduced by the fixes. Do NOT invoke

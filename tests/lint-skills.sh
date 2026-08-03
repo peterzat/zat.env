@@ -218,6 +218,20 @@ has "${SKILLS}/codereview/SKILL.md" "After codefix completes.*re-review" \
 has "${SKILLS}/codereview/SKILL.md" "re-run it after each codefix" \
   "codereview: re-runs tests after each codefix pass"
 
+# Subagent completion delivery: Step 7 must name the harness mechanism
+# (direct Skill result, or a task notification for a backgrounded fork)
+# and forbid improvised polling. Guard added after a downstream OrgSmith
+# session, given no stated wait mechanism, invented an
+# `until ! pgrep -f "codefix" ...; do sleep 10; done` background loop:
+# the pgrep matched the loop's own command line so the exit condition
+# could never fire, and the loop spun orphaned for 20+ hours.
+has "${SKILLS}/codereview/SKILL.md" "do not poll for completion" \
+  "codereview: Step 7 forbids polling for subagent completion"
+has "${SKILLS}/codereview/SKILL.md" "task notification" \
+  "codereview: Step 7 names harness delivery (task notification)"
+has "${SKILLS}/codereview/SKILL.md" 'applies to the `/security` invocation' \
+  "codereview: no-poll rule extends to Step 5 /security invocation"
+
 # Codereview must not re-run external reviewers during fix cycles
 has "${SKILLS}/codereview/SKILL.md" "Do NOT re-run" \
   "codereview: no external reviewers during fix/re-review cycles"
