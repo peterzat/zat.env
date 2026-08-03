@@ -16,7 +16,7 @@ Clone this repo and run `zat.env-install.sh` to get spec-driven development, adv
 
 If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/), this is the repo. The harness is deliberately minimal because the bitter lesson says it should be.
 
-**Where this is headed.** Today a human is in the loop, reviewing outcomes and writing specs. What changes over time is not the architecture but the degree of autonomy: review/fix/review cycles that run without interruption, convergence detection, parallel agents on branches. See [Roadmap](#roadmap) for the progression.
+**Where this is headed.** Today a human is in the loop, reviewing outcomes and writing specs, and the harness serves a single dev pushing to main. The next arc extends the same mechanisms to multiple contributors coordinating through PRs, on the bet that team PRs and agent fleets are the same mechanism: a task queue, isolated branches, a machine-verifiable gate, and a PR as the merge point. See [Roadmap](#roadmap) for the direction statement and candidate increments.
 
 <a id="spec-driven-iteration"></a>
 
@@ -489,7 +489,7 @@ Autonomous          Review skills run in loops; Claude fixes and iterates withou
 Multi-agent         Parallel Claude sessions across projects with shared verification state
 ```
 
-The current system is at **Gated**. The skills and persistent files are the foundation for moving to **Autonomous**, where Claude can run `/codereview`, fix issues, and iterate without human intervention per-cycle, while the human reviews outcomes rather than individual steps.
+The current system is at **Gated**. The build order does not follow the ladder: the roadmap approaches **Multi-agent** coordination mechanics (PRs, CI-side gates, shared task queues) before fully **Autonomous** loops, because those mechanics serve human multi-dev work immediately and are the same mechanics a fleet needs. Autonomous review/fix/review cycles then arrive as the inner loop of each fleet worker, with the human reviewing outcomes rather than individual steps.
 
 ### Anti-Patterns We Designed Against
 
@@ -681,28 +681,31 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 ## Roadmap
 
-Releases are tagged as snapshots when a useful checkpoint has accumulated, not as a planning unit. v1.3 was the most recent tag; everything under "Since v1.3" below is shipped to `main` and in active use, and a future tag (whatever its name) will draw a line under some subset of it. Day-to-day development happens on `main`; new features land continuously.
+Releases are tagged as snapshots when a useful checkpoint has accumulated, not as a planning unit. v1.4 is the most recent tag. Day-to-day development happens on `main`; new features land continuously.
 
-### Since v1.3 (ongoing)
+**Direction.** v1.4 closes out the solo harness: spec-driven turns, adversarial review, and a content-addressed push gate, stable across daily downstream use. The next arc extends the same mechanisms from one dev pushing to main to multiple contributors coordinating through PRs. The bet is that team PRs and agent fleets are the same mechanism: a task queue, isolated branches, a machine-verifiable gate, and a PR as the merge point. A human teammate and a fleet agent differ only in who authors the diff, so getting PR mechanics right for people is the same work as preparing for a Carlini-style fleet, and it pays off even with zero autonomy. This reorders the autonomy spectrum: multi-agent coordination mechanics land before fully autonomous loops, because the direct route to autonomy (loop orchestrator, `/verify`) was drafted and shelved twice, while every PR-side increment is useful in ordinary multi-dev work immediately. Nothing below is scheduled; each increment starts when a downstream project actually pulls for it.
+
+### Next up: multi-dev and team PRs
+
+Candidate increments for the multi-dev arc. None are scheduled: each starts when a downstream project actually pulls for it, and each must be useful in ordinary team development regardless of how the fleet direction plays out.
+
+- **Merge-safe review artifacts.** CODEREVIEW.md, SECURITY.md, and TESTING.md append entries at the repo root, which conflicts on every concurrently active branch. Per-branch entries or PR-comment delivery is the precondition for a second contributor, and the first real design problem of the arc.
+- **PR-side review.** Run the adversarial pipeline against an incoming PR and post findings to the PR conversation rather than CODEREVIEW.md. Has to beat Claude Code's built-in `/review` to earn a slot; the severity model, external reviewers, and gate integration are the candidate edge.
+- **Server-side gate.** A CI job that enforces the review gate on PRs via branch protection, so the gate binds contributors (human or agent) who do not have zat.env installed. Moves enforcement from the client-side pre-push hook to the shared boundary.
+- **Issue-backed backlog.** BACKLOG.md entries exportable to, or backed by, GitHub Issues, so humans and agents pull work from the same queue. Furthest out; gated on the fleet direction becoming concrete.
+
+### Future
+
+- **Carlini-style fleet.** Parallel agents on branches and worktrees pulling from the issue backlog, PRs as coordination boundaries, CI as the independent verification signal, humans setting goals and reviewing outcomes. More on this at [agent-hypervisors](https://agent-hypervisor.ai/posts/agent-hypervisors/).
+- **Autonomous review/fix/review loops.** Convergence detection and circuit breakers, built as the inner loop of each fleet worker rather than as a standalone stage.
+
+### Done (v1.4)
 
 - [x] `/tester design` mode: writes or revises a durable test-architecture contract under the exact `# Durable test-architecture contract` H1 in `TESTING.md`, plus rollout entries in `BACKLOG.md` (each with `Origin: tester design YYYY-MM-DD`). Contract shape (greenfield seed / growing two-tier / mature full-dimension) is sized to project signals discovered at runtime — a new prototype does not get a three-tier dispatcher. The contract is a cold-open reference: a fresh session reads it and knows how to run the suite without reading anything else. Revision replaces the contract section; prior tester-design rollout entries are deduped (with ACTIVE-in-spec preservation).
 - [x] `/tester design` pre-apply checklist (Step D.5.5): a fixed five-component block posted to the user before any TESTING.md or BACKLOG.md mutation — signals fingerprint, contract shape + line count, rollout count + justification, per-entry overlap scan, and an optional SPEC-tension flag when the project's SPEC.md punts the testing surface this rollout fills. The checklist is a true pre-mutation gate: Step D.4 drafts the contract in memory and Step D.6 step 1 owns the actual write, so nothing on disk has changed when the checklist appears. Always-on (no flag-gating); the SPEC-tension component is flag-not-block (post and proceed; the user can interrupt). Course-correct surface for the proportionality and overlap calls the LLM made silently in earlier steps.
 - [x] BACKLOG manifest extensions in `bin/spec-backlog-apply.sh`: `purge-origin:` op removes every entry whose Origin starts with a given prefix while preserving any heading annotated `(ACTIVE in spec YYYY-MM-DD)`, and `append:` / `end-append` block writes a new entry with verbatim body. The `Coordinate with: <other-entry-name>` field on rollout entries marks topical overlap with a non-tester BACKLOG entry. Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script, so LLM non-compliance on state-mutation edits cannot silently rot the register.
 - [x] `bin/codereview-marker` script: deterministic computation of the codereview push marker hash. Replaces parallel bash snippets in codereview's Step 8 and the pre-push hook (which had to stay byte-for-byte identical) with one shared implementation, eliminating an LLM-split-Bash-call failure mode where `${UPSTREAM}` was lost between Bash tool calls and the marker silently fell through to the empty-tree hash. Three-case upstream contract handles `@{upstream}` present, `@{upstream}` absent but `origin/<branch>` present, and neither. Markers also moved from `/tmp/.claude-codereview-<hash>` to `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/` (mode 0700, per-user), closing a cross-user symlink-race vector; the pre-push hook now fails closed (exits 2) on any unexpected `codereview-marker` error so a missing-from-PATH script cannot silently bypass the gate.
 - [x] `/codereview external [<ref>|<from>..<to>]` mode: a Step 0 dispatch on `/codereview` runs only the configured external reviewers (OpenAI, Google, local Qwen) on an arbitrary diff, without mutating CODEREVIEW.md, writing the push marker, or invoking `/codefix`. Default scope is `<upstream>..HEAD`; a single ref expands to `<ref>..HEAD`; explicit two-dot or three-dot ranges are used verbatim; natural-language phrasings ("since v1.3", "last 5 commits") are normalized before validation. Pre-flight gate via `review-external.sh --check` fails loudly with a pointer to the env file when no providers are configured, while the default no-flag path keeps its silent-exit-0 fallback so the full-review Step 5.5 stays fail-open. The script's `--range` plumbing lines up the `=== COMMITS ===` context block with the user's range rather than the branch's upstream. Headline use case: span-of-release second opinions like `/codereview external v1.3` to ask the cloud models "what stands out across this whole release?" without disturbing any working files.
-
-### Next up
-
-- `/verify` skill: execute the project's test suite as ground truth signal
-- Worktree-based A/B testing, quantitative trending, branch workflow aliases
-- Loop orchestrator and circuit breakers for autonomous review/fix cycles
-
-### Future
-
-- Autonomous review/fix/review loops with convergence detection and circuit breakers
-- Worktree-based A/B testing: verify changes in isolation before merging
-- Carlini-style parallel agents: each on its own branch, PRs as coordination boundaries, CI as the independent verification signal
-- Fleet coordination: humans set goals and review outcomes, agents handle everything in between. More on this at [agent-hypervisors](https://agent-hypervisor.ai/posts/agent-hypervisors/).
 
 ### Done (v1.3)
 
