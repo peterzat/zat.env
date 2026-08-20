@@ -90,6 +90,18 @@ case "${1:-}" in
     ;;
 esac
 
+# A range beginning with `-` is parsed by git as an option, not a revision.
+# `git log --oneline --output=<path>` truncates and overwrites that path, so an
+# unvalidated leading dash is an arbitrary-file-write primitive rather than a
+# mere usage error. Enforce it here: codereview SKILL.md Step E.2 also tells the
+# model to validate refs, but that prose is LLM-executed and is not an
+# enforcement boundary.
+if [[ "${RANGE}" == -* ]]; then
+  echo "review-external.sh: --range must not begin with '-' (got '${RANGE}')" >&2
+  echo "Usage: review-external.sh [--check] [--range <git-range>]" >&2
+  exit 2
+fi
+
 # --- Read diff from stdin (default path only) ---
 
 if ! ${CHECK_ONLY}; then
@@ -499,10 +511,19 @@ fi
 # Separate findings (stdout) from status/cost (stderr).
 # Provider functions write findings to stdout and cost to stderr, but since
 # we captured both with 2>&1 for background jobs, they are mixed.
+#
+# Match on the provider tag, not just the severity shape. Every real finding is
+# rewritten to "[SEVERITY] (provider)" on its provider's stdout path; the
+# status/cost path is never tagged. Shape alone would promote any status line
+# that merely begins with a severity tag into the findings stream, stripped of
+# attribution, and that stream becomes EXTERNAL_FINDINGS -> CODEREVIEW.md ->
+# /codefix, which holds Edit. Untagged lines fall through to stderr, so nothing
+# is hidden from the user; it just cannot masquerade as a finding.
+FINDING_RE='^\[(BLOCK|WARN|NOTE)\] \([a-z0-9-]+\)'
 for outfile in "${OPENAI_OUT}" "${GOOGLE_OUT}" "${LOCAL_OUT}"; do
   if [[ -s "${outfile}" ]]; then
     while IFS= read -r line; do
-      if [[ "${line}" =~ ^\[(BLOCK|WARN|NOTE)\] ]]; then
+      if [[ "${line}" =~ ${FINDING_RE} ]]; then
         echo "${line}"          # findings -> stdout
       elif [[ -n "${line}" ]]; then
         echo "${line}" >&2      # cost/status -> stderr

@@ -94,8 +94,9 @@ This installs on any machine with git, jq, and Claude Code. It symlinks skills i
 there first, and `hw-bootstrap.sh` provisions that environment end to end.
 
 **macOS is supported** with the setup below. The scripts avoid GNU-only syntax
-and fall back to BSD equivalents where the two differ, so no macOS-specific
-code paths exist; on Linux those fallbacks are never reached.
+and fall back to BSD equivalents where the two differ; on Linux those fallbacks
+are never reached. The only platform branch is the `jq` install hint in
+`zat.env-install.sh`, and it selects wording rather than behavior.
 
 macOS setup, beyond the Quick Start:
 
@@ -158,7 +159,7 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 **Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
 - `~/.claude/settings.json` gets hook entries for `hooks/pre-push-codereview.sh` (codereview gate) and `hooks/allow-venv-source.sh` (venv activation auto-approve). Stale hook entries (pointing at scripts removed from the repo) are pruned automatically.
-- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, deny list for dangerous patterns). This block is replaced on each install to prevent session-accumulated cruft.
+- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, and a small deny list). The allow list is replaced on each install to prevent session-accumulated cruft; hand-added deny entries are preserved. The deny list is a speed bump, not a security boundary: entries are prefix matches, and the allow list already grants general-purpose interpreters (`python3`, `node`, `make`, `git -c`), so anything reachable through those runs unprompted under `defaultMode: auto`.
 
 **Re-run `zat.env-install.sh` when:**
 - A new skill is added to `claude/skills/` (the symlink for the new skill won't exist yet)

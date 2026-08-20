@@ -1497,6 +1497,26 @@ has "${REPO_DIR}/tests/test-codereview-marker.sh" 'stat -c .* [|][|] stat -f' \
 has "${REPO_DIR}/bin/review-external.sh" 'TIMEOUT_CMD=\(gtimeout' \
   "portability: review-external.sh falls back to gtimeout when GNU timeout is absent"
 
+# --- Security guards ---
+# Enforcement that must live in the scripts rather than in skill prose, because
+# prose is LLM-executed and is not a boundary.
+
+echo ""
+echo "==> Security guards"
+
+has "${REPO_DIR}/bin/review-external.sh" '\$\{RANGE\}" == -\*' \
+  "security: review-external.sh rejects a --range beginning with '-' (git option injection)"
+has "${REPO_DIR}/zat.env-install.sh" 'chmod 700 "\$\{REVIEWER_ENV_DIR\}"' \
+  "security: install chmods the reviewer config dir to 700"
+has "${REPO_DIR}/zat.env-install.sh" 'chmod 600 "\$\{REVIEWER_ENV\}"' \
+  "security: install chmods the reviewer credential file to 600"
+has "${REPO_DIR}/zat.env-install.sh" '\(\.permissions\.deny // \[\]\)' \
+  "security: install preserves hand-added deny entries instead of replacing them"
+has "${REPO_DIR}/bin/review-external.sh" 'FINDING_RE=.*\[a-z0-9-\]\+' \
+  "security: review-external.sh findings demux requires a provider tag, not just severity shape"
+has "${REPO_DIR}/bin/review-external.sh" '=~ \$\{FINDING_RE\}' \
+  "security: review-external.sh demux uses FINDING_RE (untagged status lines cannot pose as findings)"
+
 # --- Skill frontmatter ---
 # Required fields for each skill.
 

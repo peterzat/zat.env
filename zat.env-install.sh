@@ -98,6 +98,9 @@ echo "==> Ensuring external reviewer config template"
 REVIEWER_ENV_DIR="${HOME}/.config/claude-reviewers"
 REVIEWER_ENV="${REVIEWER_ENV_DIR}/.env"
 mkdir -p "${REVIEWER_ENV_DIR}"
+# This directory holds live API keys. mkdir/cat honour the process umask, which
+# on a default macOS or Ubuntu account yields 0755/0644, so tighten explicitly.
+chmod 700 "${REVIEWER_ENV_DIR}"
 
 if [[ ! -f "${REVIEWER_ENV}" ]]; then
   cat > "${REVIEWER_ENV}" <<'ENVEOF'
@@ -138,6 +141,11 @@ ENVEOF
   fi
 fi
 
+# Applied unconditionally, not just on creation: a file written by an earlier
+# install under a looser umask is repaired on re-run. OPENAI_API_KEY and
+# GEMINI_API_KEY live here, so it must not be group- or world-readable.
+chmod 600 "${REVIEWER_ENV}"
+
 # --- merge permissions and hooks into ~/.claude/settings.json ---
 echo "==> Merging permissions and hooks into ${CLAUDE_DIR}/settings.json"
 SETTINGS_FILE="${CLAUDE_DIR}/settings.json"
@@ -155,9 +163,24 @@ fi
 jq '.effortLevel = "xhigh" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Set effortLevel to xhigh, showThinkingSummaries on"
 
-# Replace permissions: defaultMode, allow list, deny list.
-# Clean slate on each install to prevent session-accumulated cruft.
+# Allow list is replaced wholesale on each install to prevent
+# session-accumulated cruft: allow entries widen what runs unprompted, so
+# resetting them is the safe direction. Deny entries only narrow, so any
+# hand-added ones are preserved by unioning them with the managed set.
+#
+# The deny list is a speed bump, not a security boundary. Entries are prefix
+# matches, so listing `rm -rf` cannot cover every spelling, and the allow list
+# already grants general-purpose interpreters (python3, node, make, git -c);
+# anything reachable through those is auto-approved under defaultMode "auto".
 jq '
+  ((.permissions.deny // []) + [
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -r -f *)",
+      "Bash(rm -f -r *)",
+      "Bash(curl * | bash *)",
+      "Bash(wget * | bash *)"
+   ] | unique) as $deny |
   .permissions = {
     "defaultMode": "auto",
     "allow": [
@@ -188,14 +211,10 @@ jq '
       "Skill(codefix)",
       "Skill(security)"
     ],
-    "deny": [
-      "Bash(rm -rf *)",
-      "Bash(curl * | bash *)",
-      "Bash(wget * | bash *)"
-    ]
+    "deny": $deny
   }
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    Set permissions (defaultMode, allow list, deny list)"
+echo "    Set permissions (defaultMode, allow list reset, deny list merged)"
 
 # Prune hooks that point at zat.env scripts that no longer exist on disk.
 # This cleans up after hooks are removed from the repo (e.g., external reviewer hooks).
@@ -287,6 +306,10 @@ case ":${PATH}:" in
     echo "      export PATH=\"\${HOME}/bin:\${PATH}\""
     echo
     echo "    Then open a new shell and confirm: command -v codereview-marker"
+    echo
+    echo "    Also restart Claude Code. Hooks run in its process environment,"
+    echo "    captured at launch, so a running instance keeps the old PATH and"
+    echo "    will go on refusing pushes until it is restarted."
     ;;
 esac
 
