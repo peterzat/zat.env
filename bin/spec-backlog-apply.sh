@@ -133,7 +133,11 @@ fi
 
 miss=0
 
-for target in "${deletes[@]}"; do
+# Loop guards use the ${arr[@]+"${arr[@]}"} idiom: bash 3.2 (stock macOS
+# /bin/bash) treats an empty array expansion as unset under `set -u`, so an
+# unguarded loop crashes whenever a manifest omits that op type. On bash 4.4+
+# (every Linux target) the guarded and unguarded forms expand identically.
+for target in ${deletes[@]+"${deletes[@]}"}; do
   tmp=$(mktemp)
   if awk -v t="$target" '
     BEGIN { done=0 }
@@ -158,7 +162,7 @@ for target in "${deletes[@]}"; do
   fi
 done
 
-for i in "${!adopt_headers[@]}"; do
+for i in ${adopt_headers[@]+"${!adopt_headers[@]}"}; do
   target="${adopt_headers[$i]}"
   date="${adopt_dates[$i]}"
   tmp=$(mktemp)
@@ -188,7 +192,7 @@ for i in "${!adopt_headers[@]}"; do
   fi
 done
 
-for prefix in "${purge_prefixes[@]}"; do
+for prefix in ${purge_prefixes[@]+"${purge_prefixes[@]}"}; do
   tmp=$(mktemp)
   purged_list=$(mktemp)
   awk -v prefix="$prefix" -v purged_file="$purged_list" '
@@ -249,7 +253,7 @@ for prefix in "${purge_prefixes[@]}"; do
   rm -f "$purged_list"
 done
 
-for i in "${!append_headers[@]}"; do
+for i in ${append_headers[@]+"${!append_headers[@]}"}; do
   hdr="${append_headers[$i]}"
   body="${append_bodies[$i]}"
   if awk -v t="$hdr" '

@@ -7,7 +7,11 @@ if [[ "${EUID}" -eq 0 ]]; then
 fi
 
 if ! command -v jq &>/dev/null; then
-  echo "ERROR: jq is required. Install with: sudo apt install jq"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    echo "ERROR: jq is required. Install with: brew install jq"
+  else
+    echo "ERROR: jq is required. Install with: sudo apt install jq"
+  fi
   exit 1
 fi
 
@@ -112,8 +116,8 @@ if [[ ! -f "${REVIEWER_ENV}" ]]; then
 
 # --- Local (qwen) ---
 # Requires: git clone + setup.sh in ~/src/qwen-2.5-localreview/
-# LOCAL_REVIEW_SCRIPT=/home/${USER}/src/qwen-2.5-localreview/review.py
-# LOCAL_REVIEW_VENV=/home/${USER}/src/qwen-2.5-localreview/.venv
+# LOCAL_REVIEW_SCRIPT=${HOME}/src/qwen-2.5-localreview/review.py
+# LOCAL_REVIEW_VENV=${HOME}/src/qwen-2.5-localreview/.venv
 # LOCAL_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-AWQ
 ENVEOF
   echo "    Created ${REVIEWER_ENV} (all providers commented out)"
@@ -124,8 +128,8 @@ else
 
 # --- Local (qwen) ---
 # Requires: git clone + setup.sh in ~/src/qwen-2.5-localreview/
-# LOCAL_REVIEW_SCRIPT=/home/${USER}/src/qwen-2.5-localreview/review.py
-# LOCAL_REVIEW_VENV=/home/${USER}/src/qwen-2.5-localreview/.venv
+# LOCAL_REVIEW_SCRIPT=${HOME}/src/qwen-2.5-localreview/review.py
+# LOCAL_REVIEW_VENV=${HOME}/src/qwen-2.5-localreview/.venv
 # LOCAL_MODEL=Qwen/Qwen2.5-Coder-14B-Instruct-AWQ
 ENVEOF
     echo "    Appended local reviewer section to ${REVIEWER_ENV}"
@@ -265,6 +269,26 @@ jq --arg cmd "${PLAN_EXIT_HOOK_COMMAND}" '
   }]
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Added post-ExitPlanMode /spec plan reminder hook"
+
+# --- PATH check ---
+# The pre-push gate resolves `codereview-marker` by bare name and fails closed
+# when it is missing, so ~/bin must be on PATH. This script creates ~/bin, and
+# a shell that started before it existed will not have picked it up (Ubuntu's
+# ~/.profile only adds ~/bin when the directory already exists at login). Warn
+# rather than edit the user's shell rc.
+case ":${PATH}:" in
+  *":${BIN_DIR}:"*) ;;
+  *)
+    echo
+    echo "==> WARNING: ${BIN_DIR} is not on your PATH"
+    echo "    The pre-push review gate fails closed without it, so 'git push'"
+    echo "    will be refused until this is fixed. Add to your shell rc:"
+    echo
+    echo "      export PATH=\"\${HOME}/bin:\${PATH}\""
+    echo
+    echo "    Then open a new shell and confirm: command -v codereview-marker"
+    ;;
+esac
 
 echo "==> Done"
 echo

@@ -41,6 +41,7 @@ Each turn tightens quality. The spec prevents drift across sessions, gives revie
 ## Contents
 
 - [Quick Start](#quick-start)
+  - [Platform support](#platform-support)
   - [What the install script does](#what-the-install-script-does)
 - [Daily Workflow](#daily-workflow)
   - [Connecting](#connecting)
@@ -86,6 +87,59 @@ This installs on any machine with git, jq, and Claude Code. It symlinks skills i
 **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
 
 **Generated review files.** `CODEREVIEW.md`, `SECURITY.md`, `TESTING.md`, and `SPEC.md` in downstream project roots are produced by running `/codereview`, `/security`, `/tester`, and `/spec`. The skills that generate them live in `claude/skills/`. These files are working state, not documentation, and should be committed alongside the code they describe.
+
+### Platform support
+
+**Linux (Ubuntu 22.04) is the primary target.** Everything is developed and run
+there first, and `hw-bootstrap.sh` provisions that environment end to end.
+
+**macOS is supported** with the setup below. The scripts avoid GNU-only syntax
+and fall back to BSD equivalents where the two differ, so no macOS-specific
+code paths exist; on Linux those fallbacks are never reached.
+
+macOS setup, beyond the Quick Start:
+
+1. **Install `jq`** — `brew install jq`. The install script refuses to run
+   without it.
+
+2. **Put `~/bin` on your PATH.** The install script creates `~/bin` but does not
+   edit your shell rc. The pre-push review gate resolves `codereview-marker` by
+   bare name and *fails closed* when it is missing, so `git push` is refused
+   until this is set. Add to `~/.zprofile` (login shells, which is what terminal
+   windows start — `~/.zshrc` alone is skipped by non-interactive tooling):
+
+   ```bash
+   export PATH="$HOME/bin:$PATH"
+   ```
+
+   The install script warns when `~/bin` is missing from PATH. This applies to
+   Linux too: Ubuntu's `~/.profile` only adds `~/bin` if the directory already
+   existed at login, so a first install can need one more login to take effect.
+
+3. **Restart Claude Code after changing PATH.** Hooks run in Claude Code's
+   process environment, which is captured at launch. A running instance keeps
+   the old PATH, and the gate will refuse pushes until it is restarted.
+
+**macOS version.** `codereview-marker` hashes with `sha256sum` and `md5sum`.
+macOS 26 ships both in `/sbin`; earlier versions do not. On older macOS, install
+GNU coreutils and put its unprefixed tools on PATH:
+
+```bash
+brew install coreutils
+export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+```
+
+That also supplies `timeout`, used by the optional local reviewer. Without it,
+`review-external.sh` falls back to Homebrew's `gtimeout`, then to running
+unwrapped.
+
+**Not applicable on macOS.** `hw-bootstrap.sh` targets Ubuntu (apt, NVIDIA
+drivers, Docker, Tailscale) and should not be run. `claude/references/ml-gpu.md`
+and `networking.md` describe the Linux GPU box.
+
+**Optional.** `bin/zatmux` needs `tmux` (`brew install tmux`). `shellcheck`
+(`brew install shellcheck`) is only needed to run the full test suite; without
+it `tests/run-all.sh` skips the lint check rather than failing.
 
 ### What the install script does
 

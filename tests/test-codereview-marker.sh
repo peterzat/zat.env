@@ -311,7 +311,9 @@ if [[ -d "${EXPECTED_DIR}" ]]; then
 else
   fail "path: marker directory missing"
 fi
-mode=$(stat -c '%a' "${EXPECTED_DIR}" 2>/dev/null)
+# Portable file mode in octal: GNU stat (Linux) uses -c, BSD stat (macOS)
+# uses -f. GNU wins the first branch on Linux, so -f is never reached there.
+mode=$(stat -c '%a' "${EXPECTED_DIR}" 2>/dev/null || stat -f '%Lp' "${EXPECTED_DIR}" 2>/dev/null)
 if [[ "${mode}" == "700" ]]; then
   pass "path: marker directory mode 0700"
 else

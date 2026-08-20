@@ -150,6 +150,18 @@ fi
 
 TIMEOUT="${REVIEW_TIMEOUT:-300}"
 
+# `timeout` is GNU coreutils. It is absent on stock macOS, where Homebrew's
+# coreutils package installs it as `gtimeout`. Resolve it once here; if
+# neither exists, run the provider unwrapped rather than failing it outright
+# (the exit-124 branch in call_local then simply never fires). On Linux
+# `timeout` always wins this lookup, so behavior there is unchanged.
+TIMEOUT_CMD=()
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_CMD=(timeout "${TIMEOUT}")
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_CMD=(gtimeout "${TIMEOUT}")
+fi
+
 # --- Commit summary (provides context for the diff) ---
 # When --range is supplied, use it directly so the COMMITS block matches the
 # diff range piped on stdin. Otherwise fall back to @{upstream}..HEAD so the
@@ -410,7 +422,7 @@ call_local() {
   stderr_file=$(mktemp)
 
   local output
-  output=$(timeout "${TIMEOUT}" "${python}" "${script}" \
+  output=$(${TIMEOUT_CMD[@]+"${TIMEOUT_CMD[@]}"} "${python}" "${script}" \
     --system "${SYSTEM_FILE}" \
     --input "${USER_FILE}" \
     2>"${stderr_file}") || {
