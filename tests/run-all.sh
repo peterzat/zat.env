@@ -17,8 +17,8 @@ run_suite() {
   echo ""
   SUITES=$((SUITES + 1))
 
-  local output
-  output=$(bash "${script}" 2>&1) || true
+  local output rc=0
+  output=$(bash "${script}" 2>&1) || rc=$?
   echo "${output}"
   echo ""
 
@@ -26,7 +26,7 @@ run_suite() {
   local summary
   summary=$(echo "${output}" | tail -1)
   local pass=0 fail=0 total=0
-  if [[ "${summary}" =~ All\ ([0-9]+)\ checks\ passed ]]; then
+  if [[ "${rc}" -eq 0 ]] && [[ "${summary}" =~ All\ ([0-9]+)\ checks\ passed ]]; then
     total="${BASH_REMATCH[1]}"
     pass="${total}"
   elif [[ "${summary}" =~ ([0-9]+)\ of\ ([0-9]+)\ checks\ failed ]]; then
@@ -34,6 +34,14 @@ run_suite() {
     total="${BASH_REMATCH[2]}"
     pass=$((total - fail))
     FAILED_SUITES="${FAILED_SUITES} ${name}"
+  else
+    # A suite that aborts mid-run prints no summary line, and a suite that
+    # claims success while exiting non-zero is equally untrustworthy. Count
+    # the suite itself as one failure so a dead suite cannot report green.
+    fail=1
+    echo "  SUITE FAILED: ${name} produced no trustworthy summary line (exit ${rc})."
+    echo ""
+    FAILED_SUITES="${FAILED_SUITES} ${name}(aborted)"
   fi
   TOTAL_PASS=$((TOTAL_PASS + pass))
   TOTAL_FAIL=$((TOTAL_FAIL + fail))

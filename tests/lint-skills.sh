@@ -517,16 +517,16 @@ done
 
 # PR merge gate reads: block, reviewed_up_to via grep patterns.
 # Verify the grep patterns in /pr match the field names in codereview's template.
-PR_BLOCK_FIELD=$(grep -oP '"block"' "${SKILLS}/pr/SKILL.md" | head -1)
-CR_BLOCK_FIELD=$(grep -oP '"block"' "${SKILLS}/codereview/SKILL.md" | head -1)
+PR_BLOCK_FIELD=$(grep -o '"block"' "${SKILLS}/pr/SKILL.md" | head -1)
+CR_BLOCK_FIELD=$(grep -o '"block"' "${SKILLS}/codereview/SKILL.md" | head -1)
 if [[ "${PR_BLOCK_FIELD}" == "${CR_BLOCK_FIELD}" ]] && [[ -n "${PR_BLOCK_FIELD}" ]]; then
   pass "REVIEW_META: pr and codereview use identical 'block' field name"
 else
   fail "REVIEW_META: 'block' field name mismatch between pr and codereview"
 fi
 
-PR_REVIEWED_FIELD=$(grep -oP '"reviewed_up_to"' "${SKILLS}/pr/SKILL.md" | head -1)
-CR_REVIEWED_FIELD=$(grep -oP '"reviewed_up_to"' "${SKILLS}/codereview/SKILL.md" | head -1)
+PR_REVIEWED_FIELD=$(grep -o '"reviewed_up_to"' "${SKILLS}/pr/SKILL.md" | head -1)
+CR_REVIEWED_FIELD=$(grep -o '"reviewed_up_to"' "${SKILLS}/codereview/SKILL.md" | head -1)
 if [[ "${PR_REVIEWED_FIELD}" == "${CR_REVIEWED_FIELD}" ]] && [[ -n "${PR_REVIEWED_FIELD}" ]]; then
   pass "REVIEW_META: pr and codereview use identical 'reviewed_up_to' field name"
 else
@@ -1032,11 +1032,14 @@ fi
 # CODEREVIEW.md, the marker, and /codefix were not mutated. This is the
 # load-bearing prose that prevents users from confusing external mode
 # with the gate semantics of full review. The disclaimer can wrap across
-# lines, so use grep -z to treat the section as a single string.
+# lines, so flatten the section to a single line before matching. (GNU
+# `grep -z` would do this too, but BSD/macOS `-z` means something else,
+# so `tr` is the portable way to get one-string semantics.)
 TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
   if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
-       | grep -zqE 'did NOT update CODEREVIEW\.md[^.]*push marker[^.]*/codefix'; then
+       | tr '\n' ' ' \
+       | grep -qE 'did NOT update CODEREVIEW\.md[^.]*push marker[^.]*/codefix'; then
     pass "codereview: External-Only Mode footer disclaims CODEREVIEW.md / marker / codefix mutation"
   else
     FAILS=$((FAILS + 1))
@@ -1478,6 +1481,21 @@ else
   FAILS=$((FAILS + 1))
   printf '  FAIL tester: could not locate D.6 / D.7 anchors for revision-behavior check\n'
 fi
+
+# --- Cross-platform portability guards ---
+# On Linux (bash 4.4+, GNU stat, GNU timeout) all three guards below are
+# no-ops, so reverting one fails nothing on the primary development platform.
+# Pin them here so a revert is caught on Linux rather than on macOS.
+
+echo ""
+echo "==> Cross-platform portability guards"
+
+has "${REPO_DIR}/bin/spec-backlog-apply.sh" '\[@\]\+"\$\{' \
+  "portability: spec-backlog-apply.sh guards empty array expansions (bash 3.2 + set -u)"
+has "${REPO_DIR}/tests/test-codereview-marker.sh" 'stat -c .* [|][|] stat -f' \
+  "portability: test-codereview-marker.sh falls back to BSD 'stat -f' for file mode"
+has "${REPO_DIR}/bin/review-external.sh" 'TIMEOUT_CMD=\(gtimeout' \
+  "portability: review-external.sh falls back to gtimeout when GNU timeout is absent"
 
 # --- Skill frontmatter ---
 # Required fields for each skill.
