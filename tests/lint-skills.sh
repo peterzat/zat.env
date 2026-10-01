@@ -1222,6 +1222,10 @@ has "${REPO_DIR}/zat.env-install.sh" '\.effortLevel //= "xhigh"' \
   "install: seeds effortLevel only when unset"
 has "${REPO_DIR}/zat.env-install.sh" '\.autoMode\.classifyAllShell = true' \
   "install: auto mode classifies every shell command"
+has "${REPO_DIR}/hooks/allow-venv-source.sh" "permission_mode // empty'\)\" == \"auto\"" \
+  "venv hook: makes no decision in auto mode (an allow would skip the classifier)"
+has "${REPO_DIR}/claude/global-claude.md" '\.venv/bin/pytest' \
+  "global conventions: run venv tools directly instead of sourcing activate"
 has "${SKILLS}/codereview/SKILL.md" "Finish the run\.\*\* This review runs unattended in a fork" \
   "codereview: states when the forked review counts as finished"
 has "${SKILLS}/codereview/SKILL.md" "Do not end the turn" \

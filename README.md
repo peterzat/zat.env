@@ -158,8 +158,8 @@ The repo stays at `~/src/zat.env/` and remains part of the live system after ins
 
 **Registered as paths into the repo (live, `git pull` updates the content, no re-install needed):**
 - `~/.gitconfig` gets `include.path` pointing at `gitconfig/aliases.gitconfig` and `core.excludesfile` pointing at `gitconfig/ignore-global`
-- `~/.claude/settings.json` gets hook entries for `hooks/pre-push-codereview.sh` (codereview gate) and `hooks/allow-venv-source.sh` (venv activation auto-approve). Stale hook entries (pointing at scripts removed from the repo) are pruned automatically.
-- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, and a small deny list). The allow list is replaced on each install to prevent session-accumulated cruft; hand-added deny entries are preserved. The deny list is a speed bump, not a security boundary: entries are prefix matches, and the allow list grants general-purpose interpreters (`python3`, `node`, `make`, `git -c`). Install also sets `autoMode.classifyAllShell`, so in auto mode (the default) every shell command, including those, goes through the auto-mode classifier instead of being pre-approved by the allow list, except venv-activation chains, which `hooks/allow-venv-source.sh` pre-approves; in the other permission modes the allow list still runs them unprompted. Other `autoMode` keys are left alone.
+- `~/.claude/settings.json` gets hook entries for `hooks/pre-push-codereview.sh` (codereview gate) and `hooks/allow-venv-source.sh` (venv activation auto-approve outside auto mode; in auto mode it makes no decision). Stale hook entries (pointing at scripts removed from the repo) are pruned automatically.
+- `~/.claude/settings.json` gets a permissions block (defaultMode, allow list for common dev commands, and a small deny list). The allow list is replaced on each install to prevent session-accumulated cruft; hand-added deny entries are preserved. The deny list is a speed bump, not a security boundary: entries are prefix matches, and the allow list grants general-purpose interpreters (`python3`, `node`, `make`, `git -c`). Install also sets `autoMode.classifyAllShell`, so in auto mode (the default) every shell command, including those, goes through the auto-mode classifier instead of being pre-approved by the allow list; in the other permission modes the allow list still runs them unprompted. Other `autoMode` keys are left alone.
 
 **Re-run `zat.env-install.sh` when:**
 - A new skill is added to `claude/skills/` (the symlink for the new skill won't exist yet)
@@ -669,7 +669,7 @@ Post-install layout (annotated):
 │       │   └── hardware-setup.md     # Full hardware provisioning walkthrough
 │       ├── hooks/
 │       │   ├── README.md             # Hook documentation
-│       │   ├── allow-venv-source.sh  # Auto-approves venv activation past safety prompt
+│       │   ├── allow-venv-source.sh  # Auto-approves venv activation past safety prompt (not in auto mode)
 │       │   ├── post-tool-exit-plan-mode.sh  # Reminds user to use /spec plan after exiting plan mode
 │       │   └── pre-push-codereview.sh  # Blocks git push without prior codereview
 │       ├── tests/

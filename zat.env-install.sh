@@ -178,8 +178,7 @@ echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), showThinkingS
 # The deny list is a speed bump, not a security boundary. Entries are prefix
 # matches, so listing `rm -rf` cannot cover every spelling, and the allow list
 # already grants general-purpose interpreters (python3, node, make, git -c).
-# In auto mode, classifyAllShell (below) sends those through the classifier
-# (except venv-activation chains, which hooks/allow-venv-source.sh pre-approves);
+# In auto mode, classifyAllShell (below) sends those through the classifier;
 # in the other permission modes anything reachable through them runs unprompted.
 jq '
   ((.permissions.deny // []) + [
@@ -225,8 +224,8 @@ jq '
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Set permissions (defaultMode, allow list reset, deny list merged)"
 
-# In auto mode, send every shell command through the classifier (except
-# venv-activation chains, which hooks/allow-venv-source.sh pre-approves). Narrow allow
+# In auto mode, send every shell command through the classifier
+# (hooks/allow-venv-source.sh makes no decision in auto mode). Narrow allow
 # rules such as Bash(git *) are otherwise resolved before the classifier runs,
 # so a force push or `gh repo delete` would skip its check. The allow list still
 # cuts prompts in the other permission modes. Other autoMode keys are left alone.

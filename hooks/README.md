@@ -41,13 +41,16 @@ Claude attempts git push
 
 Auto-approves `source .venv/bin/activate` and `. .venv/bin/activate` commands
 (with optional `&& <next command>` chaining) that would otherwise trigger the
-eval-like builtin safety prompt.
+eval-like builtin safety prompt. In auto mode it makes no decision.
 
 **How it works:**
 1. Fires on every `Bash` tool invocation (no `"if"` filter, broad matcher)
-2. Extracts the command string from the hook input JSON
-3. If the command is an exact venv activation or a `venv activate && ...` chain, returns `permissionDecision: allow`
-4. For any other command, produces no output (pass-through to normal permission handling)
+2. If the input's `permission_mode` is `auto`, produces no output, so the auto-mode classifier judges the whole command. A hook `allow` skips the classifier and the permission rules, so in auto mode it would wave through anything chained after the activation.
+3. Otherwise extracts the command string from the hook input JSON
+4. If the command is an exact venv activation or a `venv activate && ...` chain, returns `permissionDecision: allow`
+5. For any other command, produces no output (pass-through to normal permission handling)
+
+The global convention (`claude/global-claude.md`, Python) prefers running venv tools directly (`.venv/bin/pytest`), which needs no activation at all. Behavior is covered by `tests/test-allow-venv-hook.sh`.
 
 The settings.json `permissions.allow` list covers `. .venv/bin/activate && *` but
 not the `source` synonym. This hook fills that gap.

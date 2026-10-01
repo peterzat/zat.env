@@ -13,7 +13,7 @@ This file is for developers modifying this repo: what each piece is, what must s
 - `claude/skills/` — global Claude Code skills: `/spec` (with `backlog` and `plan` subcommands), `/codereview`, `/codefix`, `/security`, `/architect`, `/tester`, `/pr`
 - `bin/` — helper scripts: `review-external.sh` (multi-model reviewer, stdin diff → stdout findings), `spec-backlog-apply.sh` (deterministic BACKLOG.md mutator), `codereview-marker` (single-source codereview push marker hash/write/path), `codereview-skip` (one-shot push-gate bypass), `zatmux` (tmux session toggle)
 - `gitconfig/` — versioned git aliases and global gitignore, included via `~/.gitconfig`
-- `hooks/` — Claude Code hooks: `pre-push-codereview.sh` (gates `git push` on passing review), `allow-venv-source.sh` (auto-approves venv activation), `post-tool-exit-plan-mode.sh` (reminds about `/spec plan` after exiting plan mode)
+- `hooks/` — Claude Code hooks: `pre-push-codereview.sh` (gates `git push` on passing review), `allow-venv-source.sh` (auto-approves venv activation outside auto mode), `post-tool-exit-plan-mode.sh` (reminds about `/spec plan` after exiting plan mode)
 - `tests/` — structural lint and behavioral tests; `tests/run-all.sh` runs every suite
 - `docs/` — extended walkthroughs (e.g., `hardware-setup.md`)
 
@@ -34,6 +34,7 @@ This file is for developers modifying this repo: what each piece is, what must s
 **Hook scripts** (`hooks/*.sh`):
 - Idempotent and side-effect-free other than blocking/allowing the action
 - Exit 0 = allow, exit 2 = block (stderr is shown to Claude)
+- A PreToolUse `permissionDecision: allow` skips the auto-mode classifier and the permission rules, so an auto-approve hook must make no decision when `permission_mode` is `auto`. `allow-venv-source.sh` does; `tests/test-allow-venv-hook.sh` covers it
 - Registered in `~/.claude/settings.json` by `zat.env-install.sh`
 
 **gitconfig files**:

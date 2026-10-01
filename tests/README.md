@@ -65,6 +65,21 @@ tests/test-review-external.sh
 
 Tests use a temp directory (via CLAUDE_REVIEWER_ENV) and never touch the real config file.
 
+## Automated: `test-allow-venv-hook.sh`
+
+```bash
+tests/test-allow-venv-hook.sh
+```
+
+Feeds PreToolUse payloads to `hooks/allow-venv-source.sh` and checks its decision:
+
+| Case | Expected |
+|------|----------|
+| Venv activation, bare or `&& <next>` chained, outside auto mode | `permissionDecision: allow` |
+| Same commands with `permission_mode: auto` | No decision, so the auto-mode classifier judges the whole command |
+| No `permission_mode` field | `allow`, the behavior before auto mode existed |
+| Unrelated commands, `;` chains, other venv paths, empty command | No decision |
+
 ## Manual: scenario traces after skill changes
 
 These flows have had bugs and cannot be verified by grep. Walk through them after changing skill logic.

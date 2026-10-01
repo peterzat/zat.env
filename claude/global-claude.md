@@ -85,6 +85,7 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
 
 - Always use `python3 -m venv .venv` per project. Never `pip install` outside a venv.
 - `PIP_REQUIRE_VIRTUALENV=true` is set globally.
+- Run venv tools directly (`.venv/bin/python`, `.venv/bin/pytest`) rather than `source .venv/bin/activate && ...`. Activation does not persist between shell commands, and the direct form needs no `source`, which Claude Code treats as an eval-like builtin and prompts on.
 - System Python (3.10) is for tooling only.
 
 ## ML / GPU
