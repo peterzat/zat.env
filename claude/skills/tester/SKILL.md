@@ -313,8 +313,7 @@ the contract to the user.
 
 ### Step D.3: Pressure-test the proposed contract shape
 
-Before writing anything, work through these questions out loud (to
-yourself; not to the user) and adjust the draft:
+Before writing anything, settle these questions and adjust the draft:
 
 - Is each contract dimension proportional to the signals? A greenfield
   project with zero tests should not get a three-tier dispatcher.

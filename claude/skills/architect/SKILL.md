@@ -72,6 +72,32 @@ or state "Nothing to flag." Do not pad the report with generic advice.
 If `$ARGUMENTS` requests a focused review (e.g., `deps`, `ops`), evaluate only
 the relevant dimension(s) in full depth and skip the rest with a one-line note.
 
+### What counts as a finding
+
+Apply these while evaluating each dimension. Do not manufacture concerns to
+justify the review.
+
+1. **Judge at the project's real scale.** Read the project's README and goals
+   first. A solo prototype held to enterprise standards is a false finding. A
+   production system excused as "just a prototype" is a missed one.
+2. **Name the concrete cost.** A finding about over-engineering or
+   under-engineering names what breaks, what becomes hard to change, or what
+   confuses a new contributor. Abstract concerns about "coupling" or "separation
+   of concerns" without concrete consequences are not findings.
+3. **Extensibility needs evidence of the change.** Recommend making something
+   pluggable or configurable only when the spec, README, or commit history shows
+   the extension is actually anticipated.
+4. **Transitional inconsistency is not drift.** Before flagging inconsistent
+   patterns, check whether the newer pattern is intentionally replacing the older
+   one. Read git history if unclear. Inconsistency during a migration is expected.
+5. **Technology changes need friction.** A technology-selection finding points to
+   concrete friction: build failures, missing ecosystem support, performance
+   bottlenecks, or abandonment signals. "There is a newer or trendier option" is
+   not a finding.
+6. **Match operational expectations to the deployment model.** A personal CLI tool
+   does not need observability dashboards. A multi-service production system with
+   no logging is a real gap.
+
 ### Group A: Design Quality
 
 **1. Structural clarity**
@@ -146,36 +172,6 @@ How much friction does a new contributor face? Evaluate:
 - Documentation quality for contributors (not end users)
 This is distinct from structural clarity (dimension 1). Structural clarity is about
 navigability; developer experience is about the practical cost of working here.
-
-## Step 3.5: Pressure Test
-
-Before writing findings, pressure-test your analysis. Only revise if a question
-reveals a genuine gap. Do not manufacture concerns to justify the review.
-
-1. **Am I judging for the wrong scale?** Re-read the project's README and goals.
-   A solo prototype held to enterprise standards is a false finding. A production
-   system excused as "just a prototype" is a missed one. Recalibrate.
-2. **Is the complexity proportional?** For each finding about over-engineering or
-   under-engineering, verify you can name the concrete cost: what breaks, what
-   becomes hard to change, or what confuses a new contributor? Abstract concerns
-   about "coupling" or "separation of concerns" without concrete consequences
-   are not findings.
-3. **Did I check extensibility against likely changes, not hypothetical ones?**
-   Review your extensibility assessment. If you recommended making something
-   pluggable or configurable, confirm there is evidence (in the spec, README,
-   or commit history) that the extension is actually anticipated.
-4. **Consistency vs. evolution.** If you flagged inconsistent patterns, consider
-   whether the newer pattern is intentionally replacing the older one. Read git
-   history if unclear. Transitional inconsistency during a migration is expected,
-   not a finding.
-5. **Am I recommending technology changes without evidence of friction?** For each
-   technology selection finding, verify you can point to concrete friction: build
-   failures, missing ecosystem support, performance bottlenecks, or abandonment
-   signals. "There is a newer or trendier option" is not a finding.
-6. **Am I assessing operational fitness for the right deployment model?** A personal
-   CLI tool does not need observability dashboards. A multi-service production
-   system with no logging is a real gap. Recalibrate operational expectations to
-   the project's actual deployment context.
 
 ## Step 4: Report
 

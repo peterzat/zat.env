@@ -873,6 +873,12 @@ has "${SKILLS}/security/SKILL.md" "^### Coverage$" \
   "security: SECURITY.md template has a Coverage section"
 has "${SKILLS}/security/SKILL.md" "Git history checked for secrets" \
   "security: Coverage records which files' git history was checked"
+hasnt "${SKILLS}/architect/SKILL.md" "Pressure Test" \
+  "architect: no separate re-check pass"
+has "${SKILLS}/architect/SKILL.md" "^### What counts as a finding$" \
+  "architect: finding rules live in the evaluation step"
+hasnt "${SKILLS}/tester/SKILL.md" "out loud" \
+  "tester: D.3 does not ask for reasoning written out"
 
 # --- Codefix additional constraints ---
 
