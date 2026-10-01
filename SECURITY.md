@@ -1,147 +1,156 @@
 ## Security Review — 2026-10-01 (scope: paths)
 
-**Summary:** Reviewed `bin/review-external.sh`, `tests/lint-skills.sh`,
-`tests/test-review-external.sh`, and `zat.env-install.sh` in full at HEAD 379af38. Since
-the 4fa79f5 scan, 3f6772a repaired the lint helpers and 379af38 hardened
-review-external.sh. 0 BLOCK / 1 WARN / 2 NOTE. The WARN predates both commits and was
-reproduced: a test points the local-reviewer paths at predictable /tmp names, and the
-script executes a binary planted at one of them. The four prior NOTEs on these files are
-resolved. Mutation and sample runs confirmed each fix. No secrets in the files or their
-history, and no PII.
+**Summary:** Reviewed `bin/codereview-skip`, `tests/lint-skills.sh`, and
+`tests/test-review-external.sh` in full at HEAD f541aa2: 0 BLOCK / 0 WARN / 3 NOTE. The
+prior WARN (test-suite /tmp paths where another account could plant a binary) is fixed.
+Two new NOTEs concern the skip marker: it can outlive the push it was created for, and its
+write follows a symlink. Both were reproduced in scratch copies. The invalid-key NOTE
+carries over unchanged and was re-verified. No secrets in the files or their history, and
+no PII.
 
 ### Findings
 
 ```
-[WARN] tests/test-review-external.sh:145-146 — the "script set but file does not exist"
-test points LOCAL_REVIEW_SCRIPT and LOCAL_REVIEW_VENV at fixed names in the shared /tmp,
-and review-external.sh runs `${LOCAL_REVIEW_VENV}/bin/python3` whenever the script path
-exists
-  Attack vector: The attacker is another local account that can write the shared /tmp.
-    /proc is mounted without hidepid, so it can read the PID of
-    `bash tests/test-review-external.sh` there. It creates
-    /tmp/nonexistent-review-script-<pid>.py and an executable
-    /tmp/nonexistent-venv-<pid>/bin/python3 before the test reaches line 150. The window
-    is wide, because line 118 first makes a real network call. The test's env file then
-    passes the HAS_LOCAL gate (bin/review-external.sh:131-133). call_local runs the
-    planted binary as whoever runs the suite (bin/review-external.sh:483-496), with that
-    user's full access. tests/run-all.sh runs it on every /codereview and after each
-    /codefix pass.
-  Evidence: the heredoc at line 144 is unquoted, so `$$` becomes the test shell's PID.
-    The suite never creates either path. It only stats and executes them, so the
-    protected_regular and protected_symlinks sysctls do not apply. In the accepted
-    /tmp/cuda-keyring.deb case, protected_regular can at least refuse curl's O_CREAT open.
-    Reproduced on a copy of the suite, with a scratch directory standing in for /tmp and
-    curl stubbed so nothing reached the network. The two files were planted after launch,
-    using only the PID. The suite then ran the planted python3 as uid 1000, passing it the
-    script's --system and --input files, and reported one failure after the code had run.
-    Lines 208-210 reuse the script path. They become exploitable if LOCAL_REVIEW_VENV is
-    inherited from the caller's environment (line 26 unsets only the two API keys). In
-    that case only the .py file needs planting, and the real venv's python runs it.
-    Confidence: high on the mechanism. Low that this host has such an account today. The
-    three non-system service accounts (cloudflared-daydream, daydream-egress, daydream)
-    run with PrivateTmp=yes and cannot write the shared /tmp. Other local accounts were
-    not checked.
-  Remediation: move both paths under the suite's private TEST_DIR (mktemp -d, mode 0700).
-    Set `LOCAL_REVIEW_SCRIPT=${TEST_DIR}/nonexistent-review-script.py` and
-    `LOCAL_REVIEW_VENV=${TEST_DIR}/nonexistent-venv` at lines 145-146, and use the same
-    script path at line 209.
+[NOTE] bin/codereview-skip:4-6, 22 — the skip marker never expires and is not tied to a
+diff, and a tag-only push leaves it in place, so a "push now" bypass can skip review of a
+later, different push
+  Attack vector: no adversary is needed. The user says "push now" and the agent runs
+    codereview-skip. If the next push the hook sees is tag-only, the hook exits at
+    hooks/pre-push-codereview.sh:201-203, before the skip check at lines 227-230, and the
+    marker stays. The same happens when the push never reaches the Claude Code hook, for
+    example when the user pushes from their own terminal after the agent created the
+    marker (the hook is a PreToolUse hook, not a git hook). Later the agent pushes new
+    commits that nobody reviewed. The hook finds the marker, deletes it, and exits 0.
+    /codereview never runs, and nothing tells the user.
+  Evidence: reproduced in a scratch repo with a private XDG_CACHE_HOME and synthetic hook
+    input; nothing was pushed. After codereview-skip, `git push origin v1.0` returned 0 and
+    left the marker. After a new commit, `git push` returned 0 and consumed it. The same
+    push with no marker returned 2. A marker backdated 30 days was still honored, because
+    the hook tests only `-f` (line 227). The header comment says the marker "is consumed by
+    the hook on the next push attempt", which holds only for pushes that reach line 227.
+    The accepted heuristic-detection risk covers is_git_push and is_tag_only_push, not the
+    marker's lifetime. No marker was pending at scan time. Confidence: high on the
+    mechanism, low on likelihood.
+  Remediation: bind the bypass to the diff the user approved. Have codereview-skip write
+    the output of `codereview-marker hash` into the marker, and have the hook honor the
+    marker only when it matches the current hash, deleting it either way. A short age
+    limit, such as `find "${SKIP_MARKER}" -mmin -15`, also works. Add a tag-then-code case
+    to tests/test-pre-push-hook.sh.
+
+[NOTE] bin/codereview-skip:18-22 — the comment says a plain touch is safe because
+codereview-marker creates the marker directory at 0700, but nothing enforces that mode or
+the directory's owner, and touch follows a symlink at the skip path
+  Attack vector: requires XDG_CACHE_HOME to point into a directory another local account
+    can write. The XDG spec treats that directory as user-specific, but nothing here checks
+    it. That account creates `claude-codereview` there, owned by itself with mode 0777, and
+    plants `skip-<hash>` as a symlink. The hash is the first 8 hex digits of the md5 of the
+    repo path, so it is predictable. The user's `chmod 700` then fails, and
+    codereview-skip's touch creates the symlink's target with the user's rights. The
+    account can also plant skip markers to bypass the gate. The push marker lives in the
+    same directory, and `codereview-marker write` (bin/codereview-marker:117, out of scope)
+    would truncate and overwrite a planted symlink's target.
+  Evidence: marker_dir (bin/codereview-marker:73-78) runs inside a command substitution,
+    where bash clears errexit, so a failed chmod is ignored and the path is still printed.
+    In a scratch run with chmod made to fail, `codereview-marker skip-path` exited 0, the
+    directory stayed 0775, and codereview-skip created the marker in it. With a symlink
+    planted at skip-<hash>, codereview-skip created the symlink's target. A noclobber write
+    (`set -C; : >`) refused the same symlink. Not exposed on this host: XDG_CACHE_HOME is
+    unset, and ~/.cache and ~/.cache/claude-codereview are 0700 and owned by the user.
+    Confidence: high on the mechanism, low on exposure.
+  Remediation: in marker_dir, exit 1 unless the path is a real directory owned by the user
+    after the chmod (`[[ -d "${d}" && ! -L "${d}" && -O "${d}" ]]`). In codereview-skip,
+    create the marker without following a symlink:
+    `( set -C; : > "${SKIP_PATH}" ) 2>/dev/null || [[ -f "${SKIP_PATH}" && ! -L "${SKIP_PATH}" ]]`.
 
 [NOTE] tests/test-review-external.sh:112-118 — the invalid-key tests (also lines 287-294)
 send the caller's unpushed commit subjects to api.openai.com and
-generativelanguage.googleapis.com
+generativelanguage.googleapis.com (carried forward from the 379af38 scan; the lines are
+unchanged)
   Attack vector: no adversary is involved. This data leaves the machine without the
-    user's opt-in. Everywhere else, sending data to these providers requires configuring
-    a key. The script builds its COMMITS block from `git log @{upstream}..HEAD` in the
-    caller's working directory (bin/review-external.sh:211-215, 255-263). These tests run
-    from wherever tests/run-all.sh was started, normally the repo root. The provider
-    receives the request body over TLS before it rejects the fake key.
-  Evidence: the line-112 test's input and env file were run from the repo root against a
-    capturing curl stub. The captured user message held "=== COMMITS ===" and all six
-    unpushed subjects (4fa79f5 to 379af38). The test at lines 336-365 runs from a non-git
-    directory and sends only the dummy diff. Impact is low for zat.env, whose subjects go
-    to GitHub on push anyway. A fork with private history would send more. Confidence:
-    high on the mechanism, low on impact.
-  Remediation: run these tests against the fake curl at lines 753-782 with FAKE_CODE=401,
-    which also removes their network dependency. Running them from ${TEST_DIR} is an
-    alternative. With curl stubbed to fail, a copy of the suite passed every
-    network-dependent check.
-
-[NOTE] zat.env-install.sh:170 — settings.json is rewritten through a `.tmp` file that the
-shell creates at the process umask and then renames over the original (same pattern at
-lines 224, 233, 249, 271, 288, 306), so a settings.json restricted to 0600 comes back
-0664 (umask 0002) or 0644 (umask 0022) after every install run
-  Attack vector: Claude Code's settings.json can hold secrets in its `env` key. Suppose a
-    user stores a token there and restricts the file. The next install run widens the
-    mode, and any local account that can traverse the home directory can then read the
-    file.
-  Evidence: on a scratch file set to 0600, the line-170 pattern left it at 0664 under this
-    host's umask 0002. Inert on this host: the live settings.json has no `env` key, and
-    /home/peter is 0750. The reviewer key file is not affected. Line 111 sets its directory
-    to 0700 before line 114 creates the file, and line 155 sets the file to 0600. The
-    carried-forward NOTE about that file's creation instant therefore had no exposure.
+    user's opt-in. Everywhere else, sending data to these providers requires configuring a
+    key. The script builds its COMMITS block from `git log @{upstream}..HEAD` in the
+    caller's working directory (bin/review-external.sh:208-215, 256-258), and
+    tests/run-all.sh runs the suite from wherever it was started, normally the repo root.
+  Evidence: re-verified at f541aa2 with a curl stub that recorded request bodies, run from
+    the repo root. The line-112 request to OpenAI and both line-287 requests (OpenAI and
+    Google) each carried "=== COMMITS ===" with the four unpushed subjects (dd22b6d to
+    f541aa2). Each body was about 2 KB. That the body crosses the wire before the 401 is
+    inferred, not observed: this host's curl 7.81.0 supports HTTP/2, and curl does not hold
+    a body behind Expect: 100-continue on HTTP/2. The test at lines 336-365 runs from a
+    non-git directory and sends only the dummy diff. Impact is low for zat.env, whose
+    subjects reach GitHub on push anyway. A fork with private history would send more.
     Confidence: high on the mechanism, low on impact.
-  Remediation: set `umask 077` after `set -euo pipefail`, or copy the original file's mode
-    onto the `.tmp` file before each mv.
+  Remediation: run these tests against the suite's fake curl (lines 753-782) with
+    FAKE_CODE=401, which also removes their network dependency. Running them from
+    ${TEST_DIR} is an alternative.
 ```
 
 ### Coverage
 
-All eight dimensions were reviewed. Every line of all four files was read:
-bin/review-external.sh (592 lines), tests/lint-skills.sh (1681), tests/test-review-external.sh
-(903), and zat.env-install.sh (347).
+All eight dimensions were reviewed. Every line of the three files was read:
+bin/codereview-skip (22 lines), tests/lint-skills.sh (1698), and
+tests/test-review-external.sh (903). Read for context only: bin/codereview-marker,
+hooks/pre-push-codereview.sh, the curl and COMMITS code in bin/review-external.sh, and
+Step 5.6 of claude/skills/codereview/SKILL.md.
 
-- Prior NOTEs, all resolved:
-  - Token counts reaching bc. `_count` (bin/review-external.sh:277-279) accepts digits
-    only, and the test at lines 845-854 covers a hostile count.
-  - Tagged status lines promoted to findings. Each provider's stdout and stderr now go to
-    separate files, and `demux` (lines 575-592) promotes only stdout lines that carry
-    that provider's own tag.
-  - A partial OpenAI key in error text. `_redact` (lines 284-286) masks key-shaped text
-    in both providers' error messages. Sample runs masked an OpenAI 401 message, an
-    `sk-svcacct-` key, and Google's `api_key:AIza...` suspension text.
-  - The always-passing lint guards. `hasnt` now fails on a grep error (lint lines 26-37),
-    and line 180 caught a mutant that added Write to codefix's allowed-tools.
-  - Lint passes at HEAD (436 checks, no grep errors).
-- Input handling in review-external.sh. Every JSON request body is built with
-  `jq --arg/--rawfile`. Both provider URLs have a fixed host, curl does not follow
-  redirects, and the Gemini key travels in a header. A `--range` value that begins with
-  `-` is rejected (line 101). `--check` prints model names, never keys. Two observations,
-  neither a finding:
-  - `set -a` (line 120) exports the API keys to every child process. Only processes
-    running as the same user can read another process's environment.
-  - CLAUDE_REVIEWER_ENV (line 118) can redirect the config path, but only someone who
-    already controls the caller's environment can set it.
-- Guard coverage:
-  - A mutant that sends provider stderr to stdout inside `demux` passes lint. The
-    behavioral demux test (tests/test-review-external.sh:868-894) catches it; a replica
-    run against the mutant showed it.
-  - A mutant that accepts any provider tag fails lint line 1629.
-  - `_count` and `_redact` have no lint pins, only the behavioral tests at lines 845-864.
-  - The `--range` leading-dash rejection still has no behavioral test. The text pin at lint
-    line 1617 is its only guard.
-  - CLAUDE.md says lint keeps `/tmp/.claude-codereview-` and `md5sum | cut -c1-8` out of
-    the codereview SKILL.md, but lint lines 471-482 check only the hook and
-    codereview-skip. As before, this has low impact.
-- Host observation, updating the 4fa79f5 scan. All three service accounts run with
-  PrivateTmp=yes, ProtectHome=yes, ProtectSystem=strict, and NoNewPrivileges=yes, so none
-  of them can reach the shared /tmp or /home. daydream-egress and daydream-prod also set
-  ProtectProc=invisible. cloudflared-daydream uses ProtectProc=default and can read every
-  process's cmdline. See the curl-header entry under Accepted Risks. No external reviewer
-  keys are configured (`review-external.sh --check` exits 1).
+- Prior findings on these files:
+  - The WARN at tests/test-review-external.sh:145-146 (and 209) is fixed in 20a4c6c. Both
+    nonexistent local-reviewer paths now sit under the suite's TEST_DIR, which `mktemp -d`
+    creates at 0700. Neither test file has a fixed /tmp path or a `$$`-derived path left.
+  - The invalid-key NOTE is still open (above).
+- Changes since 379af38: the codereview-skip usage comment, four lint changes (the spec
+  no-confirmation guard, the `--disallowedTools` pin, the tree-change exclusion pin, and
+  the tester relabels), and the test-path fix.
+  - The new usage comment says the hook checks the whole command line, so
+    `codereview-skip && git push` is blocked. This session matched it. The live hook,
+    registered with `"if": "Bash(git push*)"`, blocked a compound test command whose first
+    word was not git and which contained a scratch `git push`, before any of it ran.
+  - codereview-skip is not in the permission allow list. On this host (defaultMode auto,
+    classifyAllShell true), the classifier sees it.
+- lint-skills.sh is a static checker. Its patterns are hard-coded. It evaluates nothing,
+  sources nothing, writes no files of its own, and makes no network calls. The line
+  numbers it passes to sed and to `[[ -lt ]]` come from `grep -n` and `grep -c`, so they
+  are always numeric and cannot carry an arithmetic-expansion payload. shellcheck runs
+  statically.
+- test-review-external.sh: every temp path comes from mktemp. The fake curl and the fake
+  venvs live in private directories, and the fake curl reads only the suite's own files.
+- Guard coverage. Lint passes at HEAD (438 checks, run on a scratch copy).
+  - Removing or narrowing `--disallowedTools` fails the line-930 check. Reverting the
+    collect reading to `{ git status --porcelain; git diff; }` fails lines 944-950.
+  - A second, unrestricted `claude -p "/code-review high"` launch added beside the pinned
+    line passes lint. The pin checks that the restricted line exists, not that every
+    launch carries the restriction.
+  - As in the prior scan, CLAUDE.md says lint keeps `/tmp/.claude-codereview-` and
+    `md5sum | cut -c1-8` out of the codereview SKILL.md, but lines 471-482 check only the
+    hook and codereview-skip. Low impact.
+- Out of scope, for the next scan that covers claude/skills/codereview/SKILL.md. The
+  built-in child at line 473 loses only Edit, Write, and NotebookEdit, and keeps Bash. The
+  tree-change hash (lines 466 and 491) cannot see:
+  - the four excluded review files
+  - gitignored paths
+  - `.git/` (config, hooks)
+  - paths outside the repo
+
+  The child's tool calls run in the background and never appear in the user's transcript.
+  If the reviewed diff carries prompt injection, the auto-mode classifier is the remaining
+  check. A read-only launch mode would close the gap. Whether /code-review works in one
+  was not checked.
 - Not verified:
-  - The runtime values of the protected_* sysctls (permission denied in the sandbox).
-  - Which other local login accounts exist (enumeration was not permitted).
-  - tests/test-review-external.sh was not run against the real network. A copy with curl
-    stubbed passed 73 of 74 checks. The one failure was the planted-file demonstration.
-- Out of scope: claude/skills/codereview/SKILL.md, which consumes the script's stdout and
-  stderr, and the README and CLAUDE.md changes in 6645cd1.
+  - That the invalid-key request bodies cross the wire before the 401. A local listener
+    test was not permitted.
+  - Test suite results. The suites were not run in this scan because an offline run with
+    curl stubbed was not permitted. The relocated test paths were checked by reading.
+  - Whether Claude Code runs PreToolUse hooks before the auto-mode classifier. If the
+    classifier can deny a push first, a denied push also leaves the skip marker
+    unconsumed.
 
-Git history checked for secrets: bin/review-external.sh (10 commits), zat.env-install.sh
-(31), tests/test-review-external.sh (9), and tests/lint-skills.sh (55). Each was checked
-over its last three commits (`git log -p --follow -3`) and over its full history
-(`git log -p --all --follow`). The patterns covered OpenAI, Anthropic, Google, Tailscale,
-GitHub, Slack, and AWS keys, plus private-key headers, and there were zero hits. The only
-key assignments in history are template placeholders and the fake test keys.
+Git history checked for secrets: bin/codereview-skip (3 commits), tests/lint-skills.sh
+(51), and tests/test-review-external.sh (10). Each was checked over its last three commits
+(`git log -p --follow -3`) and over its full history (`git log -p --all --follow`). The
+patterns covered OpenAI, Anthropic, Google, Tailscale, GitHub, Slack, and AWS keys, plus
+private-key headers, and there were zero hits. The only key values ever added to the test
+suite are the fakes `sk-invalid-test-key`, `sk-test-key`, and `fake-google-key`, and empty
+values.
 
 ### Accepted Risks
 
@@ -195,14 +204,15 @@ key assignments in history are template placeholders and the fake test keys.
   header as `-H @<file>` keeps it out of argv.
 
 ---
-*Prior review (2026-10-01, scope: paths, at 4fa79f5): Reviewed `tests/lint-skills.sh`
-only. 0 BLOCK / 0 WARN / 1 NOTE: two codefix role-separation guards always passed, and no
-check enforced that codefix lacks Write. 3f6772a resolved it, and this scan confirmed the
-fix by mutation. That entry also carried open items from earlier scans. 379af38 resolved
-the three review-external.sh NOTEs among them, confirmed here. Three remain open because
-their files are unchanged and outside this scope. The venv hook's auto-mode guard matches
-only the exact string "auto" (hooks/allow-venv-source.sh:12-14). ImageMagick's stock
-coder policy reaches the SVG coder from `.png`-named input (hw-bootstrap.sh:48). Docker
-group membership is a passwordless path to root (hw-bootstrap.sh:197).*
+*Prior review (2026-10-01, scope: paths, at 379af38): Reviewed bin/review-external.sh,
+tests/lint-skills.sh, tests/test-review-external.sh, and zat.env-install.sh. 0 BLOCK / 1
+WARN / 2 NOTE. 20a4c6c fixed the WARN (test-suite /tmp paths where another account could
+plant a binary the suite would run), confirmed here. The invalid-key NOTE is carried above.
+Also still open: the NOTE that zat.env-install.sh:170 rewrites settings.json at the
+process umask. That file is unchanged and outside this scope. That scan confirmed four
+earlier NOTEs fixed. Three older items also remain open, all in files unchanged since and
+outside this scope: the venv hook's exact-string "auto" guard
+(hooks/allow-venv-source.sh:12-14), ImageMagick's stock coder policy (hw-bootstrap.sh:48),
+and Docker group membership as a passwordless path to root (hw-bootstrap.sh:197).*
 
-<!-- SECURITY_META: {"date":"2026-10-01","commit":"379af38866fbe40483c7180c8e26ed643247a45b","scope":"paths","scanned_files":["bin/review-external.sh","tests/lint-skills.sh","tests/test-review-external.sh","zat.env-install.sh"],"block":0,"warn":1,"note":2} -->
+<!-- SECURITY_META: {"date":"2026-10-01","commit":"f541aa22b84cecc771deffb3665117af997d7dd3","scope":"paths","scanned_files":["bin/codereview-skip","tests/lint-skills.sh","tests/test-review-external.sh"],"block":0,"warn":0,"note":3} -->

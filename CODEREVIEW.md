@@ -1,79 +1,93 @@
-## Review — 2026-10-01 (commit: 20a4c6c)
+## Review — 2026-10-01 (commit: 5695fb9)
 
-**Review scope:** Refresh review. Focus: 10 file(s) changed since prior review (commit 55694b7): the three NOTE batches 3f6772a (test-suite integrity), 6645cd1 (prompt and doc accuracy), and 379af38 (review-external.sh model refresh and hardening). 0 already-reviewed file(s).
+**Review scope:** Refresh review. Focus: 10 file(s) changed since prior review (commit 20a4c6c): the prompt-audit fixes (dd22b6d), /spec proposal handling without a mid-run confirmation (022d646), five BACKLOG.md entries (3e6f9f4), and the v1.5 documentation fold-in (f541aa2). 0 already-reviewed file(s). One fix cycle (5695fb9), re-reviewed.
 
-**Summary:** Lint now counts each check once, fails on broken patterns, and has working codefix boundary guards; several prompt and doc accuracy fixes; review-external.sh defaults to current models (gpt-6.1-sol, gemini-3.1-pro-preview with thinking level), fixes the OpenAI cost double count, integer-checks token counts, redacts key-shaped error text, and demuxes each provider's own tagged stdout only. tests/run-all.sh 698/698 before the fix loop, 699/699 after (one new lint check). Five WARNs fixed over two /codefix cycles (20a4c6c); the fifth came from re-reviewing the first cycle's fix. /security (paths: bin/review-external.sh, tests/lint-skills.sh, tests/test-review-external.sh, zat.env-install.sh) found 0 BLOCK / 1 WARN / 2 NOTE and verified the four prior NOTEs on these files fixed.
+**Summary:** Prompt-audit edits to the codereview, security, spec, and tester skills with matching lint and README changes; /spec now consumes a stale proposal and regenerates an existing one without asking; README's Done (v1.5) covers the audit and the post-tag work. tests/run-all.sh 700/700 before and after the fix cycle. /security (paths: bin/codereview-skip, tests/lint-skills.sh, tests/test-review-external.sh) found 0 BLOCK / 0 WARN / 3 NOTE and confirmed the prior WARN on predictable /tmp test paths fixed.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 10 findings, 10 kept after Step 6 (one also reported by the inline review); 232 s, finished well before /security.
+`/code-review high`: 8 findings, 7 kept after Step 6 (the em-dash finding dropped as a writing convention).
 
 ### Findings
 
-[WARN, fixed in 20a4c6c] claude/skills/codereview/SKILL.md:473 — The Step 5.6 child `claude -p` runs with every tool, so the verifier-only /codereview (no Edit or Write, by design) launches a process that can edit the tree it is reviewing (claude-code)
-  Evidence: The launch passes no tool restriction. Under the installed auto mode, prompt-injection text in the reviewed diff could steer the child into Edit or Write calls while Steps 4 and 5 run; the edits would be in the working tree when Step 8 hashes the push marker, unseen by the inline review. CLAUDE.md's builder/verifier boundary describes /codereview as having no Edit/Write. In 20 experiment runs and two live runs the child modified nothing. Confidence: high on the mechanism, low on likelihood.
-  Suggested fix: Launch with `--disallowedTools "Edit,Write,NotebookEdit"` (it needs neither, since --fix is never passed), and at collection compare `git status --porcelain` and `git diff` against a reading taken just before launch; if the tree changed, discard the built-in's findings, record `Failed (tree changed).`, and report it. Update the lint pin on the invocation.
+[WARN, fixed in 5695fb9] README.md:769 — The audit narrative miscounts the human review: it says one flagged item was made into a fix and five were deferred, but two flagged items were fixed (the /spec confirmations and the bin/codereview-skip usage comment), and BACKLOG.md got four audit-derived entries plus one (the Gemini default) from a code-review NOTE. Line 770 also says the removed history "stays in CLAUDE.md", which holds for /codereview's but not for /spec's removed plan-read history
+  Evidence: dd22b6d changed bin/codereview-skip:12 (audit flag L7); 3e6f9f4's gemini-stable-model-default entry has Origin "CODEREVIEW.md (2026-10-01 NOTE on review-external.sh)". CLAUDE.md does not mention the advisory plan read. This text is the source for the v1.5 release notes. Confidence: high.
+  Suggested fix: Line 769: "he accepted all ten proposed edits, turned two flagged items into fixes, and deferred the remaining flags to `BACKLOG.md` with revisit criteria (...), alongside a stable Gemini default from code review." Line 770: "That was one of the flagged items made into a fix" and "the history stays in CLAUDE.md and git history."
 
-[WARN, fixed in 20a4c6c] CLAUDE.md:63 — The "External reviewer output handling" bullet says the model defaults and the price table sit at the top of the script; only the defaults do, and the prices are `case` blocks inside call_openai and call_google (claude-code)
-  Evidence: bin/review-external.sh price tables near the cost logging in each provider function. A maintainer updating for a retired model would miss them. Confidence: high.
-  Suggested fix: Say the model defaults are at the top of the script and the price tables are in each provider function's cost block.
+[WARN, fixed in 5695fb9] claude/skills/spec/SKILL.md:93 — A stale proposal is now consumed without confirmation, so Step 3g step 2 applies its Backlog Sweep deletions, which were classified against project state 5 or more commits old (claude-code)
+  Evidence: Step 2 routes a stale proposal to Step 3g; Step 3g step 2 pipes one `delete:` per Backlog Sweep line to spec-backlog-apply.sh. Before 022d646 the user could re-propose first. The sweep only proposes deleting entries that clearly contradicted state then, and deletions are reversible via git when BACKLOG.md is committed, so the impact is limited. Confidence: high on the mechanism.
+  Suggested fix: Without asking, have the stale check re-test each Backlog Sweep deletion against the current state with the Step 3c.5 rules before Step 3g applies it, drop any that no longer clearly hold, and report the dropped ones in the Step 5 output.
 
-[WARN, fixed in 20a4c6c] tests/README.md:27 — The "Codereview flow gating" row says the light-review skip list has 5 steps; since 4fa79f5 lint checks 6 (3, 5, 5.5, 5.6, 6.5, 7) (claude-code)
-  Evidence: tests/lint-skills.sh:153. Confidence: high.
-  Suggested fix: "light review skip list (Steps 3, 5, 5.5, 5.6, 6.5, 7)".
+[WARN, fixed in 5695fb9] claude/skills/tester/SKILL.md:460 — The D.5.5 checklist example "greenfield seed (52 lines)" re-anchors the ~50-line cap that dd22b6d removed, and the new lint pattern does not catch it (claude-code)
+  Evidence: Examples are matched closely by current models; the always-on checklist shows a number next to 50 as the model case. The format block below it already shows `(<N> lines)`. Confidence: medium.
+  Suggested fix: Remove the concrete example line, or replace "(52 lines)" with a placeholder.
 
-[WARN, fixed in 20a4c6c] tests/test-review-external.sh:145 — (security) Two tests point LOCAL_REVIEW_SCRIPT and LOCAL_REVIEW_VENV at predictable /tmp paths (also line 209); review-external.sh runs `${LOCAL_REVIEW_VENV}/bin/python3` when the script path exists, so another local account that plants both paths before the test reaches them gets code run as the test user
-  Evidence: SECURITY.md 2026-10-01, reproduced with planted files in a scratch copy. Predates this diff. The daydream service accounts use PrivateTmp, so exposure on this host is low. Confidence: high on the mechanism.
-  Suggested fix: Put both nonexistent paths under the suite's private `${TEST_DIR}`.
+[NOTE] claude/skills/spec/SKILL.md:248 — Regenerating an existing proposal carries forward only the Retrospective and user replies, so the old proposal's Backlog Sweep and Revisit candidates subsections drop out (Step 3c.5 runs only at turn close) (claude-code)
+  Evidence: Low impact: dropped sweep deletions leave entries in BACKLOG.md (the safe direction), and revisit candidates resurface at the next turn-close sweep. Confidence: medium.
+  Suggested fix: Carry those two subsections forward as well.
 
-[WARN, fixed in 20a4c6c] claude/skills/codereview/SKILL.md:466 — The cycle-1 tree-change check hashes `git status --porcelain` and `git diff` over the whole tree, but /security legitimately writes SECURITY.md between the launch and the collection, so the check would discard the built-in's findings as "tree changed" on nearly every full review
-  Evidence: Step 5 invokes /security after the Step 5.6 launch and before its collection; /security rewrites SECURITY.md (it did in this run, leaving it uncommitted). The reading at launch and at collection would then differ. Found in re-review of the cycle-1 fix. Confidence: high.
-  Suggested fix: Take both readings with the review-output exclusions the push marker uses, for example `{ git status --porcelain -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; git diff -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; } | sha256sum`, in both the launch and the collect instructions, and pin the excluded form in lint.
+[NOTE] claude/skills/tester/SKILL.md:51 — "State uncertainty" records an uncertain gap as a NOTE, which can under-rate a serious gap whose only uncertainty is whether it was intentional (claude-code)
+  Evidence: The previous rule ended the forked run with no report at all, so this is still an improvement. Design mode emits no severities, so the rule has no target there. Confidence: medium.
+  Suggested fix: Rate the gap by its impact if accidental and state that intent could not be determined.
 
-[NOTE] bin/review-external.sh:144 — gemini_thinking chooses thinkingLevel or thinkingBudget from the shape of GEMINI_EFFORT, not the model; a level sent to a pinned gemini-2.5 model may be rejected, and the 32768 default budget exceeds gemini-2.5-flash's cap (claude-code)
+[NOTE] claude/skills/spec/SKILL.md:96 — The staleness note and the "proposal was replaced" note are specified only in Step 2 and Step 3d; Step 5's summary templates have no slot for them and no lint check requires them (claude-code)
+  Suggested fix: Add both notes to Step 5's mode-specific summaries.
+
+[NOTE] tests/lint-skills.sh:768 — The no-mid-run-confirmation guard matches two exact, case-sensitive phrasings, so a reworded wait would pass (claude-code)
+  Suggested fix: Match case-insensitively, or accept that the guard pins only the removed text.
+
+[NOTE] tests/lint-skills.sh:1539 — The why-deferred check passes when "boilerplate" appears anywhere in D.5, and D.5 now quotes the boilerplate phrase itself, which a literal-following model can copy (claude-code)
+  Suggested fix: Drop the quoted phrase from claude/skills/tester/SKILL.md:418 ("A reason that would fit every entry is boilerplate, not a reason.").
+
+[NOTE] bin/codereview-skip:22 — (security) The skip marker never expires and is not tied to a diff; the hook's tag-only exit runs before the skip check, and a push from the user's own terminal never reaches the hook, so a leftover marker lets a later, unreviewed agent push through without notice
+  Evidence: SECURITY.md 2026-10-01, reproduced in a scratch repo with synthetic hook input (a 30-day-old marker still worked). Predates this diff; this diff changed only the usage comment. Confidence: high on the mechanism, low on frequency.
+  Suggested fix: Have codereview-skip store `codereview-marker hash` and the hook honor the marker only on a match, or add an age limit.
+
+[NOTE] bin/codereview-skip:18 — (security) The comment's claim that the 0700 parent directory makes a plain touch safe is not enforced: marker_dir runs in a command substitution where set -e is off, so a failed chmod is ignored, and touch follows a symlink
+  Evidence: SECURITY.md 2026-10-01. Exposure needs XDG_CACHE_HOME in a directory another account can write; not the case on this host. Predates this diff.
+  Suggested fix: Check ownership in marker_dir and create the marker with noclobber (`set -C`).
+
+[NOTE] (carried forward) bin/review-external.sh:144 — gemini_thinking chooses thinkingLevel or thinkingBudget from the shape of GEMINI_EFFORT, not the model; a level sent to a pinned gemini-2.5 model may be rejected, and the 32768 default budget exceeds gemini-2.5-flash's cap (claude-code)
   Evidence: The budget default for every 2.5 model predates this diff (the old default applied to any model). Whether 2.5 models accept thinkingLevel was not verified. Confidence: medium-low.
   Suggested fix: For gemini-2.5 models map a level to a budget, and cap the flash default at 24576.
 
-[NOTE] tests/test-review-external.sh:848 — The hostile-token test detects a regression by elapsed time, but nothing bounds the run, so a regression would hang the suite rather than fail the check (claude-code)
+[NOTE] (carried forward) tests/test-review-external.sh:848 — The hostile-token test detects a regression by elapsed time, but nothing bounds the run, so a regression would hang the suite rather than fail the check (claude-code)
   Suggested fix: Bound the run (the script's own TIMEOUT_CMD pattern), so a hang becomes a failure.
 
-[NOTE] bin/review-external.sh:168 — `--check` prints an invalid GEMINI_EFFORT but still counts Google as configured and exits 0, so /codereview external's pre-flight passes for a provider the real run will skip (claude-code)
+[NOTE] (carried forward) bin/review-external.sh:168 — `--check` prints an invalid GEMINI_EFFORT but still counts Google as configured and exits 0, so /codereview external's pre-flight passes for a provider the real run will skip (claude-code)
   Evidence: The same behavior existed before this diff with a non-numeric budget. Confidence: high on the mechanism, low impact.
   Suggested fix: Do not count Google as configured when its thinking setting is invalid.
 
-[NOTE] bin/review-external.sh:284 — `_redact` has no word boundary, so words containing "sk-" (for example "task-" or "risk-") in provider error text are partly redacted (also claude-code)
+[NOTE] (carried forward) bin/review-external.sh:284 — `_redact` has no word boundary, so words containing "sk-" (for example "task-" or "risk-") in provider error text are partly redacted (also claude-code)
   Evidence: Cosmetic; it only affects error text. BSD sed lacks `\b`, so the fix needs a portable boundary such as `(^|[^A-Za-z0-9])`.
   Suggested fix: Anchor the match on a non-alphanumeric character or line start.
 
-[NOTE] bin/review-external.sh:456 — The new price tables drop the gemini-2.5-flash rate and the o3-priced fallback, so those models now log cost "?" (claude-code)
+[NOTE] (carried forward) bin/review-external.sh:456 — The new price tables drop the gemini-2.5-flash rate and the o3-priced fallback, so those models now log cost "?" (claude-code)
   Evidence: Deliberate: the old flash rates were stale and the o3 fallback mispriced every unknown model. "?" is honest. Confidence: high.
   Suggested fix: None, or add verified rates for models in actual use.
 
-[NOTE] tests/lint-skills.sh:294 — The double-count fix leaves 28 failure branches that update FAILS and TOTAL inline and print by hand, duplicating fail() (claude-code)
+[NOTE] (carried forward) tests/lint-skills.sh:294 — The double-count fix leaves 28 failure branches that update FAILS and TOTAL inline and print by hand, duplicating fail() (claude-code)
   Suggested fix: Replace those branches with `fail "..."`.
 
-[NOTE] bin/review-external.sh:151 — gemini_thinking accepts `minimal`, which the header, the install template, and the validation message do not list (claude-code)
+[NOTE] (carried forward) bin/review-external.sh:151 — gemini_thinking accepts `minimal`, which the header, the install template, and the validation message do not list (claude-code)
   Suggested fix: Document `minimal`, or drop it, since Pro models do not accept it.
 
-[NOTE] tests/test-review-external.sh:112 — (security) The invalid-key tests call the real OpenAI and Google APIs from the repo root, so each run sends the unpushed commit subjects to both providers without opt-in
-  Evidence: SECURITY.md 2026-10-01. Predates this diff. Low impact.
+[NOTE] (carried forward) tests/test-review-external.sh:112 — (security) The invalid-key tests call the real OpenAI and Google APIs from the repo root, so each run sends the unpushed commit subjects to both providers without opt-in
+  Evidence: SECURITY.md 2026-10-01, re-confirmed at f541aa2 with a recording curl stub. Predates this diff. Low impact.
   Suggested fix: Run them against the suite's fake curl with FAKE_CODE=401.
 
-[NOTE] zat.env-install.sh:170 — (security) Each settings.json rewrite creates a new .tmp file and moves it into place, so a 0600 settings.json comes back at the default umask (0664 under umask 0002); same pattern at 224, 233, 249, 271, 288, 306
+[NOTE] (carried forward) zat.env-install.sh:170 — (security) Each settings.json rewrite creates a new .tmp file and moves it into place, so a 0600 settings.json comes back at the default umask (0664 under umask 0002); same pattern at 224, 233, 249, 271, 288, 306
   Evidence: SECURITY.md 2026-10-01. Inert today: no secrets in settings.json and the home directory is 0750.
   Suggested fix: `umask 077` at the top of the script.
 
-[NOTE] bin/review-external.sh — The default Gemini model, gemini-3.1-pro-preview, is a preview; a preview can be withdrawn on short notice, and a retired default would show only as an API-error line in the cost log
+[NOTE] (carried forward) bin/review-external.sh — The default Gemini model, gemini-3.1-pro-preview, is a preview; a preview can be withdrawn on short notice, and a retired default would show only as an API-error line in the cost log
   Evidence: It is Google's named replacement for gemini-2.5-pro, whose access is limited to existing users. Confidence: medium.
+  Deferred to BACKLOG.md (gemini-stable-model-default).
   Suggested fix: Switch to the stable 3.x Pro ID when Google publishes one.
 
-[NOTE] commits 6645cd1, 379af38 — Each bundles several independent fixes (six wording fixes; a model refresh with three hardening changes)
-  Evidence: The user asked for these as batches. Confidence: low that this matters.
-  Suggested fix: None.
-
-[NOTE] hw-bootstrap.sh:48 — (carried forward, security) ImageMagick still installs with the stock coder policy; 6645cd1 makes the convention name the input format (`png:in.png`), which blocks a disguised SVG, but the policy itself still allows the SVG and MVG coders
+[NOTE] (carried forward) hw-bootstrap.sh:48 — (carried forward, security) ImageMagick still installs with the stock coder policy; 6645cd1 makes the convention name the input format (`png:in.png`), which blocks a disguised SVG, but the policy itself still allows the SVG and MVG coders
   Suggested fix: Optionally install a raster-only coder allowlist in hw-bootstrap.sh.
 
 [NOTE] (carried forward) claude/skills/codereview/SKILL.md:480 — Whether a forked /codereview (`context: fork`) can wait on a background Bash task without polling is unverified; this run executed inline, where the completion notice arrived normally (claude-code)
@@ -91,7 +105,7 @@ None configured.
   Evidence: Coverage gap only; the inline review covers the full scope. README documents the scope difference.
   Suggested fix: Have the Step 9 "Built-in review" line note the range the built-in reported reviewing when it differs from the gate's base.
 
-[NOTE] (carried forward) claude/skills/codereview/SKILL.md — The skill is now 672 lines against the CLAUDE.md guideline of about 500; this diff added 57 (claude-code)
+[NOTE] (carried forward) claude/skills/codereview/SKILL.md — The skill is 677 lines against the CLAUDE.md guideline of about 500; deferred to BACKLOG.md (skill-size-references-split) (claude-code)
   Suggested fix: Move Step 5.6's launch and collect mechanics, or other long sections, to claude/skills/codereview/references/.
 
 [NOTE] (carried forward) (security) The dev box runs service accounts besides peter (cloudflared-daydream, daydream-egress, daydream), and `/proc` does not hide one user's processes from another, so the Accepted Risks that assume a single-user host deserve a second look
@@ -113,11 +127,9 @@ None configured.
 
 ### Fixes Applied
 
-- [WARN] claude/skills/codereview/SKILL.md:473 — The Step 5.6 child runs with `--disallowedTools "Edit,Write,NotebookEdit"`, and a working-tree reading taken at launch and at collection discards its findings if the tree changed. (claude-code)
-- [WARN] claude/skills/codereview/SKILL.md:466 — The tree-change readings exclude CODEREVIEW.md, SECURITY.md, TESTING.md, and SPEC.md, so /security writing SECURITY.md does not discard the built-in's findings; lint pins the excluded form at launch and collection. (found in re-review)
-- [WARN] CLAUDE.md:63 — The price tables are described as case blocks in each provider function. (claude-code)
-- [WARN] tests/README.md:27 — The light-review skip list is listed as Steps 3, 5, 5.5, 5.6, 6.5, 7. (claude-code)
-- [WARN] tests/test-review-external.sh:145 — The nonexistent local-reviewer paths live under the suite's private TEST_DIR. (security)
+- [WARN] README.md:769-770: the audit narrative says two flagged items became fixes and the remaining flags were deferred, with the Gemini default from code review; removed history stays in "CLAUDE.md and git history".
+- [WARN] claude/skills/spec/SKILL.md:93: the stale proposal check re-tests each Backlog Sweep deletion against current state with the Step 3c.5 rules before Step 3g applies it, drops any that no longer hold, and names them in the Step 5 output; Step 3g step 2 excludes the dropped ones. (claude-code)
+- [WARN] claude/skills/tester/SKILL.md:460: the D.5.5 example reads `greenfield seed (<N> lines)`. (claude-code)
 
 ### Accepted Risks
 
@@ -129,6 +141,6 @@ None configured.
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-10-01, commit 55694b7): First live run of Step 5.6 (built-in /code-review high), which produced all three WARNs (built-in classification rules, is_error read, README wording), all fixed; 0 BLOCK / 0 WARN / 22 NOTE.*
+*Prior review (2026-10-01, commit 20a4c6c): Made the built-in review read-only with a tree-change check, moved test paths off predictable /tmp names, and fixed doc accuracy; five WARNs, all fixed; 0 BLOCK / 0 WARN / 22 NOTE.*
 
-<!-- REVIEW_META: {"date":"2026-10-01","commit":"20a4c6c","reviewed_up_to":"20a4c6c83f9c2be7bd0ab38618a766f725d927e5","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":22} -->
+<!-- REVIEW_META: {"date":"2026-10-01","commit":"5695fb9","reviewed_up_to":"5695fb96e588af34200cf2e71aa08aa26dc8a6e5","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":28} -->
