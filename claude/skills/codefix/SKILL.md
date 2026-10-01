@@ -5,7 +5,7 @@ description: >-
   applies minimal targeted fixes. Never evaluates its own work; that is the
   reviewer's job. Invoked by /codereview, not directly by users.
 context: fork
-effort: max
+effort: high
 allowed-tools: Bash(*), Read, Edit, Grep, Glob
 ---
 

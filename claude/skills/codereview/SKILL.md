@@ -12,7 +12,7 @@ description: >-
   /codefix mutation, useful for span-of-release second opinions.
 argument-hint: [external [<ref> | <from>..<to>]]
 context: fork
-effort: max
+effort: xhigh
 allowed-tools: Bash(*), Read, Grep, Glob, Skill(security), Skill(security *), Skill(codefix)
 ---
 
@@ -41,6 +41,11 @@ You start with an empty context — gather everything you need below.
   files (other than CODEREVIEW.md, SECURITY.md, and the marker file). When findings
   need fixing, delegate to `/codefix` via Step 7. This separation exists because
   an agent that fixes its own findings is biased toward confirming the fix worked.
+- **Finish the run.** This review runs unattended in a fork, and ending your turn
+  ends the review. A full review is finished only when the Output Summary has been
+  printed after Step 9, an external-only run only after Step E.5, or earlier only
+  when a step is blocked on something the user must resolve. Do not end the turn
+  with a progress note that announces the next step; take the step.
 
 Arguments: `$ARGUMENTS`
 

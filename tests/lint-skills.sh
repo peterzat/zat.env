@@ -1166,6 +1166,32 @@ has "${SKILLS}/security/SKILL.md" "Accepted Risks" \
 has "${SKILLS}/codereview/SKILL.md" "Listed in Accepted Risks" \
   "codereview: carry-forward checks Accepted Risks"
 
+# --- Skill effort levels ---
+# Frontmatter effort overrides the session level in both directions, so only
+# fixed-difficulty skills set it. Judgment skills inherit the session level.
+# README states each level; the install script seeds effortLevel only if unset.
+
+echo ""
+echo "==> Skill effort levels"
+
+for pair in security:max codereview:xhigh codefix:high pr:medium; do
+  IFS=: read -r skill level <<< "${pair}"
+  has "${SKILLS}/${skill}/SKILL.md" "^effort: ${level}$" \
+    "${skill}: frontmatter effort is ${level}"
+  has "${README}" "\`/${skill}\` at \`${level}\`" \
+    "README: states /${skill} effort as ${level}"
+done
+for skill in spec architect tester; do
+  hasnt "${SKILLS}/${skill}/SKILL.md" "^effort:" \
+    "${skill}: no frontmatter effort (inherits session level)"
+done
+has "${REPO_DIR}/zat.env-install.sh" '\.effortLevel //= "xhigh"' \
+  "install: seeds effortLevel only when unset"
+has "${SKILLS}/codereview/SKILL.md" "Finish the run\.\*\* This review runs unattended in a fork" \
+  "codereview: states when the forked review counts as finished"
+has "${SKILLS}/codereview/SKILL.md" "Do not end the turn" \
+  "codereview: forbids ending the turn on a progress note"
+
 # --- Uncommitted prior entry guard ---
 # Rolling files condense the prior entry to one line, relying on git history
 # as the archive. When the file is uncommitted, the skill carries the prior

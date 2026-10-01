@@ -10,7 +10,6 @@ description: >-
 argument-hint: [deps | ops | topic]
 disable-model-invocation: true
 context: fork
-effort: max
 allowed-tools: Bash(*), Read, Grep, Glob
 ---
 

@@ -93,6 +93,14 @@ for script in "${REPO_DIR}/bin"/*; do
   echo "    ${script_name} -> ${script}"
 done
 
+# Remove links to scripts that have since been deleted from the repo.
+for link in "${BIN_DIR}"/*; do
+  if [[ -L "${link}" ]] && [[ ! -e "${link}" ]] && [[ "$(readlink "${link}")" == "${REPO_DIR}/bin/"* ]]; then
+    rm "${link}"
+    echo "    removed stale link $(basename "${link}")"
+  fi
+done
+
 # --- external reviewer config template ---
 echo "==> Ensuring external reviewer config template"
 REVIEWER_ENV_DIR="${HOME}/.config/claude-reviewers"
@@ -154,14 +162,13 @@ if [[ ! -f "${SETTINGS_FILE}" ]]; then
   echo '{}' > "${SETTINGS_FILE}"
 fi
 
-# Set effortLevel to xhigh. xhigh (introduced in Claude Code v2.1.111) sits
-# between high and max and is tuned for Opus 4.7; other models fall back to
-# high. Skills already override to effort:max via frontmatter at critical
-# checkpoints; this protects implementation turns between skills. Background:
-# the medium default (silently set 2026-03-03) under-allocated reasoning for
-# complex engineering work. See github.com/anthropics/claude-code/issues/42796
-jq '.effortLevel = "xhigh" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    Set effortLevel to xhigh, showThinkingSummaries on"
+# Seed effortLevel to xhigh only when unset, so a level chosen with /effort
+# survives re-runs. Per-model levels saved under modelSettings take precedence
+# over this top-level value. Skills that need a fixed level set it in their own
+# frontmatter; the rest inherit the session level. showThinkingSummaries makes
+# the collapsed thinking readable with Ctrl+O.
+jq '.effortLevel //= "xhigh" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), showThinkingSummaries on"
 
 # Allow list is replaced wholesale on each install to prevent
 # session-accumulated cruft: allow entries widen what runs unprompted, so
