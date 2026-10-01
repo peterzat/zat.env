@@ -457,7 +457,7 @@ components, in order:
    full-dimension`) plus the line count of the contract section you
    drafted in Step D.4 (counted from your in-memory draft; nothing has
    been written to TESTING.md yet). Example: `Contract shape:
-   greenfield seed (52 lines)`.
+   greenfield seed (<N> lines)`.
 
 3. **Rollout entry count + justification** — one line with the count
    plus a brief reason. Example: `Rollout: 6 entries (at upper bound;

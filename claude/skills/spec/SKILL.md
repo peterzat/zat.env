@@ -95,7 +95,11 @@ mode instead of adopting the plan.
   commits after that date, consume it anyway (Step 3g grounds the spec
   in the current code) and say so in the Step 5 output: "This proposal
   was from YYYY-MM-DD, N commits before this spec; the criteria are
-  grounded in the current code."
+  grounded in the current code." A stale proposal's Backlog Sweep was
+  classified against older state, so before Step 3g applies it, re-test
+  each proposed deletion against the current state with the Step 3c.5
+  rules, drop any that no longer clearly hold, and name the dropped
+  entries in the Step 5 output.
 - **No arguments, SPEC.md exists, no proposal:** Evolve mode (Step 3c)
 
 ## Step 3a: Interview Mode (New Spec)
@@ -409,7 +413,7 @@ Execute these steps in order.
        MANIFEST
 
    One `delete:` line per entry in the proposal's `### Backlog Sweep`
-   subsection (headings there are typically wrapped in backticks; strip
+   subsection, less any the Step 2 stale proposal check dropped (headings there are typically wrapped in backticks; strip
    the backticks, keep the text verbatim). One `adopt:` line per revived
    revisit candidate (revival signal: user named the candidate in
    conversation, "Chosen direction" note inside the proposal, or mention
