@@ -1014,6 +1014,16 @@ for ext_step in "5.5:^## Step 5.5:,^## Step 5.6:" "E.4:^### Step E.4:,^### Step 
   fi
 done
 
+# API keys reach curl through a file descriptor, never as an argument:
+# /proc/<pid>/cmdline is readable by every local account on a host without
+# hidepid, and a review call holds the key there for up to REVIEW_TIMEOUT.
+hasnt "${REPO_DIR}/bin/review-external.sh" '-H "(Authorization: Bearer|x-goog-api-key: )\$\{' \
+  "script: no API key passed to curl as an argument"
+has "${REPO_DIR}/bin/review-external.sh" "-H @<\(printf 'Authorization: Bearer %s" \
+  "script: OpenAI key reaches curl through a file descriptor"
+has "${REPO_DIR}/bin/review-external.sh" "-H @<\(printf 'x-goog-api-key: %s" \
+  "script: Google key reaches curl through a file descriptor"
+
 # CODEREVIEW.md template covers all exit states
 has "${SKILLS}/codereview/SKILL.md" "External reviewers:" \
   "codereview: CODEREVIEW.md template has External reviewers section"

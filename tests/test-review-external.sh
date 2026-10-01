@@ -755,10 +755,12 @@ FAKE_CAPTURE=$(mktemp -d)
 cat > "${FAKE_BIN}/curl" <<'CURLEOF'
 #!/usr/bin/env bash
 url=""
+printf '%s\n' "$@" > "${FAKE_CAPTURE}/args"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -d) cp "${2#@}" "${FAKE_CAPTURE}/body.json"; shift 2 ;;
-    -H|-w|--max-time) shift 2 ;;
+    -H) if [[ "$2" == @* ]]; then cat "${2#@}"; else printf '%s\n' "$2"; fi >> "${FAKE_CAPTURE}/headers"; shift 2 ;;
+    -w|--max-time) shift 2 ;;
     -*) shift ;;
     *) url="$1"; shift ;;
   esac
@@ -775,7 +777,7 @@ export FAKE_CAPTURE
 run_fake() {
   local errf
   errf=$(mktemp)
-  rm -f "${FAKE_CAPTURE}/body.json" "${FAKE_CAPTURE}/url"
+  rm -f "${FAKE_CAPTURE}/body.json" "${FAKE_CAPTURE}/url" "${FAKE_CAPTURE}/args" "${FAKE_CAPTURE}/headers"
   FAKE_STDOUT=$(echo "diff content" | PATH="${FAKE_BIN}:${PATH}" FAKE_RESPONSE="$1" FAKE_CODE="$2" bash "${SCRIPT}" 2>"${errf}" || true)
   FAKE_STDERR=$(cat "${errf}")
   rm -f "${errf}"
@@ -797,6 +799,14 @@ if [[ "${FAKE_STDERR}" == *"-- 1000000 in / 1000000 out / 0 thinking -- ~\$22"* 
   pass "gemini cost: prompts over 200k tokens use the \$4 in / \$18 out tier"
 else
   fail "gemini cost (long prompt): unexpected cost line: ${FAKE_STDERR}"
+fi
+# The key reaches curl through a file descriptor, never its argument list,
+# which any local account can read in /proc/<pid>/cmdline.
+if ! grep -qF 'fake-google-key' "${FAKE_CAPTURE}/args" 2>/dev/null \
+   && grep -qxF 'x-goog-api-key: fake-google-key' "${FAKE_CAPTURE}/headers" 2>/dev/null; then
+  pass "gemini key: sent from a file descriptor, not in curl's arguments"
+else
+  fail "gemini key: args=$(tr '\n' ' ' < "${FAKE_CAPTURE}/args" 2>/dev/null) headers=$(tr '\n' ' ' < "${FAKE_CAPTURE}/headers" 2>/dev/null)"
 fi
 GEMINI_SHORT="${TEST_DIR}/gemini-short.json"
 printf '%s\n' '{"candidates":[{"content":{"parts":[{"text":"No issues found."}]}}],"usageMetadata":{"promptTokenCount":100000,"candidatesTokenCount":1000000,"thoughtsTokenCount":0}}' > "${GEMINI_SHORT}"
@@ -840,6 +850,12 @@ if [[ "${FAKE_STDOUT}" == "[BLOCK] (openai) b.py:2 -- example finding" ]]; then
   pass "openai finding: tagged with its provider on stdout"
 else
   fail "openai finding: unexpected stdout: ${FAKE_STDOUT}"
+fi
+if ! grep -qF 'sk-test-key' "${FAKE_CAPTURE}/args" 2>/dev/null \
+   && grep -qxF 'Authorization: Bearer sk-test-key' "${FAKE_CAPTURE}/headers" 2>/dev/null; then
+  pass "openai key: sent from a file descriptor, not in curl's arguments"
+else
+  fail "openai key: args=$(tr '\n' ' ' < "${FAKE_CAPTURE}/args" 2>/dev/null) headers=$(tr '\n' ' ' < "${FAKE_CAPTURE}/headers" 2>/dev/null)"
 fi
 
 # Prompts over 272k input tokens use the long-context tier: 1M in + 1M out at

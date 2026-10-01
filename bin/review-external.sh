@@ -309,10 +309,13 @@ call_openai() {
       ]
     }' > "${body_file}"
 
+  # The key reaches curl through a file descriptor (-H @file), not its argument
+  # list: /proc/<pid>/cmdline is readable by every local account. Same in
+  # call_google.
   local response
   response=$(curl -s -w "\n%{http_code}" \
     --max-time "${TIMEOUT}" \
-    -H "Authorization: Bearer ${api_key}" \
+    -H @<(printf 'Authorization: Bearer %s\n' "${api_key}") \
     -H "Content-Type: application/json" \
     -d "@${body_file}" \
     "https://api.openai.com/v1/responses" 2>/dev/null) || {
@@ -416,7 +419,7 @@ call_google() {
   response=$(curl -s -w "\n%{http_code}" \
     --max-time "${TIMEOUT}" \
     -H "Content-Type: application/json" \
-    -H "x-goog-api-key: ${api_key}" \
+    -H @<(printf 'x-goog-api-key: %s\n' "${api_key}") \
     -d "@${body_file}" \
     "${url}" 2>/dev/null) || {
     rm -f "${body_file}"

@@ -67,7 +67,7 @@ Checks covering guard logic and output contract for `bin/review-external.sh`:
 | Empty API keys | Keys set to empty string must not trigger API calls |
 | Invalid API key | Must fail open (exit 0, error on stderr, no stdout) |
 | Invalid GEMINI_EFFORT | A value that is neither a thinking level nor a number must fail open with a descriptive error |
-| Fake-curl provider tests | Default models and Gemini thinking level or budget in the request, both Gemini price tiers, both OpenAI GPT-6 price tiers, OpenAI cost without double-counted reasoning, a leading zero on costs below $1, non-numeric token counts, key redaction in API errors, and a tagged stderr line kept out of the findings |
+| Fake-curl provider tests | Default models and Gemini thinking level or budget in the request, both Gemini price tiers, both OpenAI GPT-6 price tiers, OpenAI cost without double-counted reasoning, a leading zero on costs below $1, non-numeric token counts, API keys passed to curl from a file descriptor rather than its arguments, key redaction in API errors, and a tagged stderr line kept out of the findings |
 | Both providers invalid | Both must error on stderr, exit 0, no stdout |
 | Shellcheck | Static analysis of the script |
 | Stdin interface | Script must not require positional arguments |
