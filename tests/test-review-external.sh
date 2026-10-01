@@ -901,6 +901,27 @@ else
   fail "openai error: key not redacted: ${FAKE_STDERR}"
 fi
 
+# Terminal control characters in provider text never reach the terminal: a CR
+# plus erase-line would make this BLOCK display as the NOTE that follows it.
+# Both texts must stay visible, with tab and UTF-8 text intact.
+OPENAI_CTRL="${TEST_DIR}/openai-ctrl.json"
+printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"[BLOCK] evil.py:1 -- real finding\r\u001b[2K[NOTE] evil.py:1 -- cosmetic only\u001b]0;title\u0007 \u009b2J\tcafé"}]}],"usage":{"input_tokens":10,"output_tokens":5,"output_tokens_details":{"reasoning_tokens":0}}}' > "${OPENAI_CTRL}"
+run_fake "${OPENAI_CTRL}" 200
+if [[ "${FAKE_STDOUT}" == "[BLOCK] (openai) evil.py:1 -- real finding[2K[NOTE] evil.py:1 -- cosmetic only]0;title 2J"$'\t'"café" ]]; then
+  pass "control characters: stripped from findings, text and tab kept"
+else
+  fail "control characters in findings: $(printf '%s' "${FAKE_STDOUT}" | od -c | head -5)"
+fi
+OPENAI_CTRL_ERR="${TEST_DIR}/openai-ctrl-err.json"
+printf '%s\n' '{"error":{"message":"bad request \u001b[31mred\u001b[0m\r done"}}' > "${OPENAI_CTRL_ERR}"
+run_fake "${OPENAI_CTRL_ERR}" 400
+if [[ "${FAKE_STDERR}" == *"bad request [31mred[0m done"* ]] \
+   && [[ "${FAKE_STDERR}" != *$'\e'* ]] && [[ "${FAKE_STDERR}" != *$'\r'* ]]; then
+  pass "control characters: stripped from provider error text on stderr"
+else
+  fail "control characters in stderr: $(printf '%s' "${FAKE_STDERR}" | od -c | head -5)"
+fi
+
 rm -rf "${FAKE_BIN}" "${FAKE_CAPTURE}"
 
 # Demux: a status line on a provider's stderr cannot pose as a finding, even

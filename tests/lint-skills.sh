@@ -1024,6 +1024,13 @@ has "${REPO_DIR}/bin/review-external.sh" "-H @<\(printf 'Authorization: Bearer %
 has "${REPO_DIR}/bin/review-external.sh" "-H @<\(printf 'x-goog-api-key: %s" \
   "script: Google key reaches curl through a file descriptor"
 
+# demux strips terminal control characters from both provider streams before
+# anything reaches the terminal, so a steered model cannot hide a finding's text.
+has "${REPO_DIR}/bin/review-external.sh" '_sanitize < "\$\{err\}" >&2' \
+  "script: demux strips control characters from provider stderr"
+has "${REPO_DIR}/bin/review-external.sh" 'done < <\(_sanitize < "\$\{out\}"\)' \
+  "script: demux strips control characters from provider stdout"
+
 # CODEREVIEW.md template covers all exit states
 has "${SKILLS}/codereview/SKILL.md" "External reviewers:" \
   "codereview: CODEREVIEW.md template has External reviewers section"

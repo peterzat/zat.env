@@ -578,10 +578,19 @@ fi
 # which holds Edit, so neither a status line nor a line claiming another
 # provider's tag can pose as a finding. Nothing is hidden from the user: lines
 # that are not findings still reach stderr.
+#
+# Provider text can also carry terminal control sequences: code under review
+# can steer a model into returning ESC, CR, or BEL as JSON escapes, which jq -r
+# decodes, and a CR plus erase-line can make a BLOCK display as a NOTE. Strip C0
+# controls other than tab and newline, DEL, and UTF-8-encoded C1 controls from
+# both streams before any line reaches the terminal.
+_sanitize() {
+  LC_ALL=C tr -d '\000-\010\013-\037\177' | LC_ALL=C sed $'s/\xc2[\x80-\x9f]//g'
+}
 demux() {
   local tag="$1" out="$2" err="$3" line
   local finding_re="^\[(BLOCK|WARN|NOTE)\] \(${tag}\)"
-  [[ -s "${err}" ]] && cat "${err}" >&2
+  [[ -s "${err}" ]] && _sanitize < "${err}" >&2
   if [[ -s "${out}" ]]; then
     while IFS= read -r line; do
       if [[ "${line}" =~ ${finding_re} ]]; then
@@ -589,7 +598,7 @@ demux() {
       elif [[ -n "${line}" ]]; then
         echo "${line}" >&2      # anything else -> stderr
       fi
-    done < "${out}"
+    done < <(_sanitize < "${out}")
   fi
   return 0
 }
