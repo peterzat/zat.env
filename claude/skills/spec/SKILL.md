@@ -90,11 +90,12 @@ mode instead of adopting the plan.
 - **`new` or no SPEC.md exists:** Interview mode (Step 3a)
 - **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b)
 - **No arguments, SPEC.md exists with a `### Proposal` section:**
-  Proposal consume mode (Step 3g). **Stale proposal guard:** run
+  Proposal consume mode (Step 3g). **Stale proposal check:** run
   `git log --oneline` since the proposal date. If there are 5 or more
-  commits after that date, flag it to the user: "This proposal is from
-  YYYY-MM-DD and there have been N commits since. Still want to use
-  it, or re-propose?" Wait for confirmation before proceeding.
+  commits after that date, consume it anyway (Step 3g grounds the spec
+  in the current code) and say so in the Step 5 output: "This proposal
+  was from YYYY-MM-DD, N commits before this spec; the criteria are
+  grounded in the current code."
 - **No arguments, SPEC.md exists, no proposal:** Evolve mode (Step 3c)
 
 ## Step 3a: Interview Mode (New Spec)
@@ -244,11 +245,12 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
 3. Read any working documents referenced in SPEC.md's Context section (e.g., TESTING.md,
    CODEREVIEW.md, project-specific files). These are optional enrichment; the proposal
    must work from git history and SPEC.md alone as the universal baseline.
-4. If a `### Proposal` section already exists in SPEC.md, flag it: "There is an
-   existing proposal from YYYY-MM-DD. Regenerate from current state?" Wait for yes/no.
-   If no, stop. If yes, read the old proposal content before replacing it. Use it as
-   context alongside the new git history: what thinking still applies, what has been
-   overtaken by new work, what new directions emerged.
+4. If a `### Proposal` section already exists in SPEC.md, regenerate it; running
+   propose mode is the signal. Read the old proposal before replacing it and use it
+   as context alongside the new git history: what thinking still applies, what has
+   been overtaken by new work, what new directions emerged. Carry any Retrospective
+   or user reply inside it into the new proposal, and say in the Step 5 output that
+   the proposal from YYYY-MM-DD was replaced.
 5. Generate a concise proposal containing:
    - **What happened:** what was built, what was learned, what changed. Grounded in
      git history and file state, not conversation memory. This is the key section: it

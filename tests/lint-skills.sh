@@ -762,6 +762,12 @@ has "${SKILLS}/spec/SKILL.md" "Step 3g.*Proposal Consume" \
 has "${SKILLS}/spec/SKILL.md" 'Proposal consume mode \(Step 3g\)' \
   "spec: Step 2 router sends proposal-present case to Step 3g"
 
+# /spec runs in a fork, which cannot hold a back-and-forth: a mid-run
+# confirmation ends the run, and re-running the command hits the same
+# question. Stale or existing proposals are handled without asking.
+hasnt "${SKILLS}/spec/SKILL.md" 'Wait for (yes/no|confirmation)' \
+  "spec: proposal checks proceed without a mid-run confirmation"
+
 # Heredoc pattern: the skill must show the script being invoked with a
 # heredoc so the ops go to stdin in one bash call. If the skill drifts to
 # "write file, then run script" the mutation step becomes two calls
