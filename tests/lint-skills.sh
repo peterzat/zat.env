@@ -861,8 +861,18 @@ has "${SKILLS}/codereview/SKILL.md" "a regression-risk finding names the callers
   "codereview: regression dimension requires traced callers"
 has "${SKILLS}/codereview/SKILL.md" "refactoring that enables the main change is not a mixed concern" \
   "codereview: spaghetti dimension exempts preparatory refactoring"
-has "${SKILLS}/security/SKILL.md" "Step 3.5.*Pressure Test" \
-  "security: has pressure test step"
+hasnt "${SKILLS}/security/SKILL.md" "Pressure Test" \
+  "security: no separate re-check pass"
+has "${SKILLS}/security/SKILL.md" "traced through code you have read" \
+  "security: attack vector must be a traced path"
+has "${SKILLS}/security/SKILL.md" "a theoretical concern without one is not a BLOCK" \
+  "security: BLOCK requires a reachable attack vector"
+has "${SKILLS}/security/SKILL.md" "reported as skipped, never as \"no issues\.\"" \
+  "security: skipped dimensions are reported as skipped"
+has "${SKILLS}/security/SKILL.md" "^### Coverage$" \
+  "security: SECURITY.md template has a Coverage section"
+has "${SKILLS}/security/SKILL.md" "Git history checked for secrets" \
+  "security: Coverage records which files' git history was checked"
 
 # --- Codefix additional constraints ---
 

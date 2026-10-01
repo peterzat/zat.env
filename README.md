@@ -330,7 +330,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 4. Reports findings with concrete attack vectors. "An attacker could theoretically..." without specifying how they reach the code path is not a finding.
 5. Updates `SECURITY.md` with dated findings, resolved/open status, and accepted risks
 
-**Pressure test.** Before writing findings, a structured pressure-test verifies attack vectors are reachable (not assumed), rechecks dimensions where nothing was found, calibrates severity levels, and confirms git history was checked for leaked secrets. The skill runs at `effort: max` via frontmatter.
+**Standards and coverage, no re-check pass.** Each finding's attack vector must trace a concrete path from attacker-controlled input through code the skill read, and the severity definitions carry the calibration rules (no reachable vector, no BLOCK; defense-in-depth gaps are WARN). Each SECURITY.md entry records its coverage: dimensions or files not fully reviewed and why, and which files' git history was checked for secrets, so the next session knows what the clean report actually covers. The skill runs at `effort: max` via frontmatter.
 
 ### [`/architect`](claude/skills/architect/SKILL.md): Architecture Review
 

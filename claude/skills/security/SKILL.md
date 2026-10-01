@@ -107,43 +107,32 @@ attack vector — how an attacker actually reaches and exploits this issue.
    first detection. If a prior SECURITY.md lists the PII as an accepted risk,
    do not re-flag it.
 
-## Step 3.5: Pressure Test
-
-Before writing findings, pressure-test your analysis. Only revise if a question
-reveals a genuine gap. Do not add findings for the sake of completeness.
-
-1. **Is the attack vector reachable?** For each finding, verify you can trace a
-   concrete path from an attacker-controlled input to the vulnerable code. If you
-   assumed reachability without reading the intermediate code, read it now.
-2. **What did I miss?** For each review dimension (Step 3) where you found nothing,
-   reconsider: is the code genuinely secure on that dimension, or did you skip it
-   because the code was complex? If a dimension was skipped due to scope limits,
-   note that explicitly rather than reporting "no issues."
-3. **Am I conflating risk levels?** A theoretical concern with no reachable attack
-   vector is not a BLOCK. A defense-in-depth gap is WARN, not BLOCK. Review your
-   severity assignments.
-4. **Did I check git history for secrets?** For files that handle credentials,
-   tokens, or keys, confirm you ran `git log -p` as instructed. Secrets removed
-   from HEAD but present in history are still findings.
-
 ## Step 4: Report
 
 Classify findings:
 
 - **BLOCK** — Actively exploitable or high-impact. Secret leaks, confirmed injection
-  vulnerabilities, missing auth on sensitive endpoints.
-- **WARN** — Defense-in-depth gaps. Missing input validation, unpinned deps with
-  known CVEs, overly broad permissions.
+  vulnerabilities, missing auth on sensitive endpoints. Requires a reachable attack
+  vector: a theoretical concern without one is not a BLOCK.
+- **WARN** — Defense-in-depth gaps, which are WARN rather than BLOCK. Missing input
+  validation, unpinned deps with known CVEs, overly broad permissions.
 - **NOTE** — Hardening suggestions. Security headers, CSP policies, rate limiting
   recommendations. Informational only.
 
 Format each finding:
 ```
 [SEVERITY] file:line — description
-  Attack vector: [how an attacker reaches and exploits this]
+  Attack vector: [concrete path from attacker-controlled input to the vulnerable
+                  code, traced through code you have read]
   Evidence: [specific code observed — redact any secret values; cite file:line only]
   Remediation: [concrete fix]
 ```
+
+After the findings, state coverage: each review dimension or file you did not
+fully review, and why (scope limit, size, missing access). A skipped dimension is
+reported as skipped, never as "no issues." Also list the credential-handling files
+whose git history you checked with `git log -p`, or say that none were in scope.
+Secrets removed from HEAD but present in history are still findings.
 
 ## Step 5: Update SECURITY.md
 
@@ -180,6 +169,11 @@ Format:
 ### Findings
 
 [findings list, or "No security issues identified."]
+
+### Coverage
+
+[Dimensions or files not fully reviewed and why, or "All dimensions reviewed."
+Git history checked for secrets: [files], or "no credential-handling files in scope."]
 
 ### Accepted Risks
 
