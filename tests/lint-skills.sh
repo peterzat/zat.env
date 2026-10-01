@@ -997,6 +997,23 @@ has "${SKILLS}/codereview/SKILL.md" "cost log" \
 has "${SKILLS}/codereview/SKILL.md" "mktemp.*/tmp/.*cost" \
   "codereview: cost log uses mktemp (no fixed /tmp path)"
 
+# Steps 5.5 and E.4 run review-external.sh synchronously. The Bash tool's
+# 2-minute default is shorter than the script's per-provider REVIEW_TIMEOUT, so
+# each step must state a Bash timeout that covers that default plus margin;
+# otherwise a large diff is cut off and moved to the background mid-review.
+EXT_DEFAULT_S=$(grep -oE 'REVIEW_TIMEOUT:-[0-9]+' "${REPO_DIR}/bin/review-external.sh" | head -1 | cut -d- -f2 || true)
+for ext_step in "5.5:^## Step 5.5:,^## Step 5.6:" "E.4:^### Step E.4:,^### Step E.5:"; do
+  ext_name="${ext_step%%:*}"; ext_bounds="${ext_step#*:}"
+  # "<n> ms" only: the prose may wrap before the word "timeout".
+  ext_ms=$(awk -v s="${ext_bounds%%,*}" -v e="${ext_bounds#*,}" '$0 ~ s {p=1; next} $0 ~ e {p=0} p' \
+    "${SKILLS}/codereview/SKILL.md" | grep -oE '[0-9]+ ms( |$)' | head -1 | cut -d' ' -f1 || true)
+  if [[ -n "${EXT_DEFAULT_S}" ]] && [[ -n "${ext_ms}" ]] && (( ext_ms >= (EXT_DEFAULT_S + 30) * 1000 )); then
+    pass "codereview: Step ${ext_name} Bash timeout (${ext_ms} ms) covers REVIEW_TIMEOUT default (${EXT_DEFAULT_S}s)"
+  else
+    fail "codereview: Step ${ext_name} Bash timeout ('${ext_ms:-none}' ms) must be >= REVIEW_TIMEOUT default ('${EXT_DEFAULT_S:-none}'s) + 30s"
+  fi
+done
+
 # CODEREVIEW.md template covers all exit states
 has "${SKILLS}/codereview/SKILL.md" "External reviewers:" \
   "codereview: CODEREVIEW.md template has External reviewers section"

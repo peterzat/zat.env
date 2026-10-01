@@ -150,11 +150,12 @@ so the cost surface is visible up front:
 ### Step E.4: Run External Reviewers
 
 Pipe the diff to `review-external.sh`, capturing findings (stdout) and
-the cost log (stderr) separately. Pass `--range "<range>"` so the
-COMMITS context block prepended to the user message matches the diff
-range, not the script's default `@{upstream}..HEAD` fallback (which
-mismatches whenever the user's range differs from the branch's
-upstream):
+the cost log (stderr) separately, in a Bash call with a 360000 ms
+timeout (the same limit as Step 5.5, and for the same reason). Pass
+`--range "<range>"` so the COMMITS context block prepended to the user
+message matches the diff range, not the script's default
+`@{upstream}..HEAD` fallback (which mismatches whenever the user's range
+differs from the branch's upstream):
 
 ```bash
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
@@ -430,7 +431,8 @@ current state:
 
 *Skipped for light review.*
 
-If `review-external.sh` is on PATH, run it synchronously with the diff:
+If `review-external.sh` is on PATH, run it synchronously with the diff, in a
+Bash call with a 360000 ms timeout:
 
 ```bash
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
@@ -438,6 +440,10 @@ EXTERNAL_FINDINGS=$(git diff "$(codereview-marker base)" -- ':!CODEREVIEW.md' ':
 EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
 rm -f "${COST_LOG}"
 ```
+
+The script gives each provider up to 300 seconds, and a 3,000-line diff takes
+close to two minutes, so the Bash tool's 2-minute default would cut the call off
+and move it to the background.
 
 If the script is not on PATH, or produces no output, skip silently: print no
 status echoes, no "running external reviewers" preamble, and no empty-findings
