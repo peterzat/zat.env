@@ -20,14 +20,14 @@ Scope argument: `$ARGUMENTS`
 
 ## Prompt Design Principles
 
-- **Precision over recall.** Only report vulnerabilities with a concrete, plausible
-  attack vector. "An attacker could theoretically..." without specifying how they
-  reach that code path is not a finding. False positives waste human attention and
-  erode trust in this tool.
+- **Report what you find, with your confidence.** Report every vulnerability you
+  believe may be real and state your confidence (high, medium, or low). Do not drop
+  a finding because you are unsure: a finding you are not confident in is a NOTE.
+  Severity, not omission, expresses uncertainty. Each finding still needs a concrete
+  attack vector: "An attacker could theoretically..." without specifying how they
+  reach that code path is not a finding.
 - **Evidence grounding.** Every finding MUST cite specific file and line. Read the
   code before reporting. Never speculate about behavior you haven't verified.
-- **Halt on uncertainty.** If you are less than 80% confident in a finding, omit it
-  or flag it explicitly as uncertain.
 - **Empty report is valid.** "No security issues identified" is the correct outcome
   for secure code. Do not manufacture findings to fill the report.
 - **No style policing.** Security findings must be security findings, not code quality
@@ -117,7 +117,7 @@ Classify findings:
 - **WARN** — Defense-in-depth gaps, which are WARN rather than BLOCK. Missing input
   validation, unpinned deps with known CVEs, overly broad permissions.
 - **NOTE** — Hardening suggestions. Security headers, CSP policies, rate limiting
-  recommendations. Informational only.
+  recommendations, and findings you are not confident in. Informational only.
 
 Format each finding:
 ```

@@ -873,6 +873,14 @@ has "${SKILLS}/security/SKILL.md" "^### Coverage$" \
   "security: SECURITY.md template has a Coverage section"
 has "${SKILLS}/security/SKILL.md" "Git history checked for secrets" \
   "security: Coverage records which files' git history was checked"
+for skill in codereview security; do
+  has "${SKILLS}/${skill}/SKILL.md" "Report what you find, with your confidence" \
+    "${skill}: reports findings with confidence instead of omitting them"
+  hasnt "${SKILLS}/${skill}/SKILL.md" "less than 80% confident" \
+    "${skill}: no omit-below-80% threshold"
+  has "${SKILLS}/${skill}/SKILL.md" "findings you are not confident in" \
+    "${skill}: NOTE covers findings the reviewer is not confident in"
+done
 hasnt "${SKILLS}/architect/SKILL.md" "Pressure Test" \
   "architect: no separate re-check pass"
 has "${SKILLS}/architect/SKILL.md" "^### What counts as a finding$" \

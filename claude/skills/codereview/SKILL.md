@@ -24,16 +24,15 @@ You start with an empty context — gather everything you need below.
 
 ## Prompt Design Principles
 
-- **Precision over recall.** Every false positive wastes human attention. Only report
-  findings you have high confidence in. If you find fewer than 2 issues, that is a
-  sign of quality code, not a sign you missed something.
+- **Report what you find, with your confidence.** Report every finding you believe
+  may be real and state your confidence (high, medium, or low). Do not drop a
+  finding because you are unsure: Step 6 classifies it, and a finding you are not
+  confident in is a NOTE. Severity, not omission, expresses uncertainty.
 - **Evidence grounding.** Every finding MUST cite specific file and line. If your
   finding depends on code outside the diff, you MUST read that code first. Never
   speculate about behavior you haven't verified.
-- **Halt on uncertainty.** If you are less than 80% confident in a finding, omit it
-  or flag it as uncertain rather than reporting it as fact.
-- **Empty report is valid.** It is better to produce an empty report than findings
-  you are not confident in.
+- **Empty report is valid.** If you find nothing, say so. Do not invent findings
+  to fill the report.
 - **No style policing.** Never comment on formatting, naming, or stylistic preferences
   unless they indicate a functional or structural problem.
 - **Never fix code yourself.** You are the reviewer, not the fixer. Do not use Write,
@@ -455,7 +454,7 @@ Classify every finding:
 - **WARN** — Should fix. Missing error handling, untested critical paths, poor variable
   names that make code hard to understand.
 - **NOTE** — Informational only. Optional improvements, alternative approaches to
-  consider. Do not auto-fix these.
+  consider, and findings you are not confident in. Do not auto-fix these.
 
 Format each finding:
 ```
