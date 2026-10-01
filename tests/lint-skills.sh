@@ -143,7 +143,7 @@ has "${SKILLS}/codereview/SKILL.md" "nothing to review.*stop" \
   "codereview: early exit when nothing to review"
 
 # Light review skip list names all skipped steps
-for step in 3 5 5.5 6.5 7; do
+for step in 3 5 5.5 5.6 6.5 7; do
   has "${SKILLS}/codereview/SKILL.md" "skip Steps.*${step}" \
     "codereview: light review skips Step ${step}"
 done
@@ -899,6 +899,40 @@ has "${SKILLS}/codefix/SKILL.md" "No self-evaluation" \
   "codefix: no self-evaluation principle"
 has "${SKILLS}/codefix/SKILL.md" "Do not.*re-run the review" \
   "codefix: does not re-run review"
+
+# --- Built-in review integration ---
+# Codereview launches Claude Code's built-in /code-review after Step 3 and
+# collects it at Step 5.6. Its output must go to a file and be read only after
+# the harness completion notice, so its findings cannot anchor the inline
+# review. Fail-open, run once, tagged, and classified in Step 6.
+
+echo ""
+echo "==> Built-in review integration"
+
+CR="${SKILLS}/codereview/SKILL.md"
+has "${CR}" "^## Step 5.6: Built-in /code-review" \
+  "codereview: Step 5.6 is the built-in review step"
+has "${CR}" "launch the Step 5.6 built-in review in the background before starting Step 4" \
+  "codereview: Step 3 launches the built-in review before Step 4"
+has "${CR}" 'claude -p "/code-review high" --output-format json > <output-file>' \
+  "codereview: built-in review output is redirected to a file"
+has "${CR}" "mktemp /tmp/.claude-builtin-review-XXXXXX" \
+  "codereview: built-in review output file uses mktemp"
+S56=$(awk '/^## Step 5.6:/{p=1} /^## Step 6:/{p=0} p' "${CR}")
+if printf '%s\n' "${S56}" | grep -q "do not poll for completion"; then
+  pass "codereview: Step 5.6 forbids polling for the built-in review"
+else
+  fail "codereview: Step 5.6 forbids polling for the built-in review"
+fi
+if printf '%s\n' "${S56}" | grep -q "Do NOT re-run it during"; then
+  pass "codereview: built-in review is not re-run during the fix loop"
+else
+  fail "codereview: built-in review is not re-run during the fix loop"
+fi
+has "${CR}" "Classify the built-in review's \`\(claude-code\)\` findings" \
+  "codereview: Step 6 classifies built-in findings"
+has "${CR}" "^\*\*Built-in review:\*\*$" \
+  "codereview: CODEREVIEW.md template records the built-in review"
 
 # --- External reviewer integration ---
 # Codereview Step 5.5 must call review-external.sh correctly.

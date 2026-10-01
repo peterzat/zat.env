@@ -268,8 +268,8 @@ review of code you did not read.
   dependencies, feature flags).
 - **Full review**: any code file is modified, or you are uncertain.
 
-If light review: skip Steps 3, 5, 5.5, 6.5, and 7 (no test suite run, no
-security chain, no external reviewers, no fix loop). Proceed directly to
+If light review: skip Steps 3, 5, 5.5, 5.6, 6.5, and 7 (no test suite run, no
+security chain, no external reviewers, no built-in review, no fix loop). Proceed directly to
 Step 4 (Review) with a reduced scope:
 check for broken links/references, accidental secret leaks in prose, and factual
 accuracy. Then skip to Step 6 (Report), Step 8 (Marker), and Step 9 (Update
@@ -338,6 +338,8 @@ Look for test infrastructure: pytest.ini, setup.cfg, pyproject.toml [tool.pytest
 Makefile test targets, package.json scripts, jest.config, etc. If found, run the
 test suite and record the baseline pass/fail counts. Note if no tests exist, that
 is itself a finding.
+
+Then launch the Step 5.6 built-in review in the background before starting Step 4.
 
 ## Step 4: Review
 
@@ -447,6 +449,51 @@ the cost log lines in the "External reviewers" section of CODEREVIEW.md
 External reviewers run once at initial review. Do NOT re-run them during
 fix/re-review cycles (Step 7).
 
+## Step 5.6: Built-in /code-review (second finder)
+
+*Skipped for light review.*
+
+Claude Code's built-in `/code-review` runs as a second, independent finder. It is
+launched right after Step 3 and collected here, so it runs alongside Steps 4 and 5
+and rarely adds wall-clock time. It is fail-open: if it is unavailable, fails, or
+times out, the review continues without it.
+
+**Launch (after Step 3, before Step 4).** If `command -v claude` succeeds, create
+the output file in one Bash call:
+
+```bash
+mktemp /tmp/.claude-builtin-review-XXXXXX
+```
+
+Then start the review in a second Bash call with `run_in_background` and a
+15-minute timeout, substituting the path the first call printed:
+
+```bash
+claude -p "/code-review high" --output-format json > <output-file> 2>/dev/null
+```
+
+Keep the redirect exactly as shown. The built-in's findings must not reach your
+context before Steps 4 and 5 are done: reading them earlier would anchor your own
+review on them, and two independent finders are the point. If `claude` is not on
+PATH, skip silently and record `Not available.` under "Built-in review" in Step 9.
+
+**Collect (here).** Completion is delivered by the harness as a task notification,
+the same as the Step 5 and Step 7 forks. Wait for it; do not poll for completion
+(no `until`/`while` + `sleep` loops, no `pgrep`, no reading the file before the
+notification arrives). Then read the result and remove the file:
+
+```bash
+jq -r '.result // empty' <output-file>; rm -f <output-file>
+```
+
+If the result is empty or unparseable, or the run timed out, skip silently and
+record `Failed (skipped).` in Step 9. Otherwise the result lists findings, usually
+as a JSON array of `{file, line, summary, failure_scenario}`. Carry each into
+Step 6 tagged `(claude-code)`. They have no severity; Step 6 classifies them.
+
+The built-in review runs once at initial review. Do NOT re-run it during
+fix/re-review cycles (Step 7).
+
 ## Step 6: Report
 
 For refresh reviews, begin the report with a scope line:
@@ -461,6 +508,12 @@ Classify every finding:
   names that make code hard to understand.
 - **NOTE** — Informational only. Optional improvements, alternative approaches to
   consider, and findings you are not confident in. Do not auto-fix these.
+
+Classify the built-in review's `(claude-code)` findings from Step 5.6 with the same
+definitions. Drop any that are about style or writing conventions (No style
+policing) or about the review-output files (CODEREVIEW.md, SECURITY.md, TESTING.md,
+SPEC.md). When you and the built-in reported the same issue, keep one finding and
+tag it `(also claude-code)`, so CODEREVIEW.md records which finder caught what.
 
 Format each finding:
 ```
@@ -569,10 +622,15 @@ Format:
 **External reviewers:**
 [Cost log lines from Step 5.5, or "None configured." or "Skipped (light review)."]
 
+**Built-in review:**
+[`/code-review high`: N findings, M kept after Step 6; or "Not available.",
+"Failed (skipped).", or "Skipped (light review)."]
+
 ### Findings
 
 [findings list, or "No issues found."
-Preserve the (provider) tag on any external reviewer findings.]
+Preserve the (provider) tag on any external reviewer findings, and the
+(claude-code) or (also claude-code) tag on built-in review findings.]
 
 ### Fixes Applied
 
