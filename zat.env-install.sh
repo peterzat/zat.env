@@ -177,8 +177,9 @@ echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), showThinkingS
 #
 # The deny list is a speed bump, not a security boundary. Entries are prefix
 # matches, so listing `rm -rf` cannot cover every spelling, and the allow list
-# already grants general-purpose interpreters (python3, node, make, git -c);
-# anything reachable through those is auto-approved under defaultMode "auto".
+# already grants general-purpose interpreters (python3, node, make, git -c).
+# In auto mode, classifyAllShell (below) sends those through the classifier;
+# in the other permission modes anything reachable through them runs unprompted.
 jq '
   ((.permissions.deny // []) + [
       "Bash(rm -rf *)",
@@ -222,6 +223,13 @@ jq '
   }
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Set permissions (defaultMode, allow list reset, deny list merged)"
+
+# In auto mode, send every shell command through the classifier. Narrow allow
+# rules such as Bash(git *) are otherwise resolved before the classifier runs,
+# so a force push or `gh repo delete` would skip its check. The allow list still
+# cuts prompts in the other permission modes. Other autoMode keys are left alone.
+jq '.autoMode.classifyAllShell = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    Set autoMode.classifyAllShell (auto mode classifies every shell command)"
 
 # Prune hooks that point at zat.env scripts that no longer exist on disk.
 # This cleans up after hooks are removed from the repo (e.g., external reviewer hooks).

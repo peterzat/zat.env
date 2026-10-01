@@ -1212,6 +1212,8 @@ for skill in spec architect tester; do
 done
 has "${REPO_DIR}/zat.env-install.sh" '\.effortLevel //= "xhigh"' \
   "install: seeds effortLevel only when unset"
+has "${REPO_DIR}/zat.env-install.sh" '\.autoMode\.classifyAllShell = true' \
+  "install: auto mode classifies every shell command"
 has "${SKILLS}/codereview/SKILL.md" "Finish the run\.\*\* This review runs unattended in a fork" \
   "codereview: states when the forked review counts as finished"
 has "${SKILLS}/codereview/SKILL.md" "Do not end the turn" \
