@@ -921,8 +921,8 @@ has "${CR}" "^## Step 5.6: Built-in /code-review" \
   "codereview: Step 5.6 is the built-in review step"
 has "${CR}" "launch the Step 5.6 built-in review in the background before starting Step 4" \
   "codereview: Step 3 launches the built-in review before Step 4"
-has "${CR}" 'claude -p "/code-review high" --output-format json > <output-file>' \
-  "codereview: built-in review output is redirected to a file"
+has "${CR}" 'claude -p "/code-review high" --output-format json --disallowedTools "Edit,Write,NotebookEdit" > <output-file>' \
+  "codereview: built-in review runs without edit tools and is redirected to a file"
 has "${CR}" "mktemp /tmp/.claude-builtin-review-XXXXXX" \
   "codereview: built-in review output file uses mktemp"
 if grep -qF -- "jq -r 'select(.is_error | not) | .result // empty' <output-file>; rm -f <output-file>" "${CR}"; then
@@ -931,6 +931,17 @@ else
   fail "codereview: built-in review read skips is_error results and removes the file"
 fi
 S56=$(awk '/^## Step 5.6:/{p=1} /^## Step 6:/{p=0} p' "${CR}")
+# The tree-change reading excludes the review files, since /security writes
+# SECURITY.md between the launch and the collection. Both readings must use
+# the excluded form, or the check discards the built-in's findings on every
+# full review.
+TREE_HASH="{ git status --porcelain -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; git diff -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; } | sha256sum"
+if [[ $(grep -cF -- "${TREE_HASH}" "${CR}") -ge 2 ]] \
+  && ! grep -qF -- "{ git status --porcelain; git diff; }" "${CR}"; then
+  pass "codereview: built-in tree-change readings exclude the review files at launch and collect"
+else
+  fail "codereview: built-in tree-change readings exclude the review files at launch and collect"
+fi
 if printf '%s\n' "${S56}" | grep -q "do not poll for completion"; then
   pass "codereview: Step 5.6 forbids polling for the built-in review"
 else

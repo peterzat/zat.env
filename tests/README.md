@@ -24,7 +24,7 @@ Checks by category:
 | Gate condition alignment | Hook, skill, and README disagreeing on what blocks a push |
 | PR merge gate | Regression to marker-file check (broken post-push), missing GitHub state checks |
 | Security chain coverage | Delegation, META reading, three invocation paths, scope support, severity model |
-| Codereview flow gating | Early exit, light review skip list (all 5 steps), refresh detection, config escalation |
+| Codereview flow gating | Early exit, light review skip list (Steps 3, 5, 5.5, 5.6, 6.5, 7), refresh detection, config escalation |
 | Builder/verifier separation | Codereview with Edit/Write tools, codefix with Skill invocations, missing delegation |
 | Codereview/codefix handoff contracts | Step 6.5 gating, cycle limit, re-review/re-test, human escalation, finding format, codefix constraints |
 | Marker file gating | Conditional write, hash exclusion/truncation/PROJ_HASH identity, skip marker consumed, codereview marker persists |

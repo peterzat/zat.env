@@ -142,8 +142,8 @@ echo "==> Local provider: script set but file does not exist"
 # ============================================================
 
 cat > "${REVIEWER_ENV}" <<EOF
-LOCAL_REVIEW_SCRIPT=/tmp/nonexistent-review-script-$$.py
-LOCAL_REVIEW_VENV=/tmp/nonexistent-venv-$$
+LOCAL_REVIEW_SCRIPT=${TEST_DIR}/nonexistent-review-script.py
+LOCAL_REVIEW_VENV=${TEST_DIR}/nonexistent-venv
 EOF
 
 STDERR_FILE=$(mktemp)
@@ -206,7 +206,7 @@ echo "==> Local provider: only script set (missing venv)"
 # ============================================================
 
 cat > "${REVIEWER_ENV}" <<EOF
-LOCAL_REVIEW_SCRIPT=/tmp/nonexistent-review-script-$$.py
+LOCAL_REVIEW_SCRIPT=${TEST_DIR}/nonexistent-review-script.py
 EOF
 
 STDERR_FILE=$(mktemp)

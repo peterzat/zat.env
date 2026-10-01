@@ -460,20 +460,21 @@ and rarely adds wall-clock time. It is fail-open: if it is unavailable, fails, o
 times out, the review continues without it.
 
 **Launch (after Step 3, before Step 4).** If `command -v claude` succeeds, create
-the output file in one Bash call:
+the output file and take a working-tree reading in one Bash call:
 
 ```bash
-mktemp /tmp/.claude-builtin-review-XXXXXX
+mktemp /tmp/.claude-builtin-review-XXXXXX; { git status --porcelain -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; git diff -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; } | sha256sum
 ```
 
 Then start the review in a second Bash call with `run_in_background` and a
 15-minute timeout, substituting the path the first call printed:
 
 ```bash
-claude -p "/code-review high" --output-format json > <output-file> 2>/dev/null
+claude -p "/code-review high" --output-format json --disallowedTools "Edit,Write,NotebookEdit" > <output-file> 2>/dev/null
 ```
 
-Keep the redirect exactly as shown. The built-in's findings must not reach your
+Keep the tool restriction and the redirect exactly as shown. /codereview is
+verifier-only, and the child needs no edit tools (`--fix` is never passed). The built-in's findings must not reach your
 context before Steps 4 and 5 are done: reading them earlier would anchor your own
 review on them, and two independent finders are the point. If `claude` is not on
 PATH, skip silently and record `Not available.` under "Built-in review" in Step 9.
@@ -487,6 +488,9 @@ notification arrives). Then read the result and remove the file:
 jq -r 'select(.is_error | not) | .result // empty' <output-file>; rm -f <output-file>
 ```
 
+Re-run `{ git status --porcelain -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; git diff -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'; } | sha256sum` (the review files are excluded because /security writes SECURITY.md while the built-in runs). If the hash differs
+from the launch reading, the tree changed while the built-in ran: discard its
+findings, record `Failed (tree changed).` in Step 9, and tell the user.
 If the result is empty or unparseable, or the run timed out, skip silently and
 record `Failed (skipped).` in Step 9. Otherwise the result lists findings, usually
 as a JSON array of `{file, line, summary, failure_scenario}`. Carry each into
@@ -629,7 +633,7 @@ Format:
 
 **Built-in review:**
 [`/code-review high`: N findings, M kept after Step 6; or "Not available.",
-"Failed (skipped).", or "Skipped (light review)."]
+"Failed (skipped).", "Failed (tree changed).", or "Skipped (light review)."]
 
 ### Findings
 
