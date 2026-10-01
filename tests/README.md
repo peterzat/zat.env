@@ -34,7 +34,7 @@ Checks by category:
 | Carry-forward severity | Accepted Risks downgrade, re-report at original severity, no silent severity loss |
 | Cross-skill context graph | SPEC.md reading, spec alignment, no-nag, architect terminal node, NOTE not auto-fixed |
 | Plan-mode handoff contract | `/spec plan` routing and adoption, the ExitPlanMode reminder hook, and its registration |
-| BACKLOG.md contracts | Backlog Sweep and Revisit subsections, the four-field entry template, and `spec-backlog-apply.sh` manifest ops |
+| BACKLOG.md contracts | Backlog Sweep and Revisit subsections, the four-field entry template, `spec-backlog-apply.sh` manifest ops, and proposal routing without a mid-run confirmation |
 | Finding standards | Review skills carry no separate re-check pass; evidence, severity, and coverage rules live in the main steps |
 | Codefix constraints | One-fix-at-a-time, 20-line cap, syntax check, no self-evaluation, no re-running review |
 | External reviewer integration | Step 5.5, script reference, gating, provider tags, cost log, template exit states, script contracts |
