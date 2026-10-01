@@ -91,6 +91,10 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
 
 Large datasets and model files go in `~/data/`, not in project directories or git. For machine-specific GPU/CUDA conventions see `~/src/zat.env/claude/references/ml-gpu.md`.
 
+## Images
+
+When detail in a screenshot, chart, or diagram is hard to read, crop and enlarge the region with ImageMagick if it is installed (`convert in.png -crop WxH+X+Y +repage -resize 300% out.png`, or `magick` on ImageMagick 7), then read the result. Use Pillow or OpenCV only where the project's venv already has them.
+
 ## Networking
 
 Bind services to `0.0.0.0` so Tailscale clients can reach them. For machine-specific networking (hostname, tailnet, firewall) see `~/src/zat.env/claude/references/networking.md`.

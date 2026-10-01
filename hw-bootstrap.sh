@@ -45,6 +45,7 @@ sudo apt-get install -y \
   zip \
   htop \
   tree \
+  imagemagick \
   emacs \
   python3 \
   python3-pip \
