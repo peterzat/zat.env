@@ -9,7 +9,9 @@ set -euo pipefail
 # script and the pre-push hook stay byte-identical without
 # duplicating PROJ_HASH derivation or the marker-directory layout.
 #
-# Usage: codereview-skip && git push
+# Usage: run `codereview-skip`, then `git push` as a separate command.
+# The pre-push hook checks the whole command line before any of it runs,
+# so the combined `codereview-skip && git push` is blocked.
 
 SKIP_PATH=$(codereview-marker skip-path) || exit $?
 

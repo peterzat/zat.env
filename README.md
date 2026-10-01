@@ -365,7 +365,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Design-mode flows:**
 
-- *Greenfield bootstrap:* `/tester design` on a project with no contract yet seeds a minimum contract (~50 lines, soft cap) plus rollout entries. Proportional to the project's current maturity — a new prototype does not get a three-tier dispatcher.
+- *Greenfield bootstrap:* `/tester design` on a project with no contract yet seeds a minimum contract plus rollout entries. Proportional to the project's current maturity — a new prototype does not get a three-tier dispatcher.
 - *Revision:* `/tester design` again replaces the contract section and dedups prior `tester design`-origin rollout entries in BACKLOG.md, except entries annotated `(ACTIVE in spec YYYY-MM-DD)` which are preserved as committed spec work. `git diff` shows what changed.
 - *Reject:* `git checkout TESTING.md BACKLOG.md` reverts the design when the files existed before the run; `rm -f TESTING.md BACKLOG.md` clears them when this run created them. No marker files, no hidden state.
 - *Audit after design:* `/tester` appends its dated finding ABOVE the contract H1; the contract section below is preserved intact.

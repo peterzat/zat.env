@@ -26,7 +26,7 @@ Scope argument: `$ARGUMENTS`
   Severity, not omission, expresses uncertainty. Each finding still needs an attack
   vector: a vulnerability whose path you traced only partly is a NOTE, but "An
   attacker could theoretically..." with no path at all is not a finding.
-- **Evidence grounding.** Every finding MUST cite specific file and line. Read the
+- **Evidence grounding.** Every finding cites a specific file and line. Read the
   code before reporting. Never speculate about behavior you haven't verified.
 - **Empty report is valid.** "No security issues identified" is the correct outcome
   for secure code. Do not manufacture findings to fill the report.
@@ -68,8 +68,8 @@ input-handling code, network-facing code, dependency manifests.
 
 ## Step 3: Review
 
-Evaluate against each dimension. For each finding, you MUST specify the concrete
-attack vector — how an attacker actually reaches and exploits this issue.
+Evaluate against each dimension. For each finding, give the concrete attack
+vector: how an attacker actually reaches and exploits this issue.
 
 1. **Secret leaks** — API keys, tokens, passwords, private keys hardcoded or
    committed. Check file contents AND recent git history of sensitive-looking files:

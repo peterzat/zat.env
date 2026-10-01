@@ -1528,13 +1528,13 @@ if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
   fi
 fi
 
-# Why-deferred specificity soft hint lives in D.5 (between D.5 and D.5.5).
+# Why-deferred boilerplate guard lives in D.5 (between D.5 and D.5.5).
 if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
   if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -qE 'Why-deferred specificity|boilerplate'; then
-    pass "tester: D.5 contains Why-deferred specificity / boilerplate soft hint"
+    pass "tester: D.5 why-deferred gate rejects boilerplate reasons"
   else
     FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
-    printf '  FAIL tester: D.5 missing Why-deferred specificity / boilerplate soft hint\n'
+    printf '  FAIL tester: D.5 why-deferred gate missing boilerplate guard\n'
   fi
 fi
 
@@ -1544,12 +1544,12 @@ fi
 has "${TESTER}" 'scan in two passes' \
   "tester: D.1 overlap scan extends to all BACKLOG entries (two passes)"
 
-# Greenfield line cap is a soft cap, not a hard ≤ 50 rule. A hard cap pushes
-# the LLM to pad to 50 or trim something material to stay under.
-hasnt "${TESTER}" 'total ≤ 50 lines' \
-  "tester: D.4 greenfield line cap is not a hard '≤ 50 lines' rule"
-has "${TESTER}" 'soft cap' \
-  "tester: D.4 greenfield line cap is explicitly soft"
+# Greenfield seed size is qualitative, not a line count. A numeric cap pushes
+# the LLM to pad to the number or trim something material to stay under.
+hasnt "${TESTER}" '[~≤] ?[0-9]+ lines' \
+  "tester: D.4 greenfield seed carries no numeric line cap"
+has "${TESTER}" 'contract is a minimum' \
+  "tester: D.4 greenfield contract is a minimum seed"
 
 # D.4 / D.5.5 / D.6 ordering: D.4 is draft-in-memory, D.5.5 fires before any
 # file mutation, D.6 step 1 owns the TESTING.md write. Without this ordering,

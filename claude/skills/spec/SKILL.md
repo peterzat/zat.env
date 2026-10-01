@@ -249,7 +249,7 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    If no, stop. If yes, read the old proposal content before replacing it. Use it as
    context alongside the new git history: what thinking still applies, what has been
    overtaken by new work, what new directions emerged.
-5. Generate a concise proposal (under 40 lines) containing:
+5. Generate a concise proposal containing:
    - **What happened:** what was built, what was learned, what changed. Grounded in
      git history and file state, not conversation memory. This is the key section: it
      gives the next spec generation concrete context rather than abstract goals.
@@ -291,8 +291,7 @@ that thinking becomes a testable contract.
      specify a slug.
 
 2. **Read the plan file in full.** It is the authoritative input brief for this
-   spec. Unlike the advisory read that used to live in Step 1, the plan here is
-   treated as the primary source of intent.
+   spec and the primary source of intent.
 
 3. **Read the codebase** to ground the plan in current state (same as Step 3b).
    Plans may have been written against a prior version of the code; trust the

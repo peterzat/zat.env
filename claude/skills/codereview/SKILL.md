@@ -5,8 +5,8 @@ description: >-
   scan via /security for full-tier reviews (skipped for docs-only changes). Use
   when the user asks to review code, check changes before pushing, or run a code
   review. Also use automatically before any git push, unless the user has
-  explicitly said "push now" (unprompted); in that case run
-  `codereview-skip && git push` without invoking this skill. The `external`
+  explicitly said "push now" (unprompted); in that case run `codereview-skip`,
+  then `git push` as a separate command, without invoking this skill. The `external`
   mode (`/codereview external [<ref>|<from>..<to>]`) runs only the configured
   external reviewers on an arbitrary diff with no CODEREVIEW.md / marker /
   /codefix mutation, useful for span-of-release second opinions.
@@ -28,8 +28,8 @@ You start with an empty context — gather everything you need below.
   may be real and state your confidence (high, medium, or low). Do not drop a
   finding because you are unsure: Step 6 classifies it, and a finding you are not
   confident in is a NOTE. Severity, not omission, expresses uncertainty.
-- **Evidence grounding.** Every finding MUST cite specific file and line. If your
-  finding depends on code outside the diff, you MUST read that code first. Never
+- **Evidence grounding.** Every finding cites a specific file and line. If your
+  finding depends on code outside the diff, read that code first. Never
   speculate about behavior you haven't verified.
 - **Empty report is valid.** If you find nothing, say so. Do not invent findings
   to fill the report.
@@ -557,8 +557,8 @@ Codefix completion is delivered by the harness: the Skill invocation either
 returns the result directly or, when the fork runs as a background task, a
 task notification arrives when it finishes. Wait for that delivery and
 do not poll for completion: no `until`/`while` + `sleep` loops, no `pgrep`,
-no watching task-output files. The harness signal always arrives; improvised
-polling loops have produced runaway orphaned processes. The same
+no watching task-output files. The harness signal always arrives, and a polling
+loop can outlive the review as an orphaned process. The same
 applies to the `/security` invocation in Step 5.
 
 After codefix completes, re-review the changes. This is a refresh review within
@@ -586,12 +586,8 @@ marker script in a single Bash invocation:
 codereview-marker write
 ```
 
-The script (on PATH; do not prefix with `bin/`) encapsulates PROJ_HASH derivation,
-UPSTREAM resolution (with the `@{upstream}` → `origin/<branch>` → empty-tree
-fallback chain), the excluded-files diff, and the marker file write. The pre-push
-hook calls the same script for hash verification, so byte-level parity between
-the two sites is guaranteed by shared implementation rather than two parallel
-bash snippets that have to be kept identical by hand.
+The script is on PATH (do not prefix with `bin/`). It hashes the same diff the
+pre-push hook checks and writes the marker where the hook looks for it.
 
 Do NOT write the marker if any BLOCK items remain or tests regressed.
 

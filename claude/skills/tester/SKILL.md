@@ -48,8 +48,9 @@ order:
   patterns you observed.
 - **No style policing.** Test naming conventions, file organization preferences, and
   framework aesthetics are not findings unless they indicate a functional problem.
-- **Halt on uncertainty.** If you are unsure whether a gap is intentional or
-  accidental, ask rather than assume.
+- **State uncertainty.** If you cannot tell whether a gap is intentional or
+  accidental, report it as a NOTE that says so rather than assuming either
+  way. A question would end this forked run before TESTING.md is written.
 
 ---
 
@@ -370,11 +371,11 @@ Minimum sections to include in the draft, in order:
    project — coverage-for-coverage, mock re-assertion, impl-detail
    churn, speculative multi-provider tests, etc.
 
-Proportionality rules (hard guidance, not soft suggestion):
+Proportionality rules:
 
 - **Greenfield** (no test framework detected): contract is a minimum
-  seed, ~50 lines (soft cap; trim if over by more than 10%, i.e.
-  ≥ 56 lines). Pick one framework, one entry point, one duration
+  seed, each section above stated in a few lines. Pick one framework,
+  one entry point, one duration
   (no tier table). Proxy / human-eval sections say "Not applicable
   yet" with a concrete trigger. The rollout (Step D.5) carries the
   expansion work.
@@ -412,8 +413,10 @@ Each entry must satisfy the BACKLOG pressure-test gates:
   up again. "Feature shipping," "threshold crossed," "dependency
   landing." History-only notes ("X was tried and reverted") fail this
   gate.
-- **Concrete why-deferred reason** — usually "Out of scope for current
-  contract seed" or "Requires `<dependency>` to land first."
+- **Concrete why-deferred reason** specific to the entry, such as
+  "Requires `<dependency>` to land first" or "No test framework chosen
+  yet." A reason that would fit every entry, such as "Out of scope for
+  current contract seed," is boilerplate, not a reason.
 
 Origin MUST be exactly `tester design YYYY-MM-DD` (today's date). The
 `tester design` prefix is the string the `purge-origin:` op matches on
@@ -423,14 +426,6 @@ Right-size: a greenfield bootstrap typically needs 3–6 rollout entries
 (framework choice, entry point script, first real test, pre-commit
 hook). A mature-project revision may add only 1–2 new entries
 (surfaced weaknesses from Step D.2).
-
-**Why-deferred specificity (soft hint).** If "Out of scope for current
-contract seed" applies verbatim to a majority of your rollout entries,
-replace at least half with entry-specific reasons. Examples:
-"Requires `<dependency>` to land first," "No test framework chosen
-yet," "Single-author cadence makes this premature." A boilerplate
-phrase across most entries is a tell that you templated rather than
-reasoned per entry. This is a hint, not a hard check — judgment.
 
 ### Step D.5.5: Pre-apply checklist (visible to user)
 
