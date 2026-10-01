@@ -8,7 +8,7 @@ Structural lint and manual verification for zat.env skills and hooks. Run after 
 tests/run-all.sh
 ```
 
-Runs both suites and reports a combined summary. This is the single command to verify the repo.
+Runs every suite and reports a combined summary. This is the single command to verify the repo.
 
 ## Automated: `lint-skills.sh`
 
@@ -16,7 +16,7 @@ Runs both suites and reports a combined summary. This is the single command to v
 tests/lint-skills.sh
 ```
 
-195 checks across 21 categories:
+Checks by category:
 
 | Category | What it catches |
 |----------|----------------|
@@ -26,21 +26,29 @@ tests/lint-skills.sh
 | Security chain coverage | Delegation, META reading, three invocation paths, scope support, severity model |
 | Codereview flow gating | Early exit, light review skip list (all 5 steps), refresh detection, config escalation |
 | Builder/verifier separation | Codereview with Edit/Write tools, codefix with Skill invocations, missing delegation |
-| Codereview/codefix handoff | Step 6.5 gating, cycle limit, re-review/re-test, human escalation, finding format, codefix constraints |
+| Codereview/codefix handoff contracts | Step 6.5 gating, cycle limit, re-review/re-test, human escalation, finding format, codefix constraints |
 | Marker file gating | Conditional write, hash exclusion/truncation/PROJ_HASH identity, skip marker consumed, codereview marker persists |
 | REVIEW_META field contracts | Field name identity across codereview, refresh detection, /pr merge, README |
 | Agent boundary risks | Never-fix rule position, codefix do-not-modify list, hook bypass safety, PROJ_HASH derivation |
 | Output verdicts | Both verdict strings, template completeness, all 8 REVIEW_META fields |
 | Carry-forward severity | Accepted Risks downgrade, re-report at original severity, no silent severity loss |
 | Cross-skill context graph | SPEC.md reading, spec alignment, no-nag, architect terminal node, NOTE not auto-fixed |
+| Plan-mode handoff contract | `/spec plan` routing and adoption, the ExitPlanMode reminder hook, and its registration |
+| BACKLOG.md contracts | Backlog Sweep and Revisit subsections, the four-field entry template, and `spec-backlog-apply.sh` manifest ops |
 | Finding standards | Review skills carry no separate re-check pass; evidence, severity, and coverage rules live in the main steps |
 | Codefix constraints | One-fix-at-a-time, 20-line cap, syntax check, no self-evaluation, no re-running review |
 | External reviewer integration | Step 5.5, script reference, gating, provider tags, cost log, template exit states, script contracts |
 | Concurrency safety | mktemp usage, EXIT trap waits, PID capture, config override, no fixed /tmp paths |
 | Codereview bypass removed | Bypass instructions not in skill frontmatter |
+| Built-in review integration | Step 5.6 launch after Step 3, output redirected to a mktemp file and read only after completion, no polling, no re-run, Step 6 classification, CODEREVIEW.md line |
 | Accepted Risks consistency | Missing Accepted Risks section in codereview or security templates |
+| Skill effort levels | Frontmatter effort matches README; judgment skills set none; install seeds `effortLevel` and sets `classifyAllShell`; venv hook makes no decision in auto mode |
+| Uncommitted prior entry guard | Rolling files check `git status` before condensing, carry an uncommitted entry forward, and keep a single META footer |
+| Tester/spec cross-skill contracts | Durable-contract H1, `tester design` Origin form, and the `/tester design` pre-apply checklist components and guards |
+| Cross-platform portability guards | bash 3.2 empty-array guards, BSD `stat` fallback, `gtimeout` fallback |
+| Security guards | `--range` leading-dash rejection, reviewer credential modes, deny-list union, provider-tagged findings demux |
 | Skill frontmatter | Missing required fields (name, description, context) |
-| Shellcheck | Static analysis of all .sh files in the repo (10 scripts) |
+| Shellcheck | Static analysis of every shell script in the repo |
 
 Target files are checked for existence before grepping. A missing file (renamed skill, path typo) fails loudly rather than silently passing or failing.
 
@@ -50,7 +58,7 @@ Target files are checked for existence before grepping. A missing file (renamed 
 tests/test-review-external.sh
 ```
 
-20 checks covering guard logic and output contract for `bin/review-external.sh`:
+Checks covering guard logic and output contract for `bin/review-external.sh`:
 
 | Category | What it catches |
 |----------|----------------|

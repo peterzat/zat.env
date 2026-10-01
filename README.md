@@ -675,11 +675,12 @@ Post-install layout (annotated):
 │       ├── tests/
 │       │   ├── README.md                  # Test documentation: lint checks and manual scenario traces
 │       │   ├── run-all.sh                 # Run all test suites with combined summary
-│       │   ├── lint-skills.sh             # Structural lint for skills and hooks (391 checks)
-│       │   ├── test-review-external.sh    # review-external.sh guard logic and output contract tests (63 checks)
-│       │   ├── test-pre-push-hook.sh      # Pre-push hook behavioral tests (41 checks)
-│       │   ├── test-spec-backlog-apply.sh # spec-backlog-apply.sh manifest parser tests (64 checks)
-│       │   └── test-codereview-marker.sh  # codereview-marker hash/write/base/path tests (42 checks)
+│       │   ├── lint-skills.sh             # Structural lint for skills and hooks
+│       │   ├── test-review-external.sh    # review-external.sh guard logic and output contract tests
+│       │   ├── test-pre-push-hook.sh      # Pre-push hook behavioral tests
+│       │   ├── test-spec-backlog-apply.sh # spec-backlog-apply.sh manifest parser tests
+│       │   ├── test-codereview-marker.sh  # codereview-marker hash/write/base/path tests
+│       │   └── test-allow-venv-hook.sh    # allow-venv-source.sh decision tests per permission mode
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
 ├── .tmux.conf                        # Mouse, scrollback, window numbering

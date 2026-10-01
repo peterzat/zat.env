@@ -24,9 +24,16 @@ has() {
 }
 
 hasnt() {
-  # hasnt <file> <pattern> <label> — pass if pattern NOT found
+  # hasnt <file> <pattern> <label> — pass if pattern NOT found.
+  # grep exits 1 for "no match" and 2 for an error such as an invalid
+  # pattern; only a clean no-match passes, so a broken pattern cannot
+  # turn this check into a guard that always passes.
   if [[ ! -f "$1" ]]; then fail "$3 [FILE MISSING: $1]"; return; fi
-  if grep -qE -- "$2" "$1" 2>/dev/null; then fail "$3"; else pass "$3"; fi
+  local rc=0
+  grep -qE -- "$2" "$1" 2>/dev/null || rc=$?
+  if [[ ${rc} -eq 1 ]]; then pass "$3"
+  elif [[ ${rc} -eq 0 ]]; then fail "$3"
+  else fail "$3 [grep error ${rc}: invalid pattern?]"; fi
 }
 
 # --- META field cross-references ---
@@ -144,7 +151,8 @@ has "${SKILLS}/codereview/SKILL.md" "nothing to review.*stop" \
 
 # Light review skip list names all skipped steps
 for step in 3 5 5.5 5.6 6.5 7; do
-  has "${SKILLS}/codereview/SKILL.md" "skip Steps.*${step}" \
+  # Match the step as a whole list item ("5" must not be satisfied by "5.5").
+  has "${SKILLS}/codereview/SKILL.md" "skip Steps ([0-9.]+, )*(and )?${step//./\\.}[, ]" \
     "codereview: light review skips Step ${step}"
 done
 
@@ -169,10 +177,10 @@ has "${SKILLS}/codefix/SKILL.md" "^context: fork" \
   "codefix: runs in forked context"
 has "${SKILLS}/codefix/SKILL.md" "Edit" \
   "codefix: has Edit tool (can modify code)"
-hasnt "${SKILLS}/codefix/SKILL.md" "Skill(" \
-  "codefix: no Skill invocations (fixer does not self-review)"
-hasnt "${SKILLS}/codefix/SKILL.md" "CODEREVIEW.md.*update\|update.*CODEREVIEW.md\|Write.*CODEREVIEW" \
-  "codefix: does not update CODEREVIEW.md"
+hasnt "${SKILLS}/codefix/SKILL.md" '^allowed-tools:.*(Skill|Write)' \
+  "codefix: allowed-tools has no Skill or Write (fixer neither self-reviews nor creates files)"
+has "${SKILLS}/codefix/SKILL.md" "Do not update CODEREVIEW\.md" \
+  "codefix: told not to update CODEREVIEW.md"
 has "${SKILLS}/codereview/SKILL.md" "Skill\(codefix\)" \
   "codereview: delegates to codefix"
 hasnt "${SKILLS}/codereview/SKILL.md" "^allowed-tools:.*Edit" \
@@ -280,11 +288,10 @@ CR_SKILL="${SKILLS}/codereview/SKILL.md"
 MARKER_SCRIPT="${REPO_DIR}/bin/codereview-marker"
 
 # The shared marker script must exist and be executable.
-TOTAL=$((TOTAL + 1))
 if [[ -x "${MARKER_SCRIPT}" ]]; then
   pass "marker: bin/codereview-marker exists and is executable"
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL marker: bin/codereview-marker missing or not executable\n'
 fi
 
@@ -1019,28 +1026,26 @@ has "${CR_SKILL}" "^### Step E.1: Pre-check Reviewer Configuration" \
 # Locate the External-Only Mode body (between section heading and Step 1).
 CR_EXTMODE_START=$(grep -n '^## External-Only Mode' "${CR_SKILL}" | head -1 | cut -d: -f1)
 CR_EXTMODE_END=$(grep -n '^## Step 1:' "${CR_SKILL}" | head -1 | cut -d: -f1)
-TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]] \
    && [[ "${CR_EXTMODE_START}" -lt "${CR_EXTMODE_END}" ]]; then
   pass "codereview: External-Only Mode bracketed between section heading (line ${CR_EXTMODE_START}) and Step 1 (line ${CR_EXTMODE_END})"
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL codereview: could not locate External-Only Mode bounds (start=%s end=%s)\n' \
     "${CR_EXTMODE_START:-?}" "${CR_EXTMODE_END:-?}"
 fi
 
 # Step E.1 in the External-Only Mode body invokes the --check pre-flight.
-TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
   if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
        | grep -qE 'review-external\.sh --check'; then
     pass "codereview: Step E.1 invokes review-external.sh --check"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL codereview: External-Only Mode missing review-external.sh --check invocation\n'
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL codereview: cannot check Step E.1 invocation without External-Only Mode bounds\n'
 fi
 
@@ -1049,37 +1054,34 @@ fi
 # range, not the script's @{upstream}..HEAD fallback. Without this the reviewer
 # sees a commit-summary that mismatches the diff whenever the user-supplied
 # range differs from the branch's upstream.
-TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
   if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
        | grep -qE 'review-external\.sh --range'; then
     pass "codereview: Step E.4 invokes review-external.sh --range"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL codereview: External-Only Mode missing review-external.sh --range invocation\n'
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL codereview: cannot check Step E.4 invocation without External-Only Mode bounds\n'
 fi
 
 # (d) External-Only Mode body does NOT contain `codereview-marker write`
 # (no marker write in external mode) or `/codefix` invocation (no fix loop).
-TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
   if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
        | grep -qE 'codereview-marker write'; then
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL codereview: External-Only Mode contains codereview-marker write (must NOT mutate marker)\n'
   else
     pass "codereview: External-Only Mode does not write the push marker"
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL codereview: cannot check marker invariant without External-Only Mode bounds\n'
 fi
 
-TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
   if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
        | grep -qE '(Skill\(codefix\)|invoke `?/codefix`?[^.])|/codefix'; then
@@ -1087,7 +1089,7 @@ if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
     # an invocation. Distinguish by checking for active-voice invocation prose.
     if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
          | grep -qE '(invoke `?/codefix`?[^.]|Skill\(codefix\)|/codefix to apply)'; then
-      FAILS=$((FAILS + 1))
+      FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
       printf '  FAIL codereview: External-Only Mode invokes /codefix (must NOT)\n'
     else
       pass "codereview: External-Only Mode does not invoke /codefix (only references it as user hint in footer)"
@@ -1096,7 +1098,7 @@ if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
     pass "codereview: External-Only Mode does not reference /codefix"
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL codereview: cannot check codefix invariant without External-Only Mode bounds\n'
 fi
 
@@ -1107,14 +1109,13 @@ fi
 # lines, so flatten the section to a single line before matching. (GNU
 # `grep -z` would do this too, but BSD/macOS `-z` means something else,
 # so `tr` is the portable way to get one-string semantics.)
-TOTAL=$((TOTAL + 1))
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then
   if sed -n "${CR_EXTMODE_START},${CR_EXTMODE_END}p" "${CR_SKILL}" \
        | tr '\n' ' ' \
        | grep -qE 'did NOT update CODEREVIEW\.md[^.]*push marker[^.]*/codefix'; then
     pass "codereview: External-Only Mode footer disclaims CODEREVIEW.md / marker / codefix mutation"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL codereview: External-Only Mode footer missing the no-mutation disclaimer\n'
   fi
 fi
@@ -1309,11 +1310,10 @@ has "${TESTER}" '# Durable test-architecture contract' \
 # Count occurrences: must be >= 2 (design step writes it, audit step preserves it).
 if [[ -f "${TESTER}" ]]; then
   hits=$(grep -c '# Durable test-architecture contract' "${TESTER}" || true)
-  TOTAL=$((TOTAL + 1))
   if [[ "${hits}" -ge 2 ]]; then
     pass "tester: contract H1 heading appears in both design and audit sections (${hits} hits)"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: contract H1 heading should appear >= 2 times, got %s\n' "${hits}"
   fi
 fi
@@ -1413,16 +1413,15 @@ TESTER_D6_LINE=$(grep -n '^### Step D\.6: ' "${TESTER}" | head -1 | cut -d: -f1)
 # Canonical Origin literal must appear in Step D.5 specifically (the
 # producer), not only in the general prose. Range tightened to D.5–D.5.5
 # so a literal that drifted into D.5.5 wouldn't accidentally satisfy this.
-TOTAL=$((TOTAL + 1))
 if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
   if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -q 'tester design YYYY-MM-DD'; then
     pass "tester: canonical Origin literal present in Step D.5"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: Step D.5 missing canonical Origin literal "tester design YYYY-MM-DD"\n'
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL tester: could not locate Step D.5 / D.5.5 anchors for Origin placement check\n'
 fi
 
@@ -1431,13 +1430,12 @@ has "${TESTER}" '### Step D.5.5: Pre-apply checklist' \
   "tester: Step D.5.5 anchor exists"
 
 # Position: D.5.5 falls strictly between D.5 and D.6.
-TOTAL=$((TOTAL + 1))
 if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]] \
    && [[ "${TESTER_D5_LINE}" -lt "${TESTER_D55_LINE}" ]] \
    && [[ "${TESTER_D55_LINE}" -lt "${TESTER_D6_LINE}" ]]; then
   pass "tester: Step D.5.5 positioned between D.5 (line ${TESTER_D5_LINE}) and D.6 (line ${TESTER_D6_LINE})"
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL tester: Step D.5.5 not positioned between D.5 and D.6 (D.5=%s D.5.5=%s D.6=%s)\n' \
     "${TESTER_D5_LINE:-?}" "${TESTER_D55_LINE:-?}" "${TESTER_D6_LINE:-?}"
 fi
@@ -1447,32 +1445,29 @@ fi
 if [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]]; then
   D55_BLOCK=$(sed -n "${TESTER_D55_LINE},${TESTER_D6_LINE}p" "${TESTER}")
   for component in "Signals fingerprint" "Contract shape" "Rollout entry count" "Per-entry overlap" "SPEC tension"; do
-    TOTAL=$((TOTAL + 1))
     if printf '%s\n' "${D55_BLOCK}" | grep -qF "${component}"; then
       pass "tester: D.5.5 names component '${component}'"
     else
-      FAILS=$((FAILS + 1))
+      FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
       printf '  FAIL tester: D.5.5 missing component name "%s"\n' "${component}"
     fi
   done
 
   # Always-on must be explicit so a future revision doesn't gate the
   # checklist behind an opt-in flag.
-  TOTAL=$((TOTAL + 1))
   if printf '%s\n' "${D55_BLOCK}" | grep -qE 'always posted|always-on|no flag-gating|no opt-out'; then
     pass "tester: D.5.5 explicitly states always-on (no flag-gating)"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: D.5.5 missing always-on guard (expected one of: always posted / always-on / no flag-gating / no opt-out)\n'
   fi
 
   # Flag-not-block on SPEC tension must be explicit so a future revision
   # doesn't silently turn the flag into a gate.
-  TOTAL=$((TOTAL + 1))
   if printf '%s\n' "${D55_BLOCK}" | grep -qE 'never block|flag, never block|flag-not-block'; then
     pass "tester: D.5.5 SPEC tension explicitly states flag-not-block"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: D.5.5 SPEC tension missing flag-not-block guard\n'
   fi
 
@@ -1481,11 +1476,10 @@ if [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]]; then
   # model has a copy-fillable scaffold rather than only prose. Added after
   # a daydream run where the model collapsed the checklist into the D.7
   # report and skipped the gate entirely.
-  TOTAL=$((TOTAL + 1))
   if printf '%s\n' "${D55_BLOCK}" | grep -qF '## Pre-apply checklist'; then
     pass "tester: D.5.5 pins the literal '## Pre-apply checklist' heading"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf "  FAIL tester: D.5.5 missing literal '## Pre-apply checklist' heading template\n"
   fi
 
@@ -1493,22 +1487,20 @@ if [[ -n "${TESTER_D55_LINE}" ]] && [[ -n "${TESTER_D6_LINE}" ]]; then
   # the checklist is emitted. Without this, the model can interpret "post
   # a fixed-structure block" as "include in your response alongside tool
   # calls" rather than "emit as a standalone message first."
-  TOTAL=$((TOTAL + 1))
   if printf '%s\n' "${D55_BLOCK}" | grep -qF 'Do not invoke Edit, Write, or Bash'; then
     pass "tester: D.5.5 carries the no-tool-call-before-checklist hard gate"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf "  FAIL tester: D.5.5 missing hard-gate phrase 'Do not invoke Edit, Write, or Bash'\n"
   fi
 
   # Text-message framing: the checklist must be emitted as a visible text
   # message, not buried in a multi-tool-call response. The phrase below is
   # what makes that explicit and is paired with the hard gate above.
-  TOTAL=$((TOTAL + 1))
   if printf '%s\n' "${D55_BLOCK}" | grep -qF 'as a text message before any further tool call'; then
     pass "tester: D.5.5 frames checklist as a text message before any tool call"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf "  FAIL tester: D.5.5 missing 'as a text message before any further tool call' framing\n"
   fi
 fi
@@ -1516,23 +1508,21 @@ fi
 # Coordinate-with field appears in Step D.5's template (between D.5 and D.5.5).
 # This is the conditional fifth field appended when the overlap scan flags an
 # entry; the script preserves it verbatim inside the append: body.
-TOTAL=$((TOTAL + 1))
 if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
   if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -qF 'Coordinate with:'; then
     pass "tester: D.5 template documents conditional 'Coordinate with:' field"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf "  FAIL tester: D.5 template missing 'Coordinate with:' field\n"
   fi
 fi
 
 # Why-deferred specificity soft hint lives in D.5 (between D.5 and D.5.5).
-TOTAL=$((TOTAL + 1))
 if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
   if sed -n "${TESTER_D5_LINE},${TESTER_D55_LINE}p" "${TESTER}" | grep -qE 'Why-deferred specificity|boilerplate'; then
     pass "tester: D.5 contains Why-deferred specificity / boilerplate soft hint"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: D.5 missing Why-deferred specificity / boilerplate soft hint\n'
   fi
 fi
@@ -1559,28 +1549,26 @@ has "${TESTER}" 'soft cap' \
 # D.4 must declare draft-in-memory semantics. The literal phrases below are
 # the structural anchors; if D.4 silently regains write semantics, one of
 # these checks should fail.
-TOTAL=$((TOTAL + 1))
 TESTER_D4_LINE=$(grep -n '^### Step D\.4: ' "${TESTER}" | head -1 | cut -d: -f1)
 if [[ -n "${TESTER_D4_LINE}" ]] && [[ -n "${TESTER_D5_LINE}" ]]; then
   D4_BLOCK=$(sed -n "${TESTER_D4_LINE},${TESTER_D5_LINE}p" "${TESTER}")
   if printf '%s\n' "${D4_BLOCK}" | grep -qE 'in memory|no file write|draft the contract|Draft the contract'; then
     pass "tester: D.4 has draft-in-memory semantics (no immediate file write)"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: D.4 missing draft-in-memory marker (expected one of: "in memory" / "no file write" / "draft the contract")\n'
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL tester: could not locate D.4 / D.5 anchors for draft-semantics check\n'
 fi
 
 # D.4 must NOT carry the imperative-write phrase that previously placed the
 # write at D.4 instead of D.6. "at the bottom of TESTING.md" appearing in D.4
 # was the exact phrase that made D.5.5 dormant in the prior turn.
-TOTAL=$((TOTAL + 1))
 if [[ -n "${TESTER_D4_LINE}" ]] && [[ -n "${TESTER_D5_LINE}" ]]; then
   if printf '%s\n' "${D4_BLOCK}" | grep -qE 'at the bottom of TESTING\.md'; then
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: D.4 contains imperative-write phrase "at the bottom of TESTING.md" (must move to D.6 step 1)\n'
   else
     pass "tester: D.4 does not carry the imperative TESTING.md write phrase"
@@ -1590,18 +1578,17 @@ fi
 # D.6 step 1 must own the revision-behavior text (H1 replace) that previously
 # lived in D.4. This is the actual write step; the rules belong here so the
 # write site has full instructions.
-TOTAL=$((TOTAL + 1))
 TESTER_D7_LINE=$(grep -n '^### Step D\.7: ' "${TESTER}" | head -1 | cut -d: -f1)
 if [[ -n "${TESTER_D6_LINE}" ]] && [[ -n "${TESTER_D7_LINE}" ]]; then
   D6_BLOCK=$(sed -n "${TESTER_D6_LINE},${TESTER_D7_LINE}p" "${TESTER}")
   if printf '%s\n' "${D6_BLOCK}" | grep -qE 'replace everything from that H1'; then
     pass "tester: D.6 step 1 owns the H1-replace revision-behavior text"
   else
-    FAILS=$((FAILS + 1))
+    FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
     printf '  FAIL tester: D.6 step 1 missing H1-replace revision-behavior text (must move from D.4 to D.6 step 1)\n'
   fi
 else
-  FAILS=$((FAILS + 1))
+  FAILS=$((FAILS + 1)); TOTAL=$((TOTAL + 1))
   printf '  FAIL tester: could not locate D.6 / D.7 anchors for revision-behavior check\n'
 fi
 
