@@ -37,7 +37,7 @@ Checks by category:
 | BACKLOG.md contracts | Backlog Sweep and Revisit subsections, the four-field entry template, `spec-backlog-apply.sh` manifest ops, and proposal routing without a mid-run confirmation |
 | Finding standards | Review skills carry no separate re-check pass; evidence, severity, and coverage rules live in the main steps |
 | Codefix constraints | One-fix-at-a-time, 20-line cap, syntax check, no self-evaluation, no re-running review |
-| External reviewer integration | Step 5.5, script reference, gating, provider tags, cost log, template exit states, script contracts |
+| External reviewer integration | Step 5.5, script reference, gating, provider tags, cost log, template exit states, Step 5.5 and E.4 Bash timeout covering the script's `REVIEW_TIMEOUT` default, script contracts |
 | Concurrency safety | mktemp usage, EXIT trap waits, PID capture, config override, no fixed /tmp paths |
 | Codereview bypass removed | Bypass instructions not in skill frontmatter |
 | Built-in review integration | Step 5.6 launch after Step 3, output redirected to a mktemp file and read only after completion, no polling, no re-run, Step 6 classification, CODEREVIEW.md line |
@@ -67,7 +67,7 @@ Checks covering guard logic and output contract for `bin/review-external.sh`:
 | Empty API keys | Keys set to empty string must not trigger API calls |
 | Invalid API key | Must fail open (exit 0, error on stderr, no stdout) |
 | Invalid GEMINI_EFFORT | A value that is neither a thinking level nor a number must fail open with a descriptive error |
-| Fake-curl provider tests | Default models and Gemini thinking level or budget in the request, both Gemini price tiers, OpenAI cost without double-counted reasoning, non-numeric token counts, key redaction in API errors, and a tagged stderr line kept out of the findings |
+| Fake-curl provider tests | Default models and Gemini thinking level or budget in the request, both Gemini price tiers, both OpenAI GPT-6 price tiers, OpenAI cost without double-counted reasoning, a leading zero on costs below $1, non-numeric token counts, key redaction in API errors, and a tagged stderr line kept out of the findings |
 | Both providers invalid | Both must error on stderr, exit 0, no stdout |
 | Shellcheck | Static analysis of the script |
 | Stdin interface | Script must not require positional arguments |
