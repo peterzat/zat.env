@@ -303,7 +303,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 12. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
 13. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
 
-**Pressure test (full review only).** After evaluating all review dimensions and before writing findings, a structured pressure-test checkpoint verifies bugs are confirmed rather than suspected, checks that regression risk claims trace actual callers, filters style-as-substance false positives, and reconsiders solution approach. Skipped for light reviews. The skill runs at `effort: xhigh` via frontmatter.
+**No separate re-check pass.** Claude Opus 5 and later verify their own reasoning without being told to, and Anthropic measured that removing explicit re-check steps saves tokens with no loss in quality. The standards a re-check used to enforce live where the finding is made: evidence grounding in the principles, traced callers in the regression-risk dimension, and the preparatory-refactoring exception in the spaghetti dimension. Independent verification comes from separate contexts (the review itself, `/codefix`, external reviewers, tests), not from the reviewer re-reading its own work. The skill runs at `effort: xhigh` via frontmatter.
 
 **Builder/verifier separation.** The reviewer never fixes code itself. When BLOCK or WARN findings exist, it writes CODEREVIEW.md and delegates to `/codefix`, a separate skill that runs in its own forked context with no memory of the review's reasoning. Codefix reads findings as a spec and applies minimal fixes. The reviewer then re-evaluates independently. No agent grades its own work.
 

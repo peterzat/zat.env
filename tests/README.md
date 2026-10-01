@@ -33,7 +33,7 @@ tests/lint-skills.sh
 | Output verdicts | Both verdict strings, template completeness, all 8 REVIEW_META fields |
 | Carry-forward severity | Accepted Risks downgrade, re-report at original severity, no silent severity loss |
 | Cross-skill context graph | SPEC.md reading, spec alignment, no-nag, architect terminal node, NOTE not auto-fixed |
-| Pressure test existence | Codereview and security both have a pressure test step |
+| Finding standards | Review skills carry no separate re-check pass; evidence, severity, and coverage rules live in the main steps |
 | Codefix constraints | One-fix-at-a-time, 20-line cap, syntax check, no self-evaluation, no re-running review |
 | External reviewer integration | Step 5.5, script reference, gating, provider tags, cost log, template exit states, script contracts |
 | Concurrency safety | mktemp usage, EXIT trap waits, PID capture, config override, no fixed /tmp paths |

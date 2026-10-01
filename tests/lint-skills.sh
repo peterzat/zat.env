@@ -844,14 +844,23 @@ has "${SKILLS}/architect/SKILL.md" "does not produce a persistent" \
 has "${SKILLS}/codereview/SKILL.md" "Do not auto-fix these" \
   "codereview: NOTE findings not auto-fixed"
 
-# --- Pressure test existence ---
-# Review skills must have a pressure-test step to catch false positives.
+# --- Finding standards ---
+# Opus 5+ verifies its own reasoning unprompted, so review skills carry no
+# separate re-check pass. The standards a re-check used to enforce live in the
+# step where findings are made. Coverage records (what was and was not
+# reviewed) are facts, not re-checks, and stay.
 
 echo ""
-echo "==> Pressure test existence"
+echo "==> Finding standards"
 
-has "${SKILLS}/codereview/SKILL.md" "Step 4.5.*Pressure Test" \
-  "codereview: has pressure test step"
+hasnt "${SKILLS}/codereview/SKILL.md" "Pressure Test" \
+  "codereview: no separate re-check pass"
+has "${SKILLS}/codereview/SKILL.md" "Evidence grounding" \
+  "codereview: evidence-grounding principle present"
+has "${SKILLS}/codereview/SKILL.md" "a regression-risk finding names the callers it traced" \
+  "codereview: regression dimension requires traced callers"
+has "${SKILLS}/codereview/SKILL.md" "refactoring that enables the main change is not a mixed concern" \
+  "codereview: spaghetti dimension exempts preparatory refactoring"
 has "${SKILLS}/security/SKILL.md" "Step 3.5.*Pressure Test" \
   "security: has pressure test step"
 
