@@ -266,7 +266,8 @@ printf '%s\n' "${SYSTEM_PROMPT}" > "${SYSTEM_FILE}"
 
 _calc() {
   if command -v bc >/dev/null 2>&1; then
-    echo "$1" | bc -l
+    # bc prints values below 1 without a leading zero (.0034).
+    echo "$1" | bc -l | sed 's/^\./0./'
   else
     echo "?"
   fi
@@ -348,11 +349,13 @@ call_openai() {
 
   # USD per 1M tokens. output_tokens already includes reasoning tokens, which
   # are billed as output, so reasoning_tokens is reported but not added again.
-  local price_in="" price_out=""
+  # GPT-6 models charge a higher rate for prompts over 272k input tokens.
+  local price_in="" price_out="" long=false
+  [[ "${input_tokens}" -gt 272000 ]] && long=true
   case "${model}" in
-    gpt-6-astra*)             price_in=10;   price_out=50 ;;
-    gpt-6.1-sol*|gpt-6-sol*)  price_in=2;    price_out=10 ;;
-    gpt-6-luna*)              price_in=0.1;  price_out=0.5 ;;
+    gpt-6-astra*)             if ${long}; then price_in=20;  price_out=75;   else price_in=10;  price_out=50;  fi ;;
+    gpt-6.1-sol*|gpt-6-sol*)  if ${long}; then price_in=4;   price_out=15;   else price_in=2;   price_out=10;  fi ;;
+    gpt-6-luna*)              if ${long}; then price_in=0.2; price_out=0.75; else price_in=0.1; price_out=0.5; fi ;;
     o3)                       price_in=2;    price_out=8 ;;
     o4-mini|o3-mini)          price_in=1.10; price_out=4.40 ;;
   esac

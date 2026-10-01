@@ -826,12 +826,12 @@ else
 fi
 
 # OpenAI: output_tokens already includes reasoning tokens, so cost must not
-# add them again. gpt-6.1-sol at $2 / $10: 1M in + 1M out = $12, not $17.
+# add them again. gpt-6.1-sol at $2 / $10: 100k in + 1M out = $10.2, not $15.2.
 printf 'OPENAI_API_KEY=sk-test-key\n' > "${REVIEWER_ENV}"
 OPENAI_OK="${TEST_DIR}/openai-ok.json"
-printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"[BLOCK] b.py:2 -- example finding"}]}],"usage":{"input_tokens":1000000,"output_tokens":1000000,"output_tokens_details":{"reasoning_tokens":500000}}}' > "${OPENAI_OK}"
+printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"[BLOCK] b.py:2 -- example finding"}]}],"usage":{"input_tokens":100000,"output_tokens":1000000,"output_tokens_details":{"reasoning_tokens":500000}}}' > "${OPENAI_OK}"
 run_fake "${OPENAI_OK}" 200
-if [[ "${FAKE_STDERR}" == *"gpt-6.1-sol (high)"*"~\$12"* ]] && [[ "${FAKE_STDERR}" != *"~\$17"* ]]; then
+if [[ "${FAKE_STDERR}" == *"gpt-6.1-sol (high)"*"~\$10.2"* ]] && [[ "${FAKE_STDERR}" != *"~\$15.2"* ]]; then
   pass "openai cost: reasoning tokens not counted twice"
 else
   fail "openai cost: unexpected cost line: ${FAKE_STDERR}"
@@ -840,6 +840,28 @@ if [[ "${FAKE_STDOUT}" == "[BLOCK] (openai) b.py:2 -- example finding" ]]; then
   pass "openai finding: tagged with its provider on stdout"
 else
   fail "openai finding: unexpected stdout: ${FAKE_STDOUT}"
+fi
+
+# Prompts over 272k input tokens use the long-context tier: 1M in + 1M out at
+# $4 / $15 = $19, not the short-tier $12.
+OPENAI_LONG="${TEST_DIR}/openai-long.json"
+printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"No issues found."}]}],"usage":{"input_tokens":1000000,"output_tokens":1000000,"output_tokens_details":{"reasoning_tokens":0}}}' > "${OPENAI_LONG}"
+run_fake "${OPENAI_LONG}" 200
+if [[ "${FAKE_STDERR}" == *"-- 1000000 in / 1000000 out / 0 reasoning -- ~\$19"* ]]; then
+  pass "openai cost: prompts over 272k tokens use the \$4 in / \$15 out tier"
+else
+  fail "openai cost (long prompt): unexpected cost line: ${FAKE_STDERR}"
+fi
+
+# Costs below $1 keep their leading zero: 414 in + 264 out = $0.0034, as in a
+# live run, not "$.0034".
+OPENAI_SMALL="${TEST_DIR}/openai-small.json"
+printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"No issues found."}]}],"usage":{"input_tokens":414,"output_tokens":264,"output_tokens_details":{"reasoning_tokens":196}}}' > "${OPENAI_SMALL}"
+run_fake "${OPENAI_SMALL}" 200
+if [[ "${FAKE_STDERR}" == *"-- ~\$0.0034"* ]]; then
+  pass "openai cost: values below \$1 print with a leading zero"
+else
+  fail "openai cost (small): unexpected cost line: ${FAKE_STDERR}"
 fi
 
 # Non-numeric token counts never reach bc.
