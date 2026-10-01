@@ -555,6 +555,23 @@ Carry forward the Accepted Risks section from the prior entry. Remove entries
 whose code is no longer present in the diff. If the human added new entries
 between reviews, preserve them.
 
+**Uncommitted prior entry.** Condensing is safe only when git history holds the
+full prior entry. Before writing, check:
+```bash
+git status --porcelain -- CODEREVIEW.md
+```
+Empty output: condense as above. Non-empty output (untracked, modified, or
+staged): the existing entry has no copy in git history, and condensing it would
+destroy the only full copy, including any resolution notes added since the last
+review. Instead of the prior-summary line, write the heading
+`## Prior review carried forward (uncommitted; not current findings)` followed
+by the existing file content verbatim, including any block an earlier
+uncommitted run carried forward. Drop only its `REVIEW_META` footer: the file
+must contain exactly one `REVIEW_META` line, because Step 2 and `/pr merge`
+grep its fields file-wide. State the carry-forward in the Output Summary so the
+user knows to commit CODEREVIEW.md. The next run after a commit condenses
+normally.
+
 Format:
 ```markdown
 ## Review — YYYY-MM-DD (commit: abc1234)

@@ -151,6 +151,22 @@ Update (or create) `SECURITY.md` in the project root. Keep only:
 - The current entry
 - A one-paragraph summary of the previous entry (if one exists)
 
+**Uncommitted prior entry.** Condensing is safe only when git history holds the
+full prior entry. Before writing, check:
+```bash
+git status --porcelain -- SECURITY.md
+```
+Empty output: condense as above. Non-empty output (untracked, modified, or
+staged): the existing entry has no copy in git history, and condensing it would
+destroy the only full copy, including any resolution notes added since the last
+scan. Instead of the prior-summary line, write the heading
+`## Prior review carried forward (uncommitted; not current findings)` followed
+by the existing file content verbatim, including any block an earlier
+uncommitted run carried forward. Drop only its `SECURITY_META` footer: the file
+must contain exactly one `SECURITY_META` line, because other skills grep its
+fields file-wide. State the carry-forward in your output so the user knows to
+commit SECURITY.md. The next run after a commit condenses normally.
+
 Set the `scope` field in SECURITY_META to the actual review scope: `"full"`,
 `"changes-only"`, or `"paths"`. For path-scoped runs, include `"scanned_files"`
 with the sorted file list so downstream tools can verify coverage.

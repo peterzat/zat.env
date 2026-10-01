@@ -556,7 +556,7 @@ The current system is at **Gated**. The build order does not follow the ladder: 
 
 **Auto-fix oscillation.** Fix A breaks B, fix B reintroduces A. Countered by: builder/verifier separation (codefix runs in a separate forked context from the reviewer), one-issue-per-fix cap, 20-line-per-fix cap, 3-cycle limit, independent re-review after each fix cycle.
 
-**Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary.
+**Stale context poisoning.** Persistent files describing code that no longer exists. Countered by: commit-hash-scoped metadata, skip entries older than base commit, keep only current entry + prior summary. Condensing relies on git history as the archive, so when CODEREVIEW.md, SECURITY.md, or TESTING.md has uncommitted changes, the skill carries the prior entry forward verbatim under a "not current findings" heading instead of condensing it; the next run after a commit condenses normally.
 
 **Spec-less loops.** Agent loops without acceptance criteria optimize for test-passing rather than problem-solving. The agent may write code that satisfies the test suite but misses the actual goal, or drift away from the original intent over multiple iterations. Countered by: SPEC.md with concrete acceptance criteria that define what done looks like; codereview checks spec alignment; fresh agent sessions re-orient from the spec rather than relying on stale context.
 

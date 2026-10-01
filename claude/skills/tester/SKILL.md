@@ -173,6 +173,23 @@ H1. On update, replace only the content above the H1; never edit,
 summarize, or truncate the contract section below. If the file has no
 contract H1, the rolling format occupies the whole file as before.
 
+**Uncommitted prior entry.** Condensing is safe only when git history holds the
+full prior entry. Before writing, check:
+```bash
+git status --porcelain -- TESTING.md
+```
+Empty output: condense as above. Non-empty output (untracked, modified, or
+staged): the existing entry may have no copy in git history, and condensing it
+would destroy the only full copy. Instead of the prior-summary line, write the
+heading `## Prior review carried forward (uncommitted; not current findings)`
+followed by the existing above-H1 content verbatim, including any block an
+earlier uncommitted run carried forward. Drop only its `TESTING_META` footer:
+the file must contain exactly one `TESTING_META` line, because other skills
+grep its fields file-wide. The carried block goes above the contract H1, which
+is never duplicated or moved. State the carry-forward in your output so the
+user knows to commit TESTING.md. The next run after a commit condenses
+normally.
+
 **Mechanics for preserving the contract.** Prefer the Edit tool
 targeted at the above-H1 region; it leaves the H1 block untouched by
 construction. If you use Write (full-file replace), first Read the

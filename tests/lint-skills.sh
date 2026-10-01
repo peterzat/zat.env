@@ -1166,6 +1166,25 @@ has "${SKILLS}/security/SKILL.md" "Accepted Risks" \
 has "${SKILLS}/codereview/SKILL.md" "Listed in Accepted Risks" \
   "codereview: carry-forward checks Accepted Risks"
 
+# --- Uncommitted prior entry guard ---
+# Rolling files condense the prior entry to one line, relying on git history
+# as the archive. When the file is uncommitted, the skill carries the prior
+# content forward verbatim instead, and drops its META footer so file-wide
+# META greps (/codereview Step 2, /pr merge) still see exactly one footer.
+
+echo ""
+echo "==> Uncommitted prior entry guard"
+
+for pair in security:SECURITY:SECURITY_META codereview:CODEREVIEW:REVIEW_META tester:TESTING:TESTING_META; do
+  IFS=: read -r skill file meta <<< "${pair}"
+  has "${SKILLS}/${skill}/SKILL.md" "git status --porcelain -- ${file}\.md" \
+    "${skill}: checks ${file}.md for uncommitted changes before condensing"
+  has "${SKILLS}/${skill}/SKILL.md" "## Prior review carried forward \(uncommitted; not current findings\)" \
+    "${skill}: carried-forward heading present"
+  has "${SKILLS}/${skill}/SKILL.md" "must contain exactly one \`${meta}\` line" \
+    "${skill}: carried-forward block drops its ${meta} footer"
+done
+
 # --- Tester/spec cross-skill contracts ---
 # /tester design writes a contract under an exact H1 heading and emits
 # BACKLOG entries with a canonical Origin form. Audit mode preserves the
