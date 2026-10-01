@@ -39,3 +39,9 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Why deferred:** Google has not published a stable 3.x Pro model ID; the preview is its named replacement for gemini-2.5-pro.
 - **Revisit criteria:** Google publishes a stable Gemini 3.x Pro model ID, OR the preview default starts returning errors in the `/codereview` cost log.
 - **Origin:** CODEREVIEW.md (2026-10-01 NOTE on review-external.sh)
+
+### skip-marker-bound-to-diff
+- **One-line description:** `bin/codereview-skip` writes a skip marker that never expires and is not tied to a diff, and `hooks/pre-push-codereview.sh` honors it on the next push it gates. A tag-only push (the hook exits before its skip check) or a push from the user's own terminal (never seen by the hook) leaves the marker in place, so a later, unreviewed agent push goes through without notice. Store `codereview-marker hash` in the marker and honor it only when it matches the current diff, or add an age limit.
+- **Why deferred:** It needs a stale marker plus a later agent push, which is rare in single-user use, and the gate is already advisory by Accepted Risk. The change touches the skip-path contract that lint pins in both scripts.
+- **Revisit criteria:** A push is seen skipping review that nobody asked to skip, OR the gate is moved server-side or extended to other contributors, where an unscoped bypass matters more.
+- **Origin:** CODEREVIEW.md (2026-10-01 security NOTE on bin/codereview-skip)
