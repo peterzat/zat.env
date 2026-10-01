@@ -94,7 +94,7 @@ Large datasets and model files go in `~/data/`, not in project directories or gi
 
 ## Images
 
-When detail in a screenshot, chart, or diagram is hard to read, crop and enlarge the region with ImageMagick if it is installed (`convert in.png -crop WxH+X+Y +repage -resize 300% out.png`, or `magick` on ImageMagick 7), then read the result. Use Pillow or OpenCV only where the project's venv already has them.
+When detail in a screenshot, chart, or diagram is hard to read, crop and enlarge the region with ImageMagick if it is installed, naming the input format so the file's contents cannot select a different decoder (`convert png:in.png -crop WxH+X+Y +repage -resize 300% out.png`, or `magick` on ImageMagick 7), then read the result. Use Pillow or OpenCV only where the project's venv already has them.
 
 ## Networking
 

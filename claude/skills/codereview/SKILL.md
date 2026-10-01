@@ -43,7 +43,8 @@ You start with an empty context — gather everything you need below.
 - **Finish the run.** This review runs unattended in a fork, and ending your turn
   ends the review. A full review is finished only when the Output Summary has been
   printed after Step 9, an external-only run only after Step E.5, or earlier only
-  when a step is blocked on something the user must resolve. Do not end the turn
+  where a step says to stop (Step 0, Step 2, Steps E.1 to E.3) or is blocked on
+  something the user must resolve. Do not end the turn
   with a progress note that announces the next step; take the step.
 
 Arguments: `$ARGUMENTS`

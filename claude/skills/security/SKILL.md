@@ -23,9 +23,9 @@ Scope argument: `$ARGUMENTS`
 - **Report what you find, with your confidence.** Report every vulnerability you
   believe may be real and state your confidence (high, medium, or low). Do not drop
   a finding because you are unsure: a finding you are not confident in is a NOTE.
-  Severity, not omission, expresses uncertainty. Each finding still needs a concrete
-  attack vector: "An attacker could theoretically..." without specifying how they
-  reach that code path is not a finding.
+  Severity, not omission, expresses uncertainty. Each finding still needs an attack
+  vector: a vulnerability whose path you traced only partly is a NOTE, but "An
+  attacker could theoretically..." with no path at all is not a finding.
 - **Evidence grounding.** Every finding MUST cite specific file and line. Read the
   code before reporting. Never speculate about behavior you haven't verified.
 - **Empty report is valid.** "No security issues identified" is the correct outcome

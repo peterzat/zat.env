@@ -225,9 +225,10 @@ jq '
 echo "    Set permissions (defaultMode, allow list reset, deny list merged)"
 
 # In auto mode, send every shell command through the classifier
-# (hooks/allow-venv-source.sh makes no decision in auto mode). Narrow allow
-# rules such as Bash(git *) are otherwise resolved before the classifier runs,
-# so a force push or `gh repo delete` would skip its check. The allow list still
+# (hooks/allow-venv-source.sh makes no decision in auto mode). Claude Code
+# resolves narrow allow rules before the classifier and suspends only broad ones
+# such as Bash(*); if a rule such as Bash(git *) counts as narrow, a force push
+# or `gh repo delete` would otherwise skip the check. The allow list still
 # cuts prompts in the other permission modes. Other autoMode keys are left alone.
 jq '.autoMode.classifyAllShell = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Set autoMode.classifyAllShell (auto mode classifies every shell command)"
