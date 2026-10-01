@@ -1,66 +1,70 @@
 ## Security Review — 2026-10-01 (scope: paths)
 
-**Summary:** Reviewed `bin/codereview-skip`, `tests/lint-skills.sh`, and
-`tests/test-review-external.sh` in full at HEAD f541aa2: 0 BLOCK / 0 WARN / 3 NOTE. The
-prior WARN (test-suite /tmp paths where another account could plant a binary) is fixed.
-Two new NOTEs concern the skip marker: it can outlive the push it was created for, and its
-write follows a symlink. Both were reproduced in scratch copies. The invalid-key NOTE
-carries over unchanged and was re-verified. No secrets in the files or their history, and
-no PII.
+**Summary:** Reviewed `bin/review-external.sh`, `tests/lint-skills.sh`, and
+`tests/test-review-external.sh` in full at HEAD c6e5cab: 0 BLOCK / 0 WARN / 3 NOTE, no
+secrets in the files or their history, and no PII. The new long-context price comparison
+is a bash arithmetic sink that `_count` makes safe but no test covers, provider text
+reaches the terminal with its control characters intact, and the invalid-key NOTE carries
+over, re-verified without sending anything.
 
 ### Findings
 
 ```
-[NOTE] bin/codereview-skip:4-6, 22 — the skip marker never expires and is not tied to a
-diff, and a tag-only push leaves it in place, so a "push now" bypass can skip review of a
-later, different push
-  Attack vector: no adversary is needed. The user says "push now" and the agent runs
-    codereview-skip. If the next push the hook sees is tag-only, the hook exits at
-    hooks/pre-push-codereview.sh:201-203, before the skip check at lines 227-230, and the
-    marker stays. The same happens when the push never reaches the Claude Code hook, for
-    example when the user pushes from their own terminal after the agent created the
-    marker (the hook is a PreToolUse hook, not a git hook). Later the agent pushes new
-    commits that nobody reviewed. The hook finds the marker, deletes it, and exits 0.
-    /codereview never runs, and nothing tells the user.
-  Evidence: reproduced in a scratch repo with a private XDG_CACHE_HOME and synthetic hook
-    input; nothing was pushed. After codereview-skip, `git push origin v1.0` returned 0 and
-    left the marker. After a new commit, `git push` returned 0 and consumed it. The same
-    push with no marker returned 2. A marker backdated 30 days was still honored, because
-    the hook tests only `-f` (line 227). The header comment says the marker "is consumed by
-    the hook on the next push attempt", which holds only for pushes that reach line 227.
-    The accepted heuristic-detection risk covers is_git_push and is_tag_only_push, not the
-    marker's lifetime. No marker was pending at scan time. Confidence: high on the
-    mechanism, low on likelihood.
-  Remediation: bind the bypass to the diff the user approved. Have codereview-skip write
-    the output of `codereview-marker hash` into the marker, and have the hook honor the
-    marker only when it matches the current hash, deleting it either way. A short age
-    limit, such as `find "${SKIP_MARKER}" -mmin -15`, also works. Add a tag-then-code case
-    to tests/test-pre-push-hook.sh.
+[NOTE] bin/review-external.sh:354 — the new long-context comparison is a bash arithmetic
+context, which expands command substitutions in its operand. `_count` (line 346) makes it
+safe, but no test covers this sink, so a reordering would let a provider response run
+commands. The Gemini comparison at line 460, from 379af38, is the same.
+  Attack vector: none at HEAD. The value comes from the provider's `usage` block, which
+    the script already treats as untrusted (that is why `_count` exists). If a later edit
+    compares the raw jq output instead of the filtered variable, a response carrying
+    "input_tokens":"PATH[$(cmd)]" runs cmd as the user. Only the provider, or someone who
+    can tamper with its TLS connection, controls that field. Injected text in the diff
+    cannot.
+  Evidence: under the script's own `set -euo pipefail`, `[[ "PATH[$(cmd)]" -gt 272000 ]]`
+    ran cmd and then continued, because the syntax error that follows is not fatal inside
+    an && list. An unset array name stops at "unbound variable" before expansion, which is
+    why the payload uses PATH. On a scratch copy with a stub curl, the unmodified script
+    turned the payload into 0 and ran nothing. A mutant that changed only line 354 to
+    compare the raw jq value passed the hostile-value test's assertion
+    (tests/test-review-external.sh:867-876: "-- 0 in / 5 out" in under 20 seconds) and ran
+    the payload. That test's "1; while (1) { }" value targets bc. In the comparison it
+    raises a non-fatal syntax error. The `_count` comment (lines 276-277) names bc as the
+    only sink, and no test sends a hostile Gemini count. Confidence: high on the mechanism.
+  Remediation: name the comparisons in the `_count` comment. Change the hostile-value test
+    to a command-substitution payload, such as "PATH[$(: > ${TEST_DIR}/ran)]", and assert
+    that the file does not exist. Add the same case for promptTokenCount.
 
-[NOTE] bin/codereview-skip:18-22 — the comment says a plain touch is safe because
-codereview-marker creates the marker directory at 0700, but nothing enforces that mode or
-the directory's owner, and touch follows a symlink at the skip path
-  Attack vector: requires XDG_CACHE_HOME to point into a directory another local account
-    can write. The XDG spec treats that directory as user-specific, but nothing here checks
-    it. That account creates `claude-codereview` there, owned by itself with mode 0777, and
-    plants `skip-<hash>` as a symlink. The hash is the first 8 hex digits of the md5 of the
-    repo path, so it is predictable. The user's `chmod 700` then fails, and
-    codereview-skip's touch creates the symlink's target with the user's rights. The
-    account can also plant skip markers to bypass the gate. The push marker lives in the
-    same directory, and `codereview-marker write` (bin/codereview-marker:117, out of scope)
-    would truncate and overwrite a planted symlink's target.
-  Evidence: marker_dir (bin/codereview-marker:73-78) runs inside a command substitution,
-    where bash clears errexit, so a failed chmod is ignored and the path is still printed.
-    In a scratch run with chmod made to fail, `codereview-marker skip-path` exited 0, the
-    directory stayed 0775, and codereview-skip created the marker in it. With a symlink
-    planted at skip-<hash>, codereview-skip created the symlink's target. A noclobber write
-    (`set -C; : >`) refused the same symlink. Not exposed on this host: XDG_CACHE_HOME is
-    unset, and ~/.cache and ~/.cache/claude-codereview are 0700 and owned by the user.
-    Confidence: high on the mechanism, low on exposure.
-  Remediation: in marker_dir, exit 1 unless the path is a real directory owned by the user
-    after the chmod (`[[ -d "${d}" && ! -L "${d}" && -O "${d}" ]]`). In codereview-skip,
-    create the marker without following a symlink:
-    `( set -C; : > "${SKIP_PATH}" ) 2>/dev/null || [[ -f "${SKIP_PATH}" && ! -L "${SKIP_PATH}" ]]`.
+[NOTE] bin/review-external.sh:369-375, 583-589 — provider text is printed with its control
+characters intact, so a model steered by the code under review can put terminal escape
+sequences into a finding line. The Google and local loops (lines 472-478 and 533-539) do
+the same.
+  Attack vector: the author of a diff under review embeds instructions aimed at the
+    external model. This is the prompt-injection path that the accepted "third-party model
+    findings" risk already assumes. The model returns a line that starts with [BLOCK],
+    [WARN], or [NOTE] and carries ESC, CR, or BEL as JSON escapes. `jq -r` decodes them to
+    raw bytes (lines 337 and 440-444). The tagging loop keeps the line because it checks
+    only the prefix (line 370), and demux forwards it to stdout (line 585). A user who runs
+    the script in a terminal, as the usage header shows (lines 9-10), gets the sequences
+    interpreted. CR plus erase-line rewrites what the finding appears to say, OSC
+    sequences set the window title, and a terminal that accepts OSC 52 clipboard writes
+    from applications lets the line replace the clipboard. The accepted risk covers what
+    the agent does with a finding. It does not cover hiding a finding's text from a human
+    or driving the human's terminal.
+  Evidence: reproduced on a scratch copy against a stub curl. The finding text
+    "[BLOCK] evil.py:1 -- real finding\r\u001b[2K[NOTE] evil.py:1 -- cosmetic
+    only\u001b]0;title\u0007" came out on stdout tagged "(openai)", with raw CR, ESC [2K,
+    and ESC ]0;title BEL bytes (checked with od -c). A terminal would show only the NOTE
+    text. Not verified: that OpenAI or Gemini models emit raw control characters when
+    steered (public prompt-injection research has shown models emitting ANSI escape
+    sequences into CLI tools' output), how Claude Code's transcript renders such bytes when
+    /codereview runs the script, and the user's terminal settings. tmux's default
+    `set-clipboard external` does not accept OSC 52 from applications. The provider error
+    text at lines 332 and 435 passes control characters the same way, but only the
+    provider controls it. Confidence: high on the mechanism, low on exploitability.
+  Remediation: in demux, strip C0 control characters other than tab and newline, and DEL,
+    from both files before classifying lines (`LC_ALL=C tr -d '\000-\010\013-\037\177'` on
+    "${out}" and "${err}"). Add a fake-curl test whose finding carries \u001b and \r, and
+    assert that neither byte reaches stdout.
 
 [NOTE] tests/test-review-external.sh:112-118 — the invalid-key tests (also lines 287-294)
 send the caller's unpushed commit subjects to api.openai.com and
@@ -69,17 +73,17 @@ unchanged)
   Attack vector: no adversary is involved. This data leaves the machine without the
     user's opt-in. Everywhere else, sending data to these providers requires configuring a
     key. The script builds its COMMITS block from `git log @{upstream}..HEAD` in the
-    caller's working directory (bin/review-external.sh:208-215, 256-258), and
+    caller's working directory (bin/review-external.sh:208-216, 255-263), and
     tests/run-all.sh runs the suite from wherever it was started, normally the repo root.
-  Evidence: re-verified at f541aa2 with a curl stub that recorded request bodies, run from
-    the repo root. The line-112 request to OpenAI and both line-287 requests (OpenAI and
-    Google) each carried "=== COMMITS ===" with the four unpushed subjects (dd22b6d to
-    f541aa2). Each body was about 2 KB. That the body crosses the wire before the 401 is
-    inferred, not observed: this host's curl 7.81.0 supports HTTP/2, and curl does not hold
-    a body behind Expect: 100-continue on HTTP/2. The test at lines 336-365 runs from a
-    non-git directory and sends only the dummy diff. Impact is low for zat.env, whose
-    subjects reach GitHub on push anyway. A fork with private history would send more.
-    Confidence: high on the mechanism, low on impact.
+  Evidence: re-verified at c6e5cab without sending anything. The suite ran from the repo
+    root with a recording stub ahead of curl on PATH. Three requests carried
+    "=== COMMITS ===" with the five unpushed subjects (4333ebf to c6e5cab): two to
+    api.openai.com (the tests at lines 112 and 287) and one to
+    generativelanguage.googleapis.com (line 287), about 2 KB each. The test at lines
+    336-365 runs from a non-git directory and sent no COMMITS block. With curl stubbed,
+    the suite passed 76 of 76 checks. Impact is low for zat.env, whose subjects reach
+    GitHub on push anyway. A fork with private history would send more. Confidence: high
+    on the mechanism, low on impact.
   Remediation: run these tests against the suite's fake curl (lines 753-782) with
     FAKE_CODE=401, which also removes their network dependency. Running them from
     ${TEST_DIR} is an alternative.
@@ -87,70 +91,55 @@ unchanged)
 
 ### Coverage
 
-All eight dimensions were reviewed. Every line of the three files was read:
-bin/codereview-skip (22 lines), tests/lint-skills.sh (1698), and
-tests/test-review-external.sh (903). Read for context only: bin/codereview-marker,
-hooks/pre-push-codereview.sh, the curl and COMMITS code in bin/review-external.sh, and
-Step 5.6 of claude/skills/codereview/SKILL.md.
+All eight dimensions were reviewed. Every line of the three files was read at HEAD
+c6e5cab: bin/review-external.sh (595 lines), tests/lint-skills.sh (1715), and
+tests/test-review-external.sh (925). Read for context only: tests/run-all.sh, BACKLOG.md,
+and the 379af38 and f541aa2 entries of this file.
 
-- Prior findings on these files:
-  - The WARN at tests/test-review-external.sh:145-146 (and 209) is fixed in 20a4c6c. Both
-    nonexistent local-reviewer paths now sit under the suite's TEST_DIR, which `mktemp -d`
-    creates at 0700. Neither test file has a fixed /tmp path or a `$$`-derived path left.
-  - The invalid-key NOTE is still open (above).
-- Changes since 379af38: the codereview-skip usage comment, four lint changes (the spec
-  no-confirmation guard, the `--disallowedTools` pin, the tree-change exclusion pin, and
-  the tester relabels), and the test-path fix.
-  - The new usage comment says the hook checks the whole command line, so
-    `codereview-skip && git push` is blocked. This session matched it. The live hook,
-    registered with `"if": "Bash(git push*)"`, blocked a compound test command whose first
-    word was not git and which contained a scratch `git push`, before any of it ran.
-  - codereview-skip is not in the permission allow list. On this host (defaultMode auto,
-    classifyAllShell true), the classifier sees it.
-- lint-skills.sh is a static checker. Its patterns are hard-coded. It evaluates nothing,
-  sources nothing, writes no files of its own, and makes no network calls. The line
-  numbers it passes to sed and to `[[ -lt ]]` come from `grep -n` and `grep -c`, so they
-  are always numeric and cannot carry an arithmetic-expansion payload. shellcheck runs
-  statically.
-- test-review-external.sh: every temp path comes from mktemp. The fake curl and the fake
-  venvs live in private directories, and the fake curl reads only the suite's own files.
-- Guard coverage. Lint passes at HEAD (438 checks, run on a scratch copy).
-  - Removing or narrowing `--disallowedTools` fails the line-930 check. Reverting the
-    collect reading to `{ git status --porcelain; git diff; }` fails lines 944-950.
-  - A second, unrestricted `claude -p "/code-review high"` launch added beside the pinned
-    line passes lint. The pin checks that the restricted line exists, not that every
-    launch carries the restriction.
-  - As in the prior scan, CLAUDE.md says lint keeps `/tmp/.claude-codereview-` and
-    `md5sum | cut -c1-8` out of the codereview SKILL.md, but lines 471-482 check only the
-    hook and codereview-skip. Low impact.
-- Out of scope, for the next scan that covers claude/skills/codereview/SKILL.md. The
-  built-in child at line 473 loses only Edit, Write, and NotebookEdit, and keeps Bash. The
-  tree-change hash (lines 466 and 491) cannot see:
-  - the four excluded review files
-  - gitignored paths
-  - `.git/` (config, hooks)
-  - paths outside the repo
-
-  The child's tool calls run in the background and never appear in the user's transcript.
-  If the reviewed diff carries prompt injection, the auto-mode classifier is the remaining
-  check. A read-only launch mode would close the gap. Whether /code-review works in one
-  was not checked.
+- Changes since the f541aa2 scan:
+  - e01371d added the GPT-6 long-context price tier (bin/review-external.sh:352-361) and
+    a leading zero for costs under $1 (`_calc`, line 270). The comparison is the first
+    NOTE above. The `_calc` change pipes bc's output through a fixed sed expression. bc's
+    input is still built only from `_count`-filtered integers and the hard-coded prices.
+  - 30aeb8c added the lint check at tests/lint-skills.sh:1000-1015. Both operands of its
+    `(( ))` come from `grep -oE` digit patterns, so no expression can reach the
+    arithmetic.
+  - The test changes (tests/test-review-external.sh:828-865) use the suite's fake curl and
+    files in TEST_DIR. They make no network calls.
+- Robustness, not a finding: a token count with a leading zero, such as "0999", passes
+  `_count`, and the comparison reports "value too great for base". The error is not fatal,
+  so the run continues and bc reads the value as decimal.
+- Guard coverage:
+  - `_count` and `_redact` still have no lint pins. Their only tests are the behavioral
+    ones at tests/test-review-external.sh:867-886, and the first of those does not cover
+    the comparison sink (first NOTE).
+  - The `--range` leading-dash rejection still has no behavioral test. The text pin at
+    lint line 1651 is its only guard.
+  - Unchanged from the prior scans: a second, unrestricted `claude -p "/code-review high"`
+    launch beside the line pinned at lint line 930 would pass. Lint lines 468-482 keep the
+    legacy /tmp marker path and the inline PROJ_HASH out of the hook and codereview-skip,
+    but not out of the codereview SKILL.md, which CLAUDE.md says they cover. Low impact.
+- Runs, all local, with nothing sent:
+  - The arithmetic and script checks above, on scratch copies with a stub curl, a non-git
+    working directory, and proxy variables pointed at a closed port.
+  - tests/test-review-external.sh from the repo root with a recording stub (76 of 76
+    passed), and tests/lint-skills.sh (440 of 440 passed).
+  - The working tree was unchanged afterward.
 - Not verified:
-  - That the invalid-key request bodies cross the wire before the 401. A local listener
-    test was not permitted.
-  - Test suite results. The suites were not run in this scan because an offline run with
-    curl stubbed was not permitted. The relocated test paths were checked by reading.
-  - Whether Claude Code runs PreToolUse hooks before the auto-mode classifier. If the
-    classifier can deny a push first, a denied push also leaves the skip marker
-    unconsumed.
+  - Whether OpenAI or Gemini models emit raw control characters when steered, and how
+    Claude Code's transcript renders them.
+  - The tests' behavior against the real endpoints. Running them would have sent the five
+    subjects.
+- Out of scope: claude/skills/codereview/SKILL.md, which consumes the script's output, and
+  the two prior NOTEs on bin/codereview-skip (see the prior-review line).
 
-Git history checked for secrets: bin/codereview-skip (3 commits), tests/lint-skills.sh
-(51), and tests/test-review-external.sh (10). Each was checked over its last three commits
+Git history checked for secrets: bin/review-external.sh (11 commits), tests/lint-skills.sh
+(52), and tests/test-review-external.sh (11). Each was checked over its last three commits
 (`git log -p --follow -3`) and over its full history (`git log -p --all --follow`). The
-patterns covered OpenAI, Anthropic, Google, Tailscale, GitHub, Slack, and AWS keys, plus
-private-key headers, and there were zero hits. The only key values ever added to the test
-suite are the fakes `sk-invalid-test-key`, `sk-test-key`, and `fake-google-key`, and empty
-values.
+patterns covered OpenAI, Anthropic, Google, Tailscale, GitHub, Slack, AWS, and Hugging
+Face keys, plus private-key headers, and there were zero hits. The only key values ever
+added to these files are the fakes `sk-invalid-test-key`, `sk-test-key`, and
+`fake-google-key`, and empty values.
 
 ### Accepted Risks
 
@@ -170,7 +159,7 @@ values.
   exists to avoid the eval-like-builtin prompt, and its reach matches the accepted
   interpreter grants in those modes.
 - **Third-party model findings reach a code-modifying agent** (`bin/review-external.sh`
-  tagging loops at lines 366-372, 469-475, and 530-536): a model steered by
+  tagging loops at lines 369-375, 472-478, and 533-539): a model steered by
   attacker-authored code under review can emit a correctly tagged finding line that
   /codefix consumes as a spec. The own-tag demux added in 379af38 closes the status
   channel only. It does not limit what a model writes on its own stdout.
@@ -195,7 +184,7 @@ values.
   configured, the full git diff goes to OpenAI and Google, so any secrets in the diff
   would be exposed. Sending the diff is the script's explicit purpose, and the user opts
   in by configuring keys.
-- **API key in `curl -H` header argument** (`bin/review-external.sh:314, 416`): the
+- **API key in `curl -H` header argument** (`bin/review-external.sh:315, 419`): the
   header argument is visible in `/proc/<pid>/cmdline` to any local user while curl runs.
   Not exploitable on this single-user dev box. Host update, 2026-10-01: of the three
   service accounts, cloudflared-daydream (ProtectProc=default) can read these cmdlines.
@@ -204,15 +193,15 @@ values.
   header as `-H @<file>` keeps it out of argv.
 
 ---
-*Prior review (2026-10-01, scope: paths, at 379af38): Reviewed bin/review-external.sh,
-tests/lint-skills.sh, tests/test-review-external.sh, and zat.env-install.sh. 0 BLOCK / 1
-WARN / 2 NOTE. 20a4c6c fixed the WARN (test-suite /tmp paths where another account could
-plant a binary the suite would run), confirmed here. The invalid-key NOTE is carried above.
-Also still open: the NOTE that zat.env-install.sh:170 rewrites settings.json at the
-process umask. That file is unchanged and outside this scope. That scan confirmed four
-earlier NOTEs fixed. Three older items also remain open, all in files unchanged since and
-outside this scope: the venv hook's exact-string "auto" guard
-(hooks/allow-venv-source.sh:12-14), ImageMagick's stock coder policy (hw-bootstrap.sh:48),
-and Docker group membership as a passwordless path to root (hw-bootstrap.sh:197).*
+*Prior review (2026-10-01, scope: paths, at f541aa2): Reviewed bin/codereview-skip,
+tests/lint-skills.sh, and tests/test-review-external.sh. 0 BLOCK / 0 WARN / 3 NOTE. Two
+NOTEs concern bin/codereview-skip, which is outside this scope and unchanged since. The
+skip marker never expires and is not tied to a diff (deferred to BACKLOG.md as
+skip-marker-bound-to-diff). The marker write follows a symlink, and marker_dir does not
+enforce the directory's mode or owner (still open). The third NOTE, on the invalid-key
+tests, is carried above. That scan confirmed the 379af38 WARN on predictable /tmp test
+paths fixed. Older open items outside this scope remain tracked in CODEREVIEW.md: the
+settings.json umask (zat.env-install.sh:170), the venv hook's exact-string "auto" guard,
+ImageMagick's coder policy, and Docker group membership.*
 
-<!-- SECURITY_META: {"date":"2026-10-01","commit":"f541aa22b84cecc771deffb3665117af997d7dd3","scope":"paths","scanned_files":["bin/codereview-skip","tests/lint-skills.sh","tests/test-review-external.sh"],"block":0,"warn":0,"note":3} -->
+<!-- SECURITY_META: {"date":"2026-10-01","commit":"c6e5cab8a0bd05d20cf291d27f97d555e5de5554","scope":"paths","scanned_files":["bin/review-external.sh","tests/lint-skills.sh","tests/test-review-external.sh"],"block":0,"warn":0,"note":3} -->
