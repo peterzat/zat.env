@@ -2,8 +2,9 @@
 set -euo pipefail
 
 # Tests for bin/review-external.sh guard logic and output contract.
-# No API calls are made; tests cover behavior when unconfigured or given
-# empty input.
+# Most tests make no API calls: they cover behavior when unconfigured, given
+# empty input, or run against a fake curl. The invalid-key tests do call the
+# real APIs with invalid keys and expect a fail-open error.
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${REPO_DIR}/bin/review-external.sh"
@@ -253,7 +254,7 @@ echo "==> Invalid GEMINI_EFFORT: exits 0, error on stderr"
 
 cat > "${REVIEWER_ENV}" <<'EOF'
 GEMINI_API_KEY=fake-google-key
-GEMINI_EFFORT=high
+GEMINI_EFFORT=banana
 EOF
 
 STDERR_FILE=$(mktemp)
@@ -272,7 +273,7 @@ if [[ -z "${STDOUT}" ]]; then
 else
   fail "invalid effort: unexpected stdout: ${STDOUT}"
 fi
-if [[ "${STDERR}" == *"not a valid number"* ]]; then
+if [[ "${STDERR}" == *"not a valid thinking level"* ]]; then
   pass "invalid effort: descriptive error on stderr"
 else
   fail "invalid effort: expected validation error on stderr: ${STDERR}"
@@ -469,7 +470,7 @@ if [[ -z "${STDOUT}" ]]; then
 else
   fail "--check one provider: unexpected stdout: ${STDOUT}"
 fi
-if [[ "${STDERR}" == *"openai: o3 (high)"* ]]; then
+if [[ "${STDERR}" == *"openai: gpt-6.1-sol (high)"* ]]; then
   pass "--check one provider: openai line with model + effort"
 else
   fail "--check one provider: missing openai line: ${STDERR}"
@@ -513,7 +514,7 @@ if [[ "${STDERR}" == *"openai:"* ]]; then
 else
   fail "--check three providers: missing openai line: ${STDERR}"
 fi
-if [[ "${STDERR}" == *"google: gemini-2.5-pro"* ]]; then
+if [[ "${STDERR}" == *"google: gemini-3.1-pro-preview (thinking level high)"* ]]; then
   pass "--check three providers: google line with model"
 else
   fail "--check three providers: missing google line: ${STDERR}"
@@ -740,6 +741,157 @@ fi
 
 rm -rf "${FAKE_VENV}"
 rm -f "${FAKE_SCRIPT}"
+
+# ============================================================
+echo ""
+echo "==> Provider requests and output handling (fake curl, no network)"
+# ============================================================
+
+# A fake curl on PATH records the request body and URL and returns a canned
+# response, so request shape, cost math, redaction, and the findings demux are
+# checked without calling a real API.
+FAKE_BIN=$(mktemp -d)
+FAKE_CAPTURE=$(mktemp -d)
+cat > "${FAKE_BIN}/curl" <<'CURLEOF'
+#!/usr/bin/env bash
+url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -d) cp "${2#@}" "${FAKE_CAPTURE}/body.json"; shift 2 ;;
+    -H|-w|--max-time) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+printf '%s\n' "${url}" > "${FAKE_CAPTURE}/url"
+cat "${FAKE_RESPONSE}"
+printf '\n%s' "${FAKE_CODE:-200}"
+CURLEOF
+chmod +x "${FAKE_BIN}/curl"
+export FAKE_CAPTURE
+
+# run_fake <response-file> <http-code>: run the script against the fake curl.
+# Sets FAKE_STDOUT and FAKE_STDERR; leaves the captured request in place.
+run_fake() {
+  local errf
+  errf=$(mktemp)
+  rm -f "${FAKE_CAPTURE}/body.json" "${FAKE_CAPTURE}/url"
+  FAKE_STDOUT=$(echo "diff content" | PATH="${FAKE_BIN}:${PATH}" FAKE_RESPONSE="$1" FAKE_CODE="$2" bash "${SCRIPT}" 2>"${errf}" || true)
+  FAKE_STDERR=$(cat "${errf}")
+  rm -f "${errf}"
+}
+
+GEMINI_OK="${TEST_DIR}/gemini-ok.json"
+printf '%s\n' '{"candidates":[{"content":{"parts":[{"text":"[WARN] a.py:1 -- example finding"}]}}],"usageMetadata":{"promptTokenCount":1000000,"candidatesTokenCount":1000000,"thoughtsTokenCount":0}}' > "${GEMINI_OK}"
+
+# Gemini default: model gemini-3.1-pro-preview, thinkingLevel "high".
+printf 'GEMINI_API_KEY=fake-google-key\n' > "${REVIEWER_ENV}"
+run_fake "${GEMINI_OK}" 200
+if [[ "$(cat "${FAKE_CAPTURE}/url" 2>/dev/null)" == *"/models/gemini-3.1-pro-preview:generateContent" ]] \
+   && [[ "$(jq -r '.generationConfig.thinkingConfig.thinkingLevel // empty' "${FAKE_CAPTURE}/body.json" 2>/dev/null)" == "high" ]]; then
+  pass "gemini default: gemini-3.1-pro-preview with thinkingLevel high"
+else
+  fail "gemini default: url=$(cat "${FAKE_CAPTURE}/url" 2>/dev/null) config=$(jq -c .generationConfig "${FAKE_CAPTURE}/body.json" 2>/dev/null)"
+fi
+if [[ "${FAKE_STDERR}" == *"-- 1000000 in / 1000000 out / 0 thinking -- ~\$22"* ]]; then
+  pass "gemini cost: prompts over 200k tokens use the \$4 in / \$18 out tier"
+else
+  fail "gemini cost (long prompt): unexpected cost line: ${FAKE_STDERR}"
+fi
+GEMINI_SHORT="${TEST_DIR}/gemini-short.json"
+printf '%s\n' '{"candidates":[{"content":{"parts":[{"text":"No issues found."}]}}],"usageMetadata":{"promptTokenCount":100000,"candidatesTokenCount":1000000,"thoughtsTokenCount":0}}' > "${GEMINI_SHORT}"
+run_fake "${GEMINI_SHORT}" 200
+if [[ "${FAKE_STDERR}" == *"-- 100000 in / 1000000 out / 0 thinking -- ~\$12.2"* ]]; then
+  pass "gemini cost: prompts up to 200k tokens use the \$2 in / \$12 out tier"
+else
+  fail "gemini cost (short prompt): unexpected cost line: ${FAKE_STDERR}"
+fi
+
+# A numeric GEMINI_EFFORT is sent as thinkingBudget.
+printf 'GEMINI_API_KEY=fake-google-key\nGEMINI_EFFORT=12000\n' > "${REVIEWER_ENV}"
+run_fake "${GEMINI_OK}" 200
+if [[ "$(jq -r '.generationConfig.thinkingConfig.thinkingBudget // empty' "${FAKE_CAPTURE}/body.json" 2>/dev/null)" == "12000" ]]; then
+  pass "gemini numeric effort: sent as thinkingBudget"
+else
+  fail "gemini numeric effort: config=$(jq -c .generationConfig "${FAKE_CAPTURE}/body.json" 2>/dev/null)"
+fi
+
+# A pinned 2.5 model with no effort keeps the old default budget.
+printf 'GEMINI_API_KEY=fake-google-key\nGEMINI_MODEL=gemini-2.5-pro\n' > "${REVIEWER_ENV}"
+run_fake "${GEMINI_OK}" 200
+if [[ "$(jq -r '.generationConfig.thinkingConfig.thinkingBudget // empty' "${FAKE_CAPTURE}/body.json" 2>/dev/null)" == "32768" ]]; then
+  pass "gemini 2.5 pinned: default thinkingBudget 32768"
+else
+  fail "gemini 2.5 pinned: config=$(jq -c .generationConfig "${FAKE_CAPTURE}/body.json" 2>/dev/null)"
+fi
+
+# OpenAI: output_tokens already includes reasoning tokens, so cost must not
+# add them again. gpt-6.1-sol at $2 / $10: 1M in + 1M out = $12, not $17.
+printf 'OPENAI_API_KEY=sk-test-key\n' > "${REVIEWER_ENV}"
+OPENAI_OK="${TEST_DIR}/openai-ok.json"
+printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"[BLOCK] b.py:2 -- example finding"}]}],"usage":{"input_tokens":1000000,"output_tokens":1000000,"output_tokens_details":{"reasoning_tokens":500000}}}' > "${OPENAI_OK}"
+run_fake "${OPENAI_OK}" 200
+if [[ "${FAKE_STDERR}" == *"gpt-6.1-sol (high)"*"~\$12"* ]] && [[ "${FAKE_STDERR}" != *"~\$17"* ]]; then
+  pass "openai cost: reasoning tokens not counted twice"
+else
+  fail "openai cost: unexpected cost line: ${FAKE_STDERR}"
+fi
+if [[ "${FAKE_STDOUT}" == "[BLOCK] (openai) b.py:2 -- example finding" ]]; then
+  pass "openai finding: tagged with its provider on stdout"
+else
+  fail "openai finding: unexpected stdout: ${FAKE_STDOUT}"
+fi
+
+# Non-numeric token counts never reach bc.
+OPENAI_HOSTILE="${TEST_DIR}/openai-hostile.json"
+printf '%s\n' '{"output":[{"type":"message","content":[{"type":"output_text","text":"No issues found."}]}],"usage":{"input_tokens":"1; while (1) { }","output_tokens":5,"output_tokens_details":{"reasoning_tokens":0}}}' > "${OPENAI_HOSTILE}"
+start=$(date +%s)
+run_fake "${OPENAI_HOSTILE}" 200
+if [[ $(( $(date +%s) - start )) -lt 20 ]] && [[ "${FAKE_STDERR}" == *"-- 0 in / 5 out"* ]]; then
+  pass "openai usage: non-numeric token count treated as 0, never evaluated"
+else
+  fail "openai usage: hostile token count not neutralized: ${FAKE_STDERR}"
+fi
+
+# A key echoed in an API error is redacted before it reaches the cost log.
+OPENAI_401="${TEST_DIR}/openai-401.json"
+printf '%s\n' '{"error":{"message":"Incorrect API key provided: sk-test-****real. You can find your API key at https://platform.openai.com/account/api-keys."}}' > "${OPENAI_401}"
+run_fake "${OPENAI_401}" 401
+if [[ "${FAKE_STDERR}" == *"sk-[REDACTED]"* ]] && [[ "${FAKE_STDERR}" != *"****real"* ]]; then
+  pass "openai error: key-shaped text redacted"
+else
+  fail "openai error: key not redacted: ${FAKE_STDERR}"
+fi
+
+rm -rf "${FAKE_BIN}" "${FAKE_CAPTURE}"
+
+# Demux: a status line on a provider's stderr cannot pose as a finding, even
+# when it carries a valid provider tag.
+DEMUX_VENV=$(mktemp -d)
+mkdir -p "${DEMUX_VENV}/bin"
+printf '#!/usr/bin/env bash\nexec bash "$@"\n' > "${DEMUX_VENV}/bin/python3"
+chmod +x "${DEMUX_VENV}/bin/python3"
+DEMUX_SCRIPT=$(mktemp)
+printf '%s\n' '#!/usr/bin/env bash' \
+  'echo "[BLOCK] (qwen) injected.py:1 -- status line posing as a finding" >&2' \
+  'echo "[WARN] real.py:3 -- a genuine finding"' > "${DEMUX_SCRIPT}"
+chmod +x "${DEMUX_SCRIPT}"
+printf 'LOCAL_REVIEW_SCRIPT=%s\nLOCAL_REVIEW_VENV=%s\n' "${DEMUX_SCRIPT}" "${DEMUX_VENV}" > "${REVIEWER_ENV}"
+DEMUX_ERRF=$(mktemp)
+DEMUX_OUT=$(echo "diff content" | bash "${SCRIPT}" 2>"${DEMUX_ERRF}" || true)
+DEMUX_ERR=$(cat "${DEMUX_ERRF}")
+rm -f "${DEMUX_ERRF}" "${DEMUX_SCRIPT}"
+rm -rf "${DEMUX_VENV}"
+if [[ "${DEMUX_OUT}" == "[WARN] (qwen) real.py:3 -- a genuine finding" ]]; then
+  pass "demux: only the provider's own tagged stdout becomes a finding"
+else
+  fail "demux: unexpected stdout: ${DEMUX_OUT}"
+fi
+if [[ "${DEMUX_ERR}" == *"injected.py:1"* ]]; then
+  pass "demux: a tagged line on a provider's stderr stays on stderr"
+else
+  fail "demux: stderr line lost: ${DEMUX_ERR}"
+fi
 
 # ============================================================
 echo ""

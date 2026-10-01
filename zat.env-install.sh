@@ -117,13 +117,13 @@ if [[ ! -f "${REVIEWER_ENV}" ]]; then
 
 # --- OpenAI ---
 # OPENAI_API_KEY=sk-...
-# OPENAI_MODEL=o3
+# OPENAI_MODEL=gpt-6.1-sol
 # OPENAI_EFFORT=high
 
 # --- Google ---
 # GEMINI_API_KEY=...
-# GEMINI_MODEL=gemini-2.5-pro
-# GEMINI_EFFORT=32768
+# GEMINI_MODEL=gemini-3.1-pro-preview
+# GEMINI_EFFORT=high   # thinking level low|medium|high, or a number for a 2.5 model's budget
 
 # --- Local (qwen) ---
 # Requires: git clone + setup.sh in ~/src/qwen-2.5-localreview/

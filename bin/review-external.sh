@@ -24,8 +24,10 @@ set -euo pipefail
 # rather than the branch's upstream.
 #
 # Config: ~/.config/claude-reviewers/.env
-#   OPENAI_API_KEY, OPENAI_MODEL (default: o3), OPENAI_EFFORT (default: high)
-#   GEMINI_API_KEY, GEMINI_MODEL (default: gemini-2.5-pro), GEMINI_EFFORT (default: 32768)
+#   OPENAI_API_KEY, OPENAI_MODEL (default: gpt-6.1-sol), OPENAI_EFFORT (default: high)
+#   GEMINI_API_KEY, GEMINI_MODEL (default: gemini-3.1-pro-preview),
+#     GEMINI_EFFORT (default: high; a level low|medium|high is sent as thinkingLevel,
+#     a number as thinkingBudget; a pinned gemini-2.5 model defaults to budget 32768)
 #   LOCAL_REVIEW_SCRIPT, LOCAL_REVIEW_VENV, LOCAL_MODEL (optional local GPU reviewer)
 #   REVIEW_TIMEOUT (default: 300, per-provider seconds)
 #
@@ -130,16 +132,40 @@ if [[ -n "${LOCAL_REVIEW_SCRIPT:-}" ]] && [[ -n "${LOCAL_REVIEW_VENV:-}" ]] && [
   HAS_LOCAL=true
 fi
 
+# Model defaults and lifecycle. Check these when a provider retires a model:
+#   https://developers.openai.com/api/docs/models
+#   https://ai.google.dev/gemini-api/docs/models and .../docs/deprecations
+OPENAI_DEFAULT_MODEL="gpt-6.1-sol"
+GEMINI_DEFAULT_MODEL="gemini-3.1-pro-preview"
+
+# Resolve the Gemini thinking setting for a model and GEMINI_EFFORT value.
+# Prints "level <value>" or "budget <n>"; returns 1 for an invalid value.
+# Gemini 3.x takes a thinking level; Gemini 2.5 takes a numeric budget.
+gemini_thinking() {
+  local model="$1" effort="$2"
+  if [[ -z "${effort}" ]]; then
+    if [[ "${model}" == gemini-2.5* ]]; then effort=32768; else effort=high; fi
+  fi
+  if [[ "${effort}" =~ ^[0-9]+$ ]]; then
+    echo "budget ${effort}"
+  elif [[ "${effort}" =~ ^(minimal|low|medium|high)$ ]]; then
+    echo "level ${effort}"
+  else
+    return 1
+  fi
+}
+
 # --- --check: report providers and exit (fail-loud if none configured) ---
 
 if ${CHECK_ONLY}; then
   any_configured=false
   if ${HAS_OPENAI}; then
-    echo "openai: ${OPENAI_MODEL:-o3} (${OPENAI_EFFORT:-high})" >&2
+    echo "openai: ${OPENAI_MODEL:-${OPENAI_DEFAULT_MODEL}} (${OPENAI_EFFORT:-high})" >&2
     any_configured=true
   fi
   if ${HAS_GOOGLE}; then
-    echo "google: ${GEMINI_MODEL:-gemini-2.5-pro} (thinking budget ${GEMINI_EFFORT:-32768})" >&2
+    gm="${GEMINI_MODEL:-${GEMINI_DEFAULT_MODEL}}"
+    echo "google: ${gm} (thinking $(gemini_thinking "${gm}" "${GEMINI_EFFORT:-}" || echo "setting '${GEMINI_EFFORT:-}' is invalid"))" >&2
     any_configured=true
   fi
   if ${HAS_LOCAL}; then
@@ -222,7 +248,7 @@ Do not comment on formatting, naming, or style unless they indicate a functional
 # SYSTEM_FILE: review instructions. USER_FILE: commit context + diff.
 SYSTEM_FILE=$(mktemp)
 USER_FILE=$(mktemp)
-trap 'wait 2>/dev/null; rm -f "${SYSTEM_FILE}" "${USER_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}" "${LOCAL_OUT:-}"' EXIT
+trap 'wait 2>/dev/null; rm -f "${SYSTEM_FILE}" "${USER_FILE}" "${OPENAI_OUT:-}" "${GOOGLE_OUT:-}" "${LOCAL_OUT:-}" "${OPENAI_ERR:-}" "${GOOGLE_ERR:-}" "${LOCAL_ERR:-}"' EXIT
 
 printf '%s\n' "${SYSTEM_PROMPT}" > "${SYSTEM_FILE}"
 
@@ -246,10 +272,23 @@ _calc() {
   fi
 }
 
+# Token counts come from the provider's response and reach bc, so accept only
+# plain integers; anything else counts as 0 rather than being evaluated.
+_count() {
+  if [[ "$1" =~ ^[0-9]+$ ]]; then echo "$1"; else echo 0; fi
+}
+
+# Provider error messages can echo a redacted copy of the API key, and these
+# lines reach the cost log that /codereview copies into CODEREVIEW.md. Strip
+# anything key-shaped before printing.
+_redact() {
+  sed -E 's/(sk-|AIza)[A-Za-z0-9_*.-]+/\1[REDACTED]/g'
+}
+
 # --- Provider: OpenAI ---
 
 call_openai() {
-  local model="${OPENAI_MODEL:-o3}"
+  local model="${OPENAI_MODEL:-${OPENAI_DEFAULT_MODEL}}"
   local effort="${OPENAI_EFFORT:-high}"
   local api_key="${OPENAI_API_KEY}"
 
@@ -289,7 +328,7 @@ call_openai() {
   if [[ "${http_code}" != "200" ]]; then
     local error_msg
     error_msg=$(echo "${body}" | jq -r '.error.message // "unknown error"' 2>/dev/null || echo "HTTP ${http_code}")
-    echo "[openai] API error: ${error_msg}, skipping" >&2
+    echo "[openai] API error: $(printf '%s' "${error_msg}" | _redact), skipping" >&2
     return 0
   fi
 
@@ -303,16 +342,24 @@ call_openai() {
 
   # Cost logging
   local input_tokens output_tokens reasoning_tokens
-  input_tokens=$(echo "${body}" | jq -r '.usage.input_tokens // 0' 2>/dev/null)
-  output_tokens=$(echo "${body}" | jq -r '.usage.output_tokens // 0' 2>/dev/null)
-  reasoning_tokens=$(echo "${body}" | jq -r '.usage.output_tokens_details.reasoning_tokens // 0' 2>/dev/null)
+  input_tokens=$(_count "$(echo "${body}" | jq -r '.usage.input_tokens // 0' 2>/dev/null)")
+  output_tokens=$(_count "$(echo "${body}" | jq -r '.usage.output_tokens // 0' 2>/dev/null)")
+  reasoning_tokens=$(_count "$(echo "${body}" | jq -r '.usage.output_tokens_details.reasoning_tokens // 0' 2>/dev/null)")
 
-  local cost="?"
+  # USD per 1M tokens. output_tokens already includes reasoning tokens, which
+  # are billed as output, so reasoning_tokens is reported but not added again.
+  local price_in="" price_out=""
   case "${model}" in
-    o3)         cost=$(_calc "scale=4; (${input_tokens} * 2 + (${output_tokens} + ${reasoning_tokens}) * 8) / 1000000") ;;
-    o4-mini|o3-mini) cost=$(_calc "scale=4; (${input_tokens} * 1.10 + (${output_tokens} + ${reasoning_tokens}) * 4.40) / 1000000") ;;
-    *)          cost=$(_calc "scale=4; (${input_tokens} * 2 + (${output_tokens} + ${reasoning_tokens}) * 8) / 1000000") ;;
+    gpt-6-astra*)             price_in=10;   price_out=50 ;;
+    gpt-6.1-sol*|gpt-6-sol*)  price_in=2;    price_out=10 ;;
+    gpt-6-luna*)              price_in=0.1;  price_out=0.5 ;;
+    o3)                       price_in=2;    price_out=8 ;;
+    o4-mini|o3-mini)          price_in=1.10; price_out=4.40 ;;
   esac
+  local cost="?"
+  if [[ -n "${price_in}" ]]; then
+    cost=$(_calc "scale=4; (${input_tokens} * ${price_in} + ${output_tokens} * ${price_out}) / 1000000")
+  fi
   echo "[openai] ${model} (${effort}) -- ${input_tokens} in / ${output_tokens} out / ${reasoning_tokens} reasoning -- ~\$${cost}" >&2
 
   # Tag findings with provider
@@ -328,21 +375,24 @@ call_openai() {
 # --- Provider: Google ---
 
 call_google() {
-  local model="${GEMINI_MODEL:-gemini-2.5-pro}"
-  local thinking_budget="${GEMINI_EFFORT:-32768}"
+  local model="${GEMINI_MODEL:-${GEMINI_DEFAULT_MODEL}}"
   local api_key="${GEMINI_API_KEY}"
 
-  if ! [[ "${thinking_budget}" =~ ^[0-9]+$ ]]; then
-    echo "[google] GEMINI_EFFORT='${thinking_budget}' is not a valid number, skipping" >&2
+  local thinking thinking_kind thinking_value
+  if ! thinking=$(gemini_thinking "${model}" "${GEMINI_EFFORT:-}"); then
+    echo "[google] GEMINI_EFFORT='${GEMINI_EFFORT:-}' is not a valid thinking level (low|medium|high) or budget (a number), skipping" >&2
     return 0
   fi
+  thinking_kind="${thinking%% *}"
+  thinking_value="${thinking#* }"
 
   local body_file
   body_file=$(mktemp)
   jq -n \
     --rawfile system "${SYSTEM_FILE}" \
     --rawfile user "${USER_FILE}" \
-    --argjson budget "${thinking_budget}" \
+    --arg kind "${thinking_kind}" \
+    --arg value "${thinking_value}" \
     '{
       systemInstruction: {
         parts: [{ text: $system }]
@@ -351,9 +401,9 @@ call_google() {
         parts: [{ text: $user }]
       }],
       generationConfig: {
-        thinkingConfig: {
-          thinkingBudget: $budget
-        }
+        thinkingConfig: (if $kind == "budget"
+                         then { thinkingBudget: ($value | tonumber) }
+                         else { thinkingLevel: $value } end)
       }
     }' > "${body_file}"
 
@@ -379,7 +429,7 @@ call_google() {
   if [[ "${http_code}" != "200" ]]; then
     local error_msg
     error_msg=$(echo "${body}" | jq -r '.error.message // "unknown error"' 2>/dev/null || echo "HTTP ${http_code}")
-    echo "[google] API error: ${error_msg}, skipping" >&2
+    echo "[google] API error: $(printf '%s' "${error_msg}" | _redact), skipping" >&2
     return 0
   fi
 
@@ -397,17 +447,23 @@ call_google() {
 
   # Cost logging
   local input_tokens output_tokens thinking_tokens
-  input_tokens=$(echo "${body}" | jq -r '.usageMetadata.promptTokenCount // 0' 2>/dev/null)
-  output_tokens=$(echo "${body}" | jq -r '.usageMetadata.candidatesTokenCount // 0' 2>/dev/null)
-  thinking_tokens=$(echo "${body}" | jq -r '.usageMetadata.thoughtsTokenCount // 0' 2>/dev/null)
+  input_tokens=$(_count "$(echo "${body}" | jq -r '.usageMetadata.promptTokenCount // 0' 2>/dev/null)")
+  output_tokens=$(_count "$(echo "${body}" | jq -r '.usageMetadata.candidatesTokenCount // 0' 2>/dev/null)")
+  thinking_tokens=$(_count "$(echo "${body}" | jq -r '.usageMetadata.thoughtsTokenCount // 0' 2>/dev/null)")
 
-  local cost="?"
+  # USD per 1M tokens; thinking tokens are billed as output. Pro models charge
+  # a higher rate for prompts over 200k tokens.
+  local price_in="" price_out="" long=false
+  [[ "${input_tokens}" -gt 200000 ]] && long=true
   case "${model}" in
-    gemini-2.5-pro*)  cost=$(_calc "scale=4; (${input_tokens} * 1.25 + (${output_tokens} + ${thinking_tokens}) * 10) / 1000000") ;;
-    gemini-2.5-flash*) cost=$(_calc "scale=4; (${input_tokens} * 0.15 + ${output_tokens} * 0.60 + ${thinking_tokens} * 3.50) / 1000000") ;;
-    *)                cost=$(_calc "scale=4; (${input_tokens} * 1.25 + (${output_tokens} + ${thinking_tokens}) * 10) / 1000000") ;;
+    gemini-3.1-pro*) if ${long}; then price_in=4;    price_out=18; else price_in=2;    price_out=12; fi ;;
+    gemini-2.5-pro*) if ${long}; then price_in=2.50; price_out=15; else price_in=1.25; price_out=10; fi ;;
   esac
-  echo "[google] ${model} (budget: ${thinking_budget}) -- ${input_tokens} in / ${output_tokens} out / ${thinking_tokens} thinking -- ~\$${cost}" >&2
+  local cost="?"
+  if [[ -n "${price_in}" ]]; then
+    cost=$(_calc "scale=4; (${input_tokens} * ${price_in} + (${output_tokens} + ${thinking_tokens}) * ${price_out}) / 1000000")
+  fi
+  echo "[google] ${model} (thinking ${thinking}) -- ${input_tokens} in / ${output_tokens} out / ${thinking_tokens} thinking -- ~\$${cost}" >&2
 
   # Tag findings with provider
   echo "${output_text}" | while IFS= read -r line; do
@@ -482,25 +538,25 @@ call_local() {
 
 # --- Main: run configured providers in parallel ---
 
-OPENAI_OUT=$(mktemp)
-GOOGLE_OUT=$(mktemp)
-LOCAL_OUT=$(mktemp)
+OPENAI_OUT=$(mktemp); OPENAI_ERR=$(mktemp)
+GOOGLE_OUT=$(mktemp); GOOGLE_ERR=$(mktemp)
+LOCAL_OUT=$(mktemp); LOCAL_ERR=$(mktemp)
 OPENAI_PID=""
 GOOGLE_PID=""
 LOCAL_PID=""
 
 if ${HAS_OPENAI}; then
-  call_openai > "${OPENAI_OUT}" 2>&1 &
+  call_openai > "${OPENAI_OUT}" 2> "${OPENAI_ERR}" &
   OPENAI_PID=$!
 fi
 
 if ${HAS_GOOGLE}; then
-  call_google > "${GOOGLE_OUT}" 2>&1 &
+  call_google > "${GOOGLE_OUT}" 2> "${GOOGLE_ERR}" &
   GOOGLE_PID=$!
 fi
 
 if ${HAS_LOCAL}; then
-  call_local > "${LOCAL_OUT}" 2>&1 &
+  call_local > "${LOCAL_OUT}" 2> "${LOCAL_ERR}" &
   LOCAL_PID=$!
 fi
 
@@ -509,25 +565,28 @@ fi
 [[ -n "${LOCAL_PID}" ]] && wait "${LOCAL_PID}" || true
 
 # Separate findings (stdout) from status/cost (stderr).
-# Provider functions write findings to stdout and cost to stderr, but since
-# we captured both with 2>&1 for background jobs, they are mixed.
-#
-# Match on the provider tag, not just the severity shape. Every real finding is
-# rewritten to "[SEVERITY] (provider)" on its provider's stdout path; the
-# status/cost path is never tagged. Shape alone would promote any status line
-# that merely begins with a severity tag into the findings stream, stripped of
-# attribution, and that stream becomes EXTERNAL_FINDINGS -> CODEREVIEW.md ->
-# /codefix, which holds Edit. Untagged lines fall through to stderr, so nothing
-# is hidden from the user; it just cannot masquerade as a finding.
-FINDING_RE='^\[(BLOCK|WARN|NOTE)\] \([a-z0-9-]+\)'
-for outfile in "${OPENAI_OUT}" "${GOOGLE_OUT}" "${LOCAL_OUT}"; do
-  if [[ -s "${outfile}" ]]; then
+# Each provider's stdout and stderr were captured to separate files. Only a
+# line on a provider's own stdout that carries that provider's own tag becomes
+# a finding; everything on its stderr is status or cost and goes to stderr.
+# The findings stream becomes EXTERNAL_FINDINGS -> CODEREVIEW.md -> /codefix,
+# which holds Edit, so neither a status line nor a line claiming another
+# provider's tag can pose as a finding. Nothing is hidden from the user: lines
+# that are not findings still reach stderr.
+demux() {
+  local tag="$1" out="$2" err="$3" line
+  local finding_re="^\[(BLOCK|WARN|NOTE)\] \(${tag}\)"
+  [[ -s "${err}" ]] && cat "${err}" >&2
+  if [[ -s "${out}" ]]; then
     while IFS= read -r line; do
-      if [[ "${line}" =~ ${FINDING_RE} ]]; then
-        echo "${line}"          # findings -> stdout
+      if [[ "${line}" =~ ${finding_re} ]]; then
+        echo "${line}"          # finding -> stdout
       elif [[ -n "${line}" ]]; then
-        echo "${line}" >&2      # cost/status -> stderr
+        echo "${line}" >&2      # anything else -> stderr
       fi
-    done < "${outfile}"
+    done < "${out}"
   fi
-done
+  return 0
+}
+demux openai "${OPENAI_OUT}" "${OPENAI_ERR}"
+demux google "${GOOGLE_OUT}" "${GOOGLE_ERR}"
+demux qwen "${LOCAL_OUT}" "${LOCAL_ERR}"

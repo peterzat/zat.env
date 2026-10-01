@@ -1129,7 +1129,7 @@ has "${SCRIPT}" 'max-time.*TIMEOUT' \
 has "${SCRIPT}" 'LOCAL_REVIEW_SCRIPT.*LOCAL_REVIEW_VENV.*-f' \
   "script: local provider gates on vars and file existence"
 has "${SCRIPT}" "GEMINI_EFFORT.*not a valid" \
-  "script: validates GEMINI_EFFORT is numeric"
+  "script: validates GEMINI_EFFORT (thinking level or numeric budget)"
 has "${SCRIPT}" 'BLOCK.WARN.NOTE' \
   "script: output format uses BLOCK/WARN/NOTE severity tags"
 has "${SCRIPT}" 'sed.*openai' \
@@ -1622,10 +1622,16 @@ has "${REPO_DIR}/zat.env-install.sh" 'chmod 600 "\$\{REVIEWER_ENV\}"' \
   "security: install chmods the reviewer credential file to 600"
 has "${REPO_DIR}/zat.env-install.sh" '\(\.permissions\.deny // \[\]\)' \
   "security: install preserves hand-added deny entries instead of replacing them"
-has "${REPO_DIR}/bin/review-external.sh" 'FINDING_RE=.*\[a-z0-9-\]\+' \
-  "security: review-external.sh findings demux requires a provider tag, not just severity shape"
-has "${REPO_DIR}/bin/review-external.sh" '=~ \$\{FINDING_RE\}' \
-  "security: review-external.sh demux uses FINDING_RE (untagged status lines cannot pose as findings)"
+for prov in OPENAI GOOGLE LOCAL; do
+  has "${REPO_DIR}/bin/review-external.sh" "> \"\\\$\{${prov}_OUT\}\" 2> \"\\\$\{${prov}_ERR\}\" &" \
+    "security: review-external.sh captures ${prov} stdout and stderr separately"
+done
+has "${REPO_DIR}/bin/review-external.sh" 'finding_re="\^\\\[\(BLOCK\|WARN\|NOTE\)\\\] \\\(\$\{tag\}\\\)"' \
+  "security: review-external.sh demux requires the provider's own tag"
+has "${REPO_DIR}/bin/review-external.sh" '=~ \$\{finding_re\}' \
+  "security: review-external.sh demux matches each line against its provider's tag"
+has "${REPO_DIR}/bin/review-external.sh" '^demux qwen "\$\{LOCAL_OUT\}" "\$\{LOCAL_ERR\}"' \
+  "security: review-external.sh demuxes each provider with its own tag and files"
 
 # --- Skill frontmatter ---
 # Required fields for each skill.

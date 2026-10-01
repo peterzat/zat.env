@@ -46,7 +46,7 @@ Checks by category:
 | Uncommitted prior entry guard | Rolling files check `git status` before condensing, carry an uncommitted entry forward, and keep a single META footer |
 | Tester/spec cross-skill contracts | Durable-contract H1, `tester design` Origin form, and the `/tester design` pre-apply checklist components and guards |
 | Cross-platform portability guards | bash 3.2 empty-array guards, BSD `stat` fallback, `gtimeout` fallback |
-| Security guards | `--range` leading-dash rejection, reviewer credential modes, deny-list union, provider-tagged findings demux |
+| Security guards | `--range` leading-dash rejection, reviewer credential modes, deny-list union, per-provider stdout/stderr capture and own-tag findings demux |
 | Skill frontmatter | Missing required fields (name, description, context) |
 | Shellcheck | Static analysis of every shell script in the repo |
 
@@ -66,7 +66,8 @@ Checks covering guard logic and output contract for `bin/review-external.sh`:
 | No/empty config | Missing or empty `.env` file must exit 0 silently |
 | Empty API keys | Keys set to empty string must not trigger API calls |
 | Invalid API key | Must fail open (exit 0, error on stderr, no stdout) |
-| Invalid GEMINI_EFFORT | Non-numeric effort must fail open with descriptive error |
+| Invalid GEMINI_EFFORT | A value that is neither a thinking level nor a number must fail open with a descriptive error |
+| Fake-curl provider tests | Default models and Gemini thinking level or budget in the request, both Gemini price tiers, OpenAI cost without double-counted reasoning, non-numeric token counts, key redaction in API errors, and a tagged stderr line kept out of the findings |
 | Both providers invalid | Both must error on stderr, exit 0, no stdout |
 | Shellcheck | Static analysis of the script |
 | Stdin interface | Script must not require positional arguments |
