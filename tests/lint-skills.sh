@@ -918,6 +918,11 @@ has "${CR}" 'claude -p "/code-review high" --output-format json > <output-file>'
   "codereview: built-in review output is redirected to a file"
 has "${CR}" "mktemp /tmp/.claude-builtin-review-XXXXXX" \
   "codereview: built-in review output file uses mktemp"
+if grep -qF -- "jq -r 'select(.is_error | not) | .result // empty' <output-file>; rm -f <output-file>" "${CR}"; then
+  pass "codereview: built-in review read skips is_error results and removes the file"
+else
+  fail "codereview: built-in review read skips is_error results and removes the file"
+fi
 S56=$(awk '/^## Step 5.6:/{p=1} /^## Step 6:/{p=0} p' "${CR}")
 if printf '%s\n' "${S56}" | grep -q "do not poll for completion"; then
   pass "codereview: Step 5.6 forbids polling for the built-in review"

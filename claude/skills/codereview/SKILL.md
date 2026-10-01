@@ -483,7 +483,7 @@ the same as the Step 5 and Step 7 forks. Wait for it; do not poll for completion
 notification arrives). Then read the result and remove the file:
 
 ```bash
-jq -r '.result // empty' <output-file>; rm -f <output-file>
+jq -r 'select(.is_error | not) | .result // empty' <output-file>; rm -f <output-file>
 ```
 
 If the result is empty or unparseable, or the run timed out, skip silently and
@@ -512,8 +512,12 @@ Classify every finding:
 Classify the built-in review's `(claude-code)` findings from Step 5.6 with the same
 definitions. Drop any that are about style or writing conventions (No style
 policing) or about the review-output files (CODEREVIEW.md, SECURITY.md, TESTING.md,
-SPEC.md). When you and the built-in reported the same issue, keep one finding and
-tag it `(also claude-code)`, so CODEREVIEW.md records which finder caught what.
+SPEC.md). Confirm each against the code before classifying it; one you cannot
+confirm is a NOTE. One that matches an Accepted Risks entry is a NOTE, as in Step 1.
+On a refresh review, one in an already-reviewed file stays above NOTE only if it
+concerns an interaction with the new changes. When you and the built-in reported
+the same issue, keep one finding and tag it `(also claude-code)`, so CODEREVIEW.md
+records which finder caught what.
 
 Format each finding:
 ```
