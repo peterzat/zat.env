@@ -45,3 +45,9 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Why deferred:** It needs a stale marker plus a later agent push, which is rare in single-user use, and the gate is already advisory by Accepted Risk. The change touches the skip-path contract that lint pins in both scripts.
 - **Revisit criteria:** A push is seen skipping review that nobody asked to skip, OR the gate is moved server-side or extended to other contributors, where an unscoped bypass matters more.
 - **Origin:** CODEREVIEW.md (2026-10-01 security NOTE on bin/codereview-skip)
+
+### builtin-review-tree-fingerprint
+- **One-line description:** `/codereview` Step 5.6 discards the built-in review's findings if the tree changed while it ran, comparing `sha256sum` of `git status --porcelain` plus the unstaged `git diff` at launch and collect. That reading misses a re-edit of an already fully staged file (status stays `M `, unstaged diff stays empty), an edit to an untracked file (status stays `??`), and an edit committed during the run (clean at both readings). Add `git rev-parse HEAD`, `git diff HEAD` in place of `git diff`, and untracked file contents to both readings, and update the lint pin that matches the exact command.
+- **Why deferred:** Surfaced as an OpenAI WARN during the 2026-10-01 external reviewer check, which was out of scope for a fix. The window is only the built-in's runtime, nothing in `/codereview` edits the tree before Step 5.6 collects, and the guard already catches ordinary edits to tracked files.
+- **Revisit criteria:** A built-in review is accepted after the tree changed during its run, OR Step 5.6's launch and collect mechanics are reworked (for example by the skill-size-references-split move).
+- **Origin:** ad-hoc (external reviewer check 2026-10-01)
