@@ -51,3 +51,27 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Why deferred:** On 13 security defects that each escaped a zat.env review in zat.env, daydream, OrgSmith, PanelForge, and qwen-2.5-localreview (measured 2026-10-02, $97), `/security-review` caught 0 and the current `/security` caught 9 (2 partial); nothing was caught only by the built-in. The built-in surfaced 8 of the 13 and then dropped them under its fixed exclusions (hardening, secrets on disk, test files, log spoofing, trusted CLI and local input) or its 8/10 confidence cutoff, which are in its prompt and cannot be configured. It also reviews only `git diff origin/HEAD...`, takes no arguments, misses uncommitted changes, and fails outright in repos without `origin/HEAD` (10 of 12 local repos, including daydream and PanelForge).
 - **Revisit criteria:** The built-in's prompt drops its exclusion list or confidence cutoff, OR it gains a diff target or file-list argument, OR a security defect escapes `/security` in a class the built-in is built for (server-side injection, authorization bypass, XSS), which this corpus did not contain.
 - **Origin:** ad-hoc (security pipeline review 2026-10-02)
+
+### push-gate-pushed-repo
+- **One-line description:** `hooks/pre-push-codereview.sh` checks the repo at the hook's working directory, not the repo being pushed. `git -C <other> push`, or `cd <other> && git push`, run from a clean repo or a non-git directory pushes `<other>` without review. Resolve the target repo from the command (`-C`, `--git-dir`, a leading `cd <dir> &&`) and evaluate the marker there, failing closed when it cannot be resolved.
+- **Why deferred:** The gate is advisory by Accepted Risk, and getting the target right needs more command parsing in a hook that deliberately avoids a shell parser (quoted paths with spaces are already a known limitation). Reproduced by a /security run during the 2026-10-02 /security-review measurement.
+- **Revisit criteria:** A push to a repo other than the session's cwd is seen skipping review, OR the gate moves server-side or becomes a hard boundary for other contributors, OR the hook's command tokenizer is reworked anyway.
+- **Origin:** ad-hoc (security-review measurement 2026-10-02)
+
+### push-gate-net-diff-secret
+- **One-line description:** The push gate and `/codereview` see only the net diff against the base, so a secret committed and then deleted inside the pushed range is pushed in history but never reviewed. Have `/security` (or a deterministic check) scan the per-commit diffs of the pushed range for secret patterns.
+- **Why deferred:** It needs a commit and a later deleting commit in the same unpushed range, and `/security` full audits already check git history for credential-handling files. Reported by a /security run during the 2026-10-02 /security-review measurement.
+- **Revisit criteria:** A secret is found in pushed history that a review passed over, OR the gate starts reviewing per-commit diffs for another reason.
+- **Origin:** ad-hoc (security-review measurement 2026-10-02)
+
+### push-gate-jq-fail-open
+- **One-line description:** `hooks/pre-push-codereview.sh` reads the command with `jq ... || true`, so when `jq` is missing or the payload does not parse, the command reads as empty, is not detected as a push, and the hook exits 0. Fail closed when the payload cannot be parsed but contains `git` and `push`.
+- **Why deferred:** `jq` is a documented install prerequisite and Claude Code always sends a well-formed payload, so reachability is low. Reported by a /security run during the 2026-10-02 /security-review measurement.
+- **Revisit criteria:** A machine without `jq` runs the hook, OR the payload format changes, OR the hook's input handling is reworked anyway.
+- **Origin:** ad-hoc (security-review measurement 2026-10-02)
+
+### marker-dir-ownership-check
+- **One-line description:** `bin/codereview-marker` `marker_dir` ignores `mkdir`/`chmod` failure and checks neither the directory's owner nor whether it is a symlink. Verify it is a real directory owned by the current user with mode 0700, and fail otherwise.
+- **Why deferred:** The directory is under `${XDG_CACHE_HOME:-${HOME}/.cache}`, which other users cannot write with default permissions, so it is not exploitable on this host. Reported by a /security run during the 2026-10-02 /security-review measurement.
+- **Revisit criteria:** The marker directory moves somewhere shared, OR a multi-user host with a writable cache path adopts zat.env, OR `codereview-marker` is reworked anyway.
+- **Origin:** ad-hoc (security-review measurement 2026-10-02)
