@@ -133,6 +133,12 @@ has "${SKILLS}/codereview/SKILL.md" 'If the `/security` completion has not arriv
   "codereview: Step 5 collects /security after the inline review"
 has "${SKILLS}/codereview/SKILL.md" "set the report aside and finish Step 4" \
   "codereview: an early /security report does not shape the inline review"
+# Step 5 now finishes before Step 5.5, so a secret it reports must stop the
+# diff from going to the external providers.
+has "${SKILLS}/codereview/SKILL.md" "reports a secret, credential, or private key in the diff, skip" \
+  "codereview: Step 5.5 skips external reviewers when a secret is reported"
+has "${SKILLS}/codereview/SKILL.md" 'Skipped \(secret in diff\)\.' \
+  "codereview: Step 9 records the secret-in-diff skip"
 
 # Post-fix security re-check: codefix changes reach the push only after a
 # /security pass on exactly the files codefix changed (PRE_FIX snapshot plus

@@ -457,8 +457,14 @@ carried-forward counts when the scan was skipped.
 
 *Skipped for light review.*
 
-If `review-external.sh` is on PATH, run it synchronously with the diff, in a
-Bash call with a 360000 ms timeout:
+If the inline review (Step 4) or `/security` (Step 5, including findings it
+carried forward) reports a secret, credential, or private key in the diff, skip
+the external reviewers: the script would send that secret to OpenAI and Google
+with the diff. Record `Skipped (secret in diff).` in Step 9 and say so in the
+report.
+
+Otherwise, if `review-external.sh` is on PATH, run it synchronously with the
+diff, in a Bash call with a 360000 ms timeout:
 
 ```bash
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
@@ -682,7 +688,8 @@ Format:
 **Summary:** [1-2 sentence summary of what was reviewed]
 
 **External reviewers:**
-[Cost log lines from Step 5.5, or "None configured." or "Skipped (light review)."]
+[Cost log lines from Step 5.5, or "None configured.", "Skipped (light review).",
+or "Skipped (secret in diff)."]
 
 **Built-in review:**
 [`/code-review high`: N findings, M kept after Step 6; or "Not available.",
