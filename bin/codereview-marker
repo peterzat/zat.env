@@ -18,8 +18,20 @@ set -euo pipefail
 #   codereview-marker hash       # print DIFF_HASH to stdout
 #   codereview-marker write      # compute hash and write to marker file
 #   codereview-marker base       # print the review base (ref or empty-tree hash)
+#   codereview-marker surface [<ref>]
+#                                # print the security-surface files that differ
+#                                # between <ref> (default: the review base) and
+#                                # the working tree
 #   codereview-marker path       # print marker file path to stdout
 #   codereview-marker skip-path  # print one-shot skip marker file path to stdout
+#
+# Security surface:
+#   Every changed file except the review output files and plain markdown.
+#   Markdown that instructs an agent is code, not documentation, and stays
+#   in: SKILL.md, CLAUDE.md, CLAUDE.local.md, AGENTS.md, global-claude.md
+#   (zat.env's source for ~/.claude/CLAUDE.md), and any .md under a .claude/
+#   directory. The diff is against the working tree, so committed, staged,
+#   and unstaged changes all count.
 #
 # Exit codes:
 #   0  success
@@ -53,6 +65,9 @@ Usage:
   codereview-marker hash       # print DIFF_HASH to stdout (exit 2 if nothing to review)
   codereview-marker write      # compute hash and write to marker file
   codereview-marker base       # print the review base (ref or empty-tree hash)
+  codereview-marker surface [<ref>]
+                               # print security-surface files changed since <ref>
+                               # (default: the review base)
   codereview-marker path       # print marker file path to stdout
   codereview-marker skip-path  # print one-shot skip marker file path to stdout
 EOF
@@ -96,6 +111,38 @@ resolve_base() {
   fi
 }
 
+# True when a changed path belongs to the security surface (see header).
+in_surface() {
+  local f="$1"
+  case "${f}" in
+    *.md) ;;
+    *) return 0 ;;
+  esac
+  case "${f##*/}" in
+    SKILL.md|CLAUDE.md|CLAUDE.local.md|AGENTS.md|global-claude.md) return 0 ;;
+  esac
+  case "/${f}" in
+    */.claude/*) return 0 ;;
+  esac
+  return 1
+}
+
+# The ref comes from SECURITY_META in a file the repo controls, so it is
+# validated before it reaches git: a value beginning with '-' would be parsed
+# as an option (`--output=<path>` truncates and overwrites that path).
+list_surface() {
+  local ref="${1:-}" tree f
+  [[ -n "${ref}" ]] || ref=$(resolve_base)
+  if [[ "${ref}" == -* ]] || ! tree=$(git rev-parse --verify --quiet "${ref}^{tree}"); then
+    printf 'codereview-marker: cannot resolve %s to a tree\n' "${ref}" >&2
+    return 1
+  fi
+  git -c core.quotePath=false diff --name-only -z "${tree}" -- "${EXCLUDES[@]}" \
+    | while IFS= read -r -d '' f; do
+        if in_surface "${f}"; then printf '%s\n' "${f}"; fi
+      done
+}
+
 compute_hash() {
   local base
   base=$(resolve_base)
@@ -122,6 +169,11 @@ case "${1:-}" in
   base)
     require_git
     printf '%s\n' "$(resolve_base)"
+    ;;
+  surface)
+    require_git
+    [[ $# -le 2 ]] || usage
+    list_surface "${2:-}"
     ;;
   path)
     require_git

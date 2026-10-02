@@ -358,9 +358,36 @@ if [[ -n "${CR_S5_START}" ]] && [[ -n "${CR_S6_START}" ]] && [[ "${CR_S5_START}"
   else
     pass "codereview: Step 5/5.5 has no inline @{upstream}->origin fallback"
   fi
+  # The security surface comes from `codereview-marker surface`. The inline
+  # `git diff --name-only -- ':!*.md'` it replaced saw only unstaged changes
+  # (a staged edit skipped the scan) and dropped agent-instruction markdown.
+  if printf '%s\n' "${CR_S5_BLOCK}" | grep -qF 'codereview-marker surface <meta-commit>'; then
+    pass "codereview: Step 5 lists changes since the last scan via codereview-marker surface"
+  else
+    fail "codereview: Step 5 missing 'codereview-marker surface <meta-commit>'"
+  fi
+  if printf '%s\n' "${CR_S5_BLOCK}" | grep -qF "':!*.md'"; then
+    fail "codereview: Step 5 carries an inline ':!*.md' file list (use codereview-marker surface)"
+  else
+    pass "codereview: Step 5 has no inline ':!*.md' file list"
+  fi
 else
   fail "codereview: could not locate Step 5/Step 6 anchors (base-unification checks)"
 fi
+
+# Step 2's light tier must not treat agent-instruction markdown as docs: a
+# SKILL.md-only diff would otherwise skip the tests (lint pins SKILL.md text)
+# and /security, though skill frontmatter grants tools.
+has "${CR_SKILL}" 'Markdown that instructs an agent is not plain' \
+  "codereview: light tier excludes agent-instruction markdown"
+has "${CR_SKILL}" 'run `codereview-marker surface`: the review is light only if' \
+  "codereview: light tier is checked with codereview-marker surface"
+has "${MARKER_SCRIPT}" '^  surface\)' \
+  "marker script: handles surface subcommand (case arm)"
+has "${MARKER_SCRIPT}" 'SKILL.md|CLAUDE.md|CLAUDE.local.md|AGENTS.md|global-claude.md' \
+  "marker script: surface keeps agent-instruction markdown"
+has "${MARKER_SCRIPT}" '"\$\{ref\}" == -\*' \
+  "marker script: surface rejects a ref beginning with '-' (git option injection)"
 
 # The pre-push hook must invoke the script (verify side of the contract).
 has "${HOOK}" 'codereview-marker hash' \

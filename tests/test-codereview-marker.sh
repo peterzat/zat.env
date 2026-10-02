@@ -340,6 +340,72 @@ else
   fail "skip-path: project-hash mismatch (path=${p_hash}, skip=${sp_hash})"
 fi
 
+# --- surface subcommand ---
+# /codereview Step 5 uses `surface` to decide what /security must scan. It
+# must see committed, staged, and unstaged changes, keep agent-instruction
+# markdown, and drop plain markdown and the review output files.
+
+echo ""
+echo "==> surface subcommand"
+F_LOCAL="${WORK_DIR}/case_f_local"
+F_REMOTE="${WORK_DIR}/case_f_remote.git"
+init_repo "${F_LOCAL}"
+push_to_remote "${F_LOCAL}" "${F_REMOTE}"
+cd "${F_LOCAL}" || exit 1
+SCAN_BASE=$(git rev-parse HEAD)
+
+out=$("${SCRIPT}" surface) ; ec=$?
+if [[ "${ec}" -eq 0 ]] && [[ -z "${out}" ]]; then pass "surface: no changes -> exit 0, empty"; else fail "surface: no changes expected exit 0 and empty, got ${ec} '${out}'"; fi
+
+mkdir -p docs skills/x .claude/agents claude sub
+echo "c" > committed.sh
+echo "d" > docs/guide.md
+echo "s" > skills/x/SKILL.md
+echo "a" > .claude/agents/reviewer.md
+echo "g" > claude/global-claude.md
+echo "n" > sub/AGENTS.md
+echo "r" > README.md
+echo "v" > SECURITY.md
+git add -A
+git commit -q -m "mixed changes"
+echo "staged" > staged.py
+git add staged.py
+echo "unstaged" >> a.txt
+echo "local" > CLAUDE.md
+git add CLAUDE.md
+echo "more" >> CLAUDE.md
+
+out=$("${SCRIPT}" surface) ; ec=$?
+if [[ "${ec}" -eq 0 ]]; then pass "surface: exit 0 with changes"; else fail "surface: expected exit 0 got ${ec}"; fi
+for f in committed.sh staged.py a.txt skills/x/SKILL.md .claude/agents/reviewer.md claude/global-claude.md sub/AGENTS.md CLAUDE.md; do
+  if printf '%s\n' "${out}" | grep -qxF "${f}"; then pass "surface: lists ${f}"; else fail "surface: missing ${f}"; fi
+done
+for f in docs/guide.md README.md SECURITY.md; do
+  if printf '%s\n' "${out}" | grep -qxF "${f}"; then fail "surface: should not list ${f}"; else pass "surface: omits ${f}"; fi
+done
+
+# An explicit ref limits the list to changes since that ref.
+git add -A
+git commit -q -m "rest"
+SINCE=$(git rev-parse HEAD)
+echo "later" >> committed.sh
+out=$("${SCRIPT}" surface "${SINCE}")
+if [[ "${out}" == "committed.sh" ]]; then pass "surface <ref>: only changes since ref"; else fail "surface <ref>: expected 'committed.sh' got '${out}'"; fi
+# Untracked files are not pushed and not hashed by the gate, so not listed.
+echo "u" > untracked.sh
+out=$("${SCRIPT}" surface "${SINCE}")
+if printf '%s\n' "${out}" | grep -qxF "untracked.sh"; then fail "surface: should not list untracked files"; else pass "surface: omits untracked files (same scope as the gate)"; fi
+out=$("${SCRIPT}" surface "${SCAN_BASE}")
+if printf '%s\n' "${out}" | grep -qxF "committed.sh"; then pass "surface <older ref>: includes earlier commits"; else fail "surface <older ref>: missing committed.sh"; fi
+
+err=$("${SCRIPT}" surface no-such-ref 2>&1 >/dev/null) ; ec=$?
+if [[ "${ec}" -eq 1 ]] && printf '%s' "${err}" | grep -q "cannot resolve"; then pass "surface: unknown ref -> exit 1"; else fail "surface: unknown ref expected exit 1, got ${ec}"; fi
+
+# A ref beginning with '-' must never reach git as an option.
+err=$("${SCRIPT}" surface "--output=${WORK_DIR}/clobbered" 2>&1 >/dev/null) ; ec=$?
+if [[ "${ec}" -eq 1 ]]; then pass "surface: leading-dash ref -> exit 1"; else fail "surface: leading-dash ref expected exit 1 got ${ec}"; fi
+if [[ ! -e "${WORK_DIR}/clobbered" ]]; then pass "surface: leading-dash ref wrote no file"; else fail "surface: leading-dash ref reached git as --output"; fi
+
 # Restore original cwd before exit so trap cleanup of WORK_DIR is safe.
 cd "${START_DIR}" || exit 1
 

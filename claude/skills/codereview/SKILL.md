@@ -267,7 +267,11 @@ review of code you did not read.
   `.gitignore`, `.gitconfig`). No code or configuration files are modified.
   Configuration formats (`.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`) get
   full review because they are often operationally live (CI, deployment, permissions,
-  dependencies, feature flags).
+  dependencies, feature flags). Markdown that instructs an agent is not plain
+  documentation: `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `global-claude.md`, and any
+  `.md` under `.claude/` grant tools and steer what an agent runs, so they get full
+  review. To check, run `codereview-marker surface`: the review is light only if
+  every file it prints is a `.txt`, `.gitignore`, or `.gitconfig` file.
 - **Full review**: any code file is modified, or you are uncertain.
 
 If light review: skip Steps 3, 5, 5.5, 5.6, 6.5, and 7 (no test suite run, no
@@ -380,17 +384,24 @@ right change to make) apply.
 Before invoking `/security`, check whether a recent scan already covers the
 current state:
 
+The security surface is every changed file except the review-output files and
+plain markdown. Markdown that instructs an agent (`SKILL.md`, `CLAUDE.md`,
+`AGENTS.md`, `global-claude.md`, anything under `.claude/`) is code and is part
+of it. `codereview-marker surface [<ref>]` lists the surface files that differ
+between `<ref>` (default: the review base) and the working tree, so committed,
+staged, and unstaged changes all count. Use it for every file list in this step;
+do not hand-edit its output.
+
 1. Read `SECURITY.md` and extract the `commit` field from `SECURITY_META`.
 2. If the commit field exists and resolves in git, check for code changes since
    that commit:
    ```bash
-   git log --oneline <meta-commit>..HEAD -- ':!*.md'
-   git diff --name-only -- ':!*.md'
+   codereview-marker surface <meta-commit>
    ```
-3. **If no code changes since the last scan:** verify the prior scan covers the
-   current security surface before skipping:
+3. **If no code changes since the last scan** (empty output): verify the prior
+   scan covers the current security surface before skipping:
    ```bash
-   git diff --name-only "$(codereview-marker base)" -- ':!*.md'
+   codereview-marker surface
    ```
    Treat the output as `NEEDED`.
    - Prior scope is `"full"`, or `NEEDED` is empty: skip.
@@ -414,11 +425,10 @@ current state:
 
    Otherwise, compute the files that need scanning:
    ```bash
-   # git diff <ref> includes both committed and working-tree changes.
    if [valid SECURITY_META commit]; then
-     git diff --name-only <meta-commit> -- ':!*.md'               # changes since last scan
+     codereview-marker surface <meta-commit>   # changes since last scan
    else
-     git diff --name-only "$(codereview-marker base)" -- ':!*.md' # no prior scan: surface vs base
+     codereview-marker surface                 # no prior scan: surface vs base
    fi
    ```
    Treat the output as `SCAN_FILES`.

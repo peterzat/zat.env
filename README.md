@@ -283,7 +283,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Trigger:** Runs automatically before any `git push` (via the pre-push hook gate). Also invocable manually.
 
-**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md`, `.txt`, `.gitignore`, `.gitconfig`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live. Light review skips the test suite, security chain, external reviewers, and fix loop. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
+**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md`, `.txt`, `.gitignore`, `.gitconfig`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live. So does markdown that instructs an agent (`SKILL.md`, `CLAUDE.md`, `AGENTS.md`, files under `.claude/`), because it grants tools and steers what the agent runs. Light review skips the test suite, security chain, external reviewers, and fix loop. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
 
 **Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0` and the reviewed commit is an ancestor of HEAD, the skill performs an incremental review scoped to files changed since the prior review. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
 
@@ -294,7 +294,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 4. Classifies review tier (light or full)
 5. Runs the project's test suite (if one exists) to capture a baseline, then launches Claude Code's built-in `/code-review high` in the background as a second, independent finder
 6. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
-7. Chains to `/security` scoped to files changed since the last security scan (or since upstream if no prior scan). If no code files changed since the prior scan, carries forward existing findings instead of re-invoking.
+7. Chains to `/security` scoped to files changed since the last security scan (or since upstream if no prior scan), counting committed, staged, and unstaged changes. Agent-instruction markdown (`SKILL.md`, `CLAUDE.md`, `AGENTS.md`, files under `.claude/`) is in scope; other markdown is not. If nothing in scope changed since the prior scan, carries forward existing findings instead of re-invoking.
 8. Reports findings as BLOCK / WARN / NOTE with evidence citations
 9. Runs optional external reviewers (OpenAI, Google, local GPU) via `review-external.sh` if configured; findings tagged with provider name. Collects the built-in review's findings, tagged `(claude-code)`, and classifies them with the same severity definitions
 10. Delegates BLOCK/WARN fixes to `/codefix`, a separate skill that runs in its own forked context (builder/verifier separation, up to 3 fix/re-review cycles)
@@ -627,7 +627,7 @@ Post-install layout (annotated):
 ```
 ~/
 ├── bin/                              # Helper scripts (symlinked into ~/bin by install)
-│   ├── codereview-marker             # Resolve base, compute/write/locate the codereview push marker (single source of truth)
+│   ├── codereview-marker             # Resolve base and security surface, compute/write/locate the codereview push marker (single source of truth)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
 │   ├── spec-backlog-apply.sh         # Apply BACKLOG sweep manifest from stdin (used by /spec Step 3g)
@@ -679,7 +679,7 @@ Post-install layout (annotated):
 │       │   ├── test-review-external.sh    # review-external.sh guard logic and output contract tests
 │       │   ├── test-pre-push-hook.sh      # Pre-push hook behavioral tests
 │       │   ├── test-spec-backlog-apply.sh # spec-backlog-apply.sh manifest parser tests
-│       │   ├── test-codereview-marker.sh  # codereview-marker hash/write/base/path tests
+│       │   ├── test-codereview-marker.sh  # codereview-marker hash/write/base/surface/path tests
 │       │   └── test-allow-venv-hook.sh    # allow-venv-source.sh decision tests per permission mode
 │
 ├── .bashrc                           # Updated: PATH, CUDA_HOME, PIP_REQUIRE_VIRTUALENV
