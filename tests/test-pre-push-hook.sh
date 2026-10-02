@@ -203,6 +203,8 @@ echo "==> Dispatch: real repo, diff exists, marker matches → allow"
 
 setup_test_repo
 echo "modified" > "${TEST_REPO}/file.txt"
+# The reviewed change is committed, as it is when it is pushed.
+git -C "${TEST_REPO}" commit -q -am "change"
 # Compute the same hash the hook would compute and write it as the marker.
 EXPECTED=$(cd "${TEST_REPO}" && git diff origin/main -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
 echo "${EXPECTED}" > "${TEST_MARKER}"
@@ -217,6 +219,64 @@ if [[ -f "${TEST_MARKER}" ]]; then
   pass "diff-marker-match: marker preserved after allow"
 else
   fail "diff-marker-match: marker was consumed (should persist)"
+fi
+# Review output files left uncommitted (CODEREVIEW.md after Step 9) are not
+# hashed and do not block.
+echo "review" > "${TEST_REPO}/CODEREVIEW.md"
+git -C "${TEST_REPO}" add CODEREVIEW.md
+echo "more review" >> "${TEST_REPO}/CODEREVIEW.md"
+ec=0
+invoke_in_test_repo "git push" >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 0 ]]; then
+  pass "diff-marker-match: uncommitted review output files do not block"
+else
+  fail "diff-marker-match: uncommitted CODEREVIEW.md blocked the push (exit ${ec})"
+fi
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Dispatch: marker matches but reviewed changes are uncommitted → block"
+# ============================================================
+# The marker hashes base vs the working tree; a push sends only commits. An
+# uncommitted /codefix fix made the marker match while the unfixed commits
+# were pushed.
+
+setup_test_repo
+echo "unfixed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unfixed change"
+echo "fixed" > "${TEST_REPO}/file.txt"
+EXPECTED=$(cd "${TEST_REPO}" && git diff origin/main -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
+echo "${EXPECTED}" > "${TEST_MARKER}"
+ec=0
+out=$(invoke_in_test_repo "git push" 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "uncommitted-fix: exit code 2 (block)"
+else
+  fail "uncommitted-fix: expected exit 2, got ${ec}"
+fi
+if [[ "${out}" == *"not"*"committed"* ]] && [[ "${out}" == *"file.txt"* ]]; then
+  pass "uncommitted-fix: stderr names the uncommitted file"
+else
+  fail "uncommitted-fix: expected the uncommitted-changes message naming file.txt"
+fi
+# Staged but not committed is still not pushed.
+git -C "${TEST_REPO}" add file.txt
+ec=0
+invoke_in_test_repo "git push" >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "uncommitted-fix: staged-only change still blocks"
+else
+  fail "uncommitted-fix: staged-only change expected exit 2, got ${ec}"
+fi
+# Committing it keeps the same hash, so the marker now allows the push.
+git -C "${TEST_REPO}" commit -q -m "fix"
+ec=0
+invoke_in_test_repo "git push" >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 0 ]]; then
+  pass "uncommitted-fix: after commit the same marker allows the push"
+else
+  fail "uncommitted-fix: after commit expected exit 0, got ${ec}"
 fi
 teardown_test_repo
 

@@ -22,8 +22,18 @@ set -euo pipefail
 #                                # print the security-surface files that differ
 #                                # between <ref> (default: the review base) and
 #                                # the working tree
+#   codereview-marker uncommitted
+#                                # print tracked files whose changes are not
+#                                # committed (review output files excluded)
 #   codereview-marker path       # print marker file path to stdout
 #   codereview-marker skip-path  # print one-shot skip marker file path to stdout
+#
+# Uncommitted changes:
+#   The marker hashes the base against the working tree, but a push sends only
+#   commits. The pre-push hook calls `uncommitted` after the marker matches and
+#   refuses the push while it prints anything, so reviewed changes that were
+#   never committed (typically /codefix's fixes) cannot vouch for the unfixed
+#   commits that would be pushed. Untracked files are neither hashed nor pushed.
 #
 # Security surface:
 #   Every changed file except the review output files and plain markdown.
@@ -68,6 +78,8 @@ Usage:
   codereview-marker surface [<ref>]
                                # print security-surface files changed since <ref>
                                # (default: the review base)
+  codereview-marker uncommitted
+                               # print tracked files with uncommitted changes
   codereview-marker path       # print marker file path to stdout
   codereview-marker skip-path  # print one-shot skip marker file path to stdout
 EOF
@@ -143,6 +155,14 @@ list_surface() {
       done
 }
 
+# Tracked files that differ between HEAD (the empty tree on an unborn branch)
+# and the working tree, review output files excluded.
+list_uncommitted() {
+  local head
+  head=$(git rev-parse --verify --quiet HEAD) || head=$(git hash-object -t tree /dev/null)
+  git -c core.quotePath=false diff --name-only "${head}" -- "${EXCLUDES[@]}"
+}
+
 compute_hash() {
   local base
   base=$(resolve_base)
@@ -169,6 +189,10 @@ case "${1:-}" in
   base)
     require_git
     printf '%s\n' "$(resolve_base)"
+    ;;
+  uncommitted)
+    require_git
+    list_uncommitted
     ;;
   surface)
     require_git

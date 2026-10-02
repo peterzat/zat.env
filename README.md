@@ -422,8 +422,8 @@ A Claude Code `PreToolUse` hook (configured in `~/.claude/settings.json`) interc
 2. Hook reads the JSON payload from stdin and checks if the command is `git push`
 3. Hook checks for a marker file at `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/marker-<project-hash>` (per-user, mode 0700)
 4. Marker contains a diff hash from the passing review: `sha256sum` of `git diff <upstream>` (excluding review output files), truncated to 16 hex chars. This makes the marker content-addressed: tied to the exact diff that was reviewed, not just "some review happened."
-5. If marker exists and hash matches current diff, push proceeds
-6. Otherwise, push is blocked; Claude is instructed to run `/codereview`
+5. If marker exists and hash matches current diff, the hook checks that the reviewed changes are all committed. The hash covers the working tree, but a push sends only commits, so a `/codefix` fix left uncommitted would otherwise let the unfixed commits through. With everything committed, the push proceeds; otherwise it is blocked with the list of uncommitted files.
+6. If there is no matching marker, push is blocked; Claude is instructed to run `/codereview`
 
 The marker is per-project (scoped by git root path hash) and content-addressed. It persists after a successful push so that a network error or remote rejection does not force a full re-review. Making any code change after a passing review invalidates the hash and requires a new review.
 

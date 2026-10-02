@@ -413,6 +413,12 @@ has "${CR_SKILL}" 'Markdown that instructs an agent is not plain' \
   "codereview: light tier excludes agent-instruction markdown"
 has "${CR_SKILL}" 'run `codereview-marker surface`: the review is light only if' \
   "codereview: light tier is checked with codereview-marker surface"
+has "${MARKER_SCRIPT}" '^  uncommitted\)' \
+  "marker script: handles uncommitted subcommand (case arm)"
+# The marker hashes base vs the working tree, but a push sends only commits:
+# after a match the hook must refuse while reviewed changes are uncommitted.
+has "${HOOK}" 'codereview-marker uncommitted' \
+  "hook: refuses a push while reviewed changes are uncommitted"
 has "${MARKER_SCRIPT}" '^  surface\)' \
   "marker script: handles surface subcommand (case arm)"
 has "${MARKER_SCRIPT}" 'SKILL.md|CLAUDE.md|CLAUDE.local.md|AGENTS.md|global-claude.md' \

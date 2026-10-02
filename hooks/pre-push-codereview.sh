@@ -262,10 +262,32 @@ fi
 if [[ -f "${MARKER}" ]]; then
   STORED_HASH=$(cat "${MARKER}")
   if [[ "${STORED_HASH}" == "${DIFF_HASH}" ]]; then
-    # Codereview passed for this exact diff — allow push. Marker is kept
-    # so a failed push (network error, remote rejection) does not force
-    # a full re-review. The marker is content-addressed by diff hash, so
-    # a stale marker for an old diff is harmless.
+    # The marker covers the base vs the working tree, but a push sends only
+    # commits. Reviewed changes that were never committed (typically
+    # /codefix's fixes) would let the unfixed commits through, so refuse
+    # until they are committed. Fail closed if the check itself fails.
+    if ! UNCOMMITTED=$(codereview-marker uncommitted 2>/dev/null); then
+      echo "Pre-push gate: codereview-marker uncommitted failed." >&2
+      echo "Refusing to push. Investigate, then retry." >&2
+      exit 2
+    fi
+    if [[ -n "${UNCOMMITTED}" ]]; then
+      {
+        echo "Pre-push gate: /codereview passed, but these reviewed changes are not"
+        echo "committed, so the push would send the commits without them:"
+        printf '%s\n' "${UNCOMMITTED}" | head -20 | sed 's/^/  /'
+        echo ""
+        echo "Commit them, then retry the push; the review covers them, so the"
+        echo "marker stays valid. If they should not ship, stash them and run"
+        echo "/codereview again."
+      } >&2
+      exit 2
+    fi
+    # Codereview passed for this exact diff, all of it committed — allow
+    # push. Marker is kept so a failed push (network error, remote
+    # rejection) does not force a full re-review. The marker is
+    # content-addressed by diff hash, so a stale marker for an old diff is
+    # harmless.
     exit 0
   fi
 fi

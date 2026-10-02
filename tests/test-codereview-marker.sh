@@ -406,6 +406,34 @@ err=$("${SCRIPT}" surface "--output=${WORK_DIR}/clobbered" 2>&1 >/dev/null) ; ec
 if [[ "${ec}" -eq 1 ]]; then pass "surface: leading-dash ref -> exit 1"; else fail "surface: leading-dash ref expected exit 1 got ${ec}"; fi
 if [[ ! -e "${WORK_DIR}/clobbered" ]]; then pass "surface: leading-dash ref wrote no file"; else fail "surface: leading-dash ref reached git as --output"; fi
 
+# --- uncommitted subcommand ---
+# The pre-push hook refuses a push while this prints anything.
+
+echo ""
+echo "==> uncommitted subcommand"
+G_LOCAL="${WORK_DIR}/case_g_local"
+init_repo "${G_LOCAL}"
+cd "${G_LOCAL}" || exit 1
+out=$("${SCRIPT}" uncommitted) ; ec=$?
+if [[ "${ec}" -eq 0 ]] && [[ -z "${out}" ]]; then pass "uncommitted: clean tree -> exit 0, empty"; else fail "uncommitted: clean tree expected empty, got ${ec} '${out}'"; fi
+echo "u" >> a.txt
+echo "s" > staged.sh; git add staged.sh
+echo "r" > CODEREVIEW.md; git add CODEREVIEW.md
+echo "n" > untracked.sh
+out=$("${SCRIPT}" uncommitted)
+for f in a.txt staged.sh; do
+  if printf '%s\n' "${out}" | grep -qxF "${f}"; then pass "uncommitted: lists ${f}"; else fail "uncommitted: missing ${f}"; fi
+done
+for f in CODEREVIEW.md untracked.sh; do
+  if printf '%s\n' "${out}" | grep -qxF "${f}"; then fail "uncommitted: should not list ${f}"; else pass "uncommitted: omits ${f}"; fi
+done
+H_LOCAL="${WORK_DIR}/case_h_local"
+mkdir -p "${H_LOCAL}" && git -C "${H_LOCAL}" init -q -b main
+cd "${H_LOCAL}" || exit 1
+echo "x" > first.sh; git add first.sh
+out=$("${SCRIPT}" uncommitted) ; ec=$?
+if [[ "${ec}" -eq 0 ]] && [[ "${out}" == "first.sh" ]]; then pass "uncommitted: unborn branch lists staged files"; else fail "uncommitted: unborn branch expected 'first.sh', got ${ec} '${out}'"; fi
+
 # Restore original cwd before exit so trap cleanup of WORK_DIR is safe.
 cd "${START_DIR}" || exit 1
 
