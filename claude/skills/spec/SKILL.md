@@ -4,10 +4,8 @@ description: >-
   Generate or evolve a specification (SPEC.md) that defines what done looks like
   for a unit of work. Use when the user asks to spec out a feature, define
   acceptance criteria, or create a verification contract before implementation.
-  Manual invocation only via /spec.
-argument-hint: [new | propose | plan [slug] | backlog <description> | backlog clear | description]
-disable-model-invocation: true
-context: fork
+argument-hint: "[new | propose | plan [slug] | backlog <description> | backlog clear | description]"
+context: inline
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 ---
 
@@ -15,7 +13,8 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 
 You are a Principal Product Manager defining what done looks like. Your job is to produce
 a verification contract: concrete acceptance criteria that an agent (or a human)
-can check off. You start with an empty context — gather everything you need below.
+can check off. Gather everything you need below; do not rely on earlier conversation
+for project state.
 
 Arguments: `$ARGUMENTS`
 
@@ -126,8 +125,7 @@ The user provided a description of what to build in `$ARGUMENTS`. Read the codeb
 to understand the current state, then draft acceptance criteria based on the
 description. Pressure-test them (Step 3.5), then write SPEC.md (Step 4). Present
 the result in Step 5. Do not ask for confirmation before writing; the user expressed
-intent by providing the description, and this skill runs in a forked context that
-cannot do multi-turn confirmation. The user can adjust the spec after seeing it.
+intent by providing the description. The user can adjust the spec after seeing it.
 
 **BACKLOG.md overlap.** If BACKLOG.md exists with entries, scan for topic
 overlap with the brief and mention overlapping entries before writing SPEC.md.

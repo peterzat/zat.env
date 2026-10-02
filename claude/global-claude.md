@@ -62,6 +62,9 @@ When editing acceptance criteria outside `/spec`, apply the same pressure-test r
 
 zat.env installs a hook that blocks `git push` until `/codereview` passes. When it
 blocks, run `/codereview` automatically. Do not ask the user first or offer to skip.
+`/codereview` runs as a background fork. Its first notification can be interim (it
+says background work is still running); wait for the final one, which ends with the
+verdict, before retrying the push or running the review again.
 The bypass is only for when the user says "push now" unprompted; never suggest it.
 Run it as two separate commands, `codereview-skip` then `git push`, not the combined
 `codereview-skip && git push`: the hook fires on the whole command before the marker

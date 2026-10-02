@@ -7,7 +7,7 @@ description: >-
   design assessment, technology selection review, or strategic technical
   direction evaluation. Supports focused deep-dives: /architect deps,
   /architect ops, /architect <topic>.
-argument-hint: [deps | ops | topic]
+argument-hint: "[deps | ops | topic]"
 disable-model-invocation: true
 context: fork
 allowed-tools: Bash(*), Read, Grep, Glob

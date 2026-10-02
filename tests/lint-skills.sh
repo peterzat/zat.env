@@ -1786,6 +1786,74 @@ else
   echo "  skip (shellcheck not installed)"
 fi
 
+# --- Skill frontmatter parses ---
+# Claude Code drops a SKILL.md's whole frontmatter when its YAML does not parse
+# (debug log: "failed to parse and was ignored"); the skill then runs inline with
+# no context, effort, allowed-tools, or description. An unquoted argument-hint
+# such as [external [<ref> | <from>..<to>]] is a YAML flow sequence, and the
+# nested bracket made it invalid: /codereview ran inline at the session's effort
+# from 2026-05-02, and /spec from 2026-04-10, with nothing reporting it.
+
+echo ""
+echo "==> Skill frontmatter parses"
+
+frontmatter() { awk 'NR == 1 && $0 == "---" { infm = 1; next } infm && $0 == "---" { exit } infm' "$1"; }
+
+for skill_md in "${SKILLS}"/*/SKILL.md; do
+  name=$(basename "$(dirname "${skill_md}")")
+  fm=$(frontmatter "${skill_md}")
+  if [[ -z "${fm}" ]]; then
+    fail "${name}: SKILL.md has no frontmatter block"
+    continue
+  fi
+  if printf '%s\n' "${fm}" | grep -qE '^[A-Za-z_-]+:[[:space:]]*[[{]'; then
+    fail "${name}: a frontmatter value starts with [ or { unquoted (YAML flow syntax; quote it)"
+  else
+    pass "${name}: no unquoted [ or { frontmatter values"
+  fi
+done
+if python3 -c 'import yaml' 2>/dev/null; then
+  for skill_md in "${SKILLS}"/*/SKILL.md; do
+    name=$(basename "$(dirname "${skill_md}")")
+    if frontmatter "${skill_md}" | python3 -c '
+import sys, yaml
+d = yaml.safe_load(sys.stdin)
+assert isinstance(d, dict) and d.get("name") and d.get("description")
+' 2>/dev/null; then
+      pass "${name}: frontmatter parses as YAML with name and description"
+    else
+      fail "${name}: frontmatter does not parse as YAML (Claude Code would ignore all of it)"
+    fi
+  done
+else
+  echo "  skip (PyYAML not installed; the unquoted-value check above still runs)"
+fi
+
+# The fork decisions those parse failures hid. /codereview must fork: the
+# review needs its own context, its effort level, and its tool allowlist.
+# /spec runs inline and stays model-invocable, as it has in practice since
+# 2026-04-10: interview mode needs the conversation, and the plan-mode hook
+# tells the model to run `/spec plan`.
+if frontmatter "${SKILLS}/codereview/SKILL.md" | grep -qx 'context: fork'; then
+  pass "codereview: frontmatter declares context: fork"
+else
+  fail "codereview: frontmatter must declare context: fork"
+fi
+if frontmatter "${SKILLS}/spec/SKILL.md" | grep -qx 'context: inline' \
+   && ! frontmatter "${SKILLS}/spec/SKILL.md" | grep -qx 'disable-model-invocation: true'; then
+  pass "spec: context: inline and model-invocable"
+else
+  fail "spec: must declare context: inline and must not set disable-model-invocation"
+fi
+# A forked /codereview reports an interim result first when it ends its turn
+# to wait for /security or /codefix; the caller must wait for the final one.
+has "${REPO_DIR}/claude/global-claude.md" "Its first notification can be interim" \
+  "global-claude: the pre-push gate says to wait for /codereview's final result"
+has "${HOOK}" "wait for its final" \
+  "hook: block message says to wait for /codereview's final result"
+has "${SKILLS}/codereview/SKILL.md" "ending your turn is how you" \
+  "codereview: ending the turn while children run is how the fork waits"
+
 # --- Summary ---
 
 echo ""

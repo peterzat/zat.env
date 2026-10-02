@@ -277,7 +277,9 @@ Pre-push gate: this push has not passed /codereview.
 Run /codereview now, without asking the user first. When the gate blocks,
 running the review is the routine next step, not a choice to put to the user.
 On success (all BLOCK items resolved, tests stable) it writes the marker;
-then retry the push.
+then retry the push. It runs as a background fork: wait for its final
+result, which ends with the verdict, not an interim notice that its own
+background work is still running.
 
 Do not offer to skip the review. The one-time bypass is only for when the
 user explicitly says "push now" unprompted; never suggest it.

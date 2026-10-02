@@ -220,7 +220,7 @@ Global skills are installed by `zat.env-install.sh` and available in all Claude 
 
 | Skill | Command | Invocation | Purpose |
 |-------|---------|------------|---------|
-| Spec | [`/spec`](claude/skills/spec/SKILL.md) | Manual only | Define acceptance criteria before implementation |
+| Spec | [`/spec`](claude/skills/spec/SKILL.md) | Manual (the model may also run it) | Define acceptance criteria before implementation |
 | Code Review | [`/codereview`](claude/skills/codereview/SKILL.md) | Auto (pre-push) + manual | Adversarial review of uncommitted changes |
 | Security | [`/security`](claude/skills/security/SKILL.md) | Manual + chained from codereview | Security audit (full repo or changes-only) |
 | Architect | [`/architect`](claude/skills/architect/SKILL.md) | Manual only | Strategic architecture review (10 dimensions, HEALTHY/WATCH/ACT) |

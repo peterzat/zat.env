@@ -28,12 +28,6 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Revisit criteria:** One of these skills grows further past the guideline, OR a session shows the model missing an instruction in the tail of one of them, OR the related lint pins are being reworked anyway.
 - **Origin:** ad-hoc (prompt audit 2026-10-01)
 
-### spec-interview-mode-in-fork
-- **One-line description:** `/spec` interview mode (Step 3a, reached by `/spec new` or by `/spec` in a project with no SPEC.md) asks 3-5 questions and waits for answers, but the skill runs in a fork that ends when it asks. The answers land in the main thread, which has to re-invoke `/spec <answers>` (direct mode) on its own.
-- **Why deferred:** Current practice adopts plan-mode plans with `/spec plan` or passes a pressure-tested brief to direct `/spec`, so interview mode is rarely used. The stale-proposal and existing-proposal confirmations, the same defect class, were fixed in 022d646.
-- **Revisit criteria:** Interview mode gets used and the answer round-trip misroutes or drops the answers, OR a new user's first `/spec` in a fresh project lands in interview mode and stalls.
-- **Origin:** ad-hoc (prompt audit 2026-10-01)
-
 ### gemini-stable-model-default
 - **One-line description:** `bin/review-external.sh` defaults Gemini to `gemini-3.1-pro-preview`. A preview model can be withdrawn on short notice, and a retired default shows up only as an API-error line in the cost log. Switch the default (and the price `case` in `call_google`, plus the install template) to the stable 3.x Pro ID.
 - **Why deferred:** Google has not published a stable 3.x Pro model ID; the preview is its named replacement for gemini-2.5-pro.

@@ -6,7 +6,7 @@ description: >-
   TESTING.md. `/tester design` writes (or revises) a durable test-architecture
   contract in TESTING.md and seeds rollout items in BACKLOG.md. Manual
   invocation only. Do not invoke automatically.
-argument-hint: [design]
+argument-hint: "[design]"
 disable-model-invocation: true
 context: fork
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob

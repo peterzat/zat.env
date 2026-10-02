@@ -10,7 +10,7 @@ description: >-
   mode (`/codereview external [<ref>|<from>..<to>]`) runs only the configured
   external reviewers on an arbitrary diff with no CODEREVIEW.md / marker /
   /codefix mutation, useful for span-of-release second opinions.
-argument-hint: [external [<ref> | <from>..<to>]]
+argument-hint: "[external [<ref> | <from>..<to>]]"
 context: fork
 effort: xhigh
 allowed-tools: Bash(*), Read, Grep, Glob, Skill(security), Skill(security *), Skill(codefix)
@@ -40,8 +40,11 @@ You start with an empty context — gather everything you need below.
   files (other than CODEREVIEW.md, SECURITY.md, and the marker file). When findings
   need fixing, delegate to `/codefix` via Step 7. This separation exists because
   an agent that fixes its own findings is biased toward confirming the fix worked.
-- **Finish the run.** This review runs unattended in a fork, and ending your turn
-  ends the review. A full review is finished only when the Output Summary has been
+- **Finish the run.** This review runs unattended in a fork. While `/security`,
+  the built-in review, or `/codefix` is still running, ending your turn is how you
+  wait: each completion resumes you. Ending it at any other point ends the review,
+  and your caller gets an incomplete result. A full review is finished only when
+  the Output Summary has been
   printed after Step 9, an external-only run only after Step E.5, or earlier only
   where a step says to stop (Step 0, Step 2, Steps E.1 to E.3) or is blocked on
   something the user must resolve. Do not end the turn

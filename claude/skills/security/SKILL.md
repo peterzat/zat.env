@@ -5,7 +5,7 @@ description: >-
   Use when the user asks for a security review, vulnerability check, or secret scan.
   Accepts optional scope argument: "changes-only" for proposed changes only, a file
   path to review specific files, or no argument for a full repository audit.
-argument-hint: [changes-only | path/to/file]
+argument-hint: "[changes-only | path/to/file]"
 context: fork
 effort: max
 allowed-tools: Bash(*), Read, Write, Grep, Glob
