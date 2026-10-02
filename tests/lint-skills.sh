@@ -122,6 +122,18 @@ has "${SKILLS}/codereview/SKILL.md" "/security.*SCAN_FILES" \
 has "${SKILLS}/codereview/SKILL.md" "no prior scan" \
   "codereview: upstream-scoped fallback path"
 
+# /security is the longest step and needs only Step 2's scope, so it launches
+# at the end of Step 2 and is collected in Step 5. Launching it after the
+# inline review left it alone on the critical path (median 15.7 of 24 min).
+has "${SKILLS}/codereview/SKILL.md" "launch the Step 5 security scan now, before Step 3" \
+  "codereview: Step 2 launches the security scan before the test run"
+has "${SKILLS}/codereview/SKILL.md" '^\*\*Launch \(end of Step 2\)\.\*\*' \
+  "codereview: Step 5 has a launch phase at the end of Step 2"
+has "${SKILLS}/codereview/SKILL.md" 'If the `/security` completion has not arrived, wait for it' \
+  "codereview: Step 5 collects /security after the inline review"
+has "${SKILLS}/codereview/SKILL.md" "set the report aside and finish Step 4" \
+  "codereview: an early /security report does not shape the inline review"
+
 # Skip for light review
 has "${SKILLS}/codereview/SKILL.md" "Skipped for light review" \
   "codereview: security chain skipped for light review"

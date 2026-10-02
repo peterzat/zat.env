@@ -336,6 +336,8 @@ full-depth review.
 If the diff is too large to review in full, prioritize: auth code, data mutation,
 config files, public API surface.
 
+For a full or refresh review, launch the Step 5 security scan now, before Step 3.
+
 ## Step 3: Run Test Suite (if available)
 
 *Skipped for light review.*
@@ -381,8 +383,10 @@ right change to make) apply.
 
 *Skipped for light review.*
 
-Before invoking `/security`, check whether a recent scan already covers the
-current state:
+`/security` runs as a background fork at `effort: max` and is usually the longest
+part of a review, but it needs only the scope from Step 2. Launch it at the end of
+Step 2, before Step 3, so it runs alongside the test suite, the inline review, and
+the other finders, and collect it here.
 
 The security surface is every changed file except the review-output files and
 plain markdown. Markdown that instructs an agent (`SKILL.md`, `CLAUDE.md`,
@@ -391,6 +395,9 @@ of it. `codereview-marker surface [<ref>]` lists the surface files that differ
 between `<ref>` (default: the review base) and the working tree, so committed,
 staged, and unstaged changes all count. Use it for every file list in this step;
 do not hand-edit its output.
+
+**Launch (end of Step 2).** Check whether a recent scan already covers the
+current state, then invoke `/security` or skip it:
 
 1. Read `SECURITY.md` and extract the `commit` field from `SECURITY_META`.
 2. If the commit field exists and resolves in git, check for code changes since
@@ -408,8 +415,7 @@ do not hand-edit its output.
    - Prior scope is `"paths"` with `scanned_files` in SECURITY_META: skip only
      if every file in `NEEDED` appears in `scanned_files`.
    - Otherwise (`"changes-only"`, or `scanned_files` missing): invoke
-     `/security $NEEDED` to cover the full security surface. Incorporate
-     findings into the final report.
+     `/security $NEEDED` to cover the full security surface.
 
    When skipping, carry forward existing findings, noting:
    "Security: no code changes since last scan (commit abc1234), N BLOCK /
@@ -434,8 +440,15 @@ do not hand-edit its output.
    Treat the output as `SCAN_FILES`.
    Invoke `/security $SCAN_FILES` with the computed file list. This covers
    both committed and uncommitted changes since the last scan without
-   re-scanning files the prior review already covered. Incorporate its
-   findings into the final report.
+   re-scanning files the prior review already covered.
+
+Its completion arrives later as a task notification (Step 7 says how to wait).
+If it arrives before Step 4 is done, set the report aside and finish Step 4
+first, so your own review is not shaped by it.
+
+**Collect (here).** If the `/security` completion has not arrived, wait for it;
+do not poll. Incorporate its findings into the final report, or the
+carried-forward counts when the scan was skipped.
 
 ## Step 5.5: External Reviewers (optional)
 
