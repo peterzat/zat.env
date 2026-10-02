@@ -913,6 +913,13 @@ has "${SKILLS}/security/SKILL.md" "^### Coverage$" \
   "security: SECURITY.md template has a Coverage section"
 has "${SKILLS}/security/SKILL.md" "Git history checked for secrets" \
   "security: Coverage records which files' git history was checked"
+# A path-scoped scan replaces the whole entry, so findings in files outside
+# its scope must be carried, or they vanish from SECURITY.md and from the
+# SECURITY_META counts /codereview and /pr read.
+has "${SKILLS}/security/SKILL.md" "carried from the YYYY-MM-DD scan, not re-checked" \
+  "security: carries prior findings outside the run's scope, marked not re-checked"
+has "${SKILLS}/security/SKILL.md" "Carried findings count toward the SECURITY_META totals" \
+  "security: carried findings count toward SECURITY_META totals"
 for skill in codereview security; do
   has "${SKILLS}/${skill}/SKILL.md" "Report what you find, with your confidence" \
     "${skill}: reports findings with confidence instead of omitting them"

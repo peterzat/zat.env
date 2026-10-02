@@ -40,7 +40,8 @@ Scope argument: `$ARGUMENTS`
 Read these from the project root if they exist. Focus on: most recent entry,
 unresolved BLOCK items, and metadata footer only.
 
-- `SECURITY.md` — your own prior findings and accepted risks. Pay special attention
+- `SECURITY.md` — your own prior findings (Step 4 says which to re-check and
+  which to carry) and accepted risks. Pay special attention
   to the "Accepted Risks" section: any item listed there has been explicitly reviewed
   and approved by the human. Do not re-flag accepted risks as findings.
 - `CODEREVIEW.md` — recent code review findings (may reveal relevant context)
@@ -127,6 +128,19 @@ Format each finding:
   Evidence: [specific code observed — redact any secret values; cite file:line only]
   Remediation: [concrete fix]
 ```
+
+**Prior findings.** Each BLOCK, WARN, or NOTE in the prior entry's Findings
+that is not listed under Accepted Risks is either re-checked or carried:
+- **File in this run's scope:** re-check it in Step 3. Report it again if it is
+  still present; if it is gone, say it is resolved in the Summary.
+- **File outside this run's scope:** carry it into the current findings at its
+  original severity, with `(carried from the YYYY-MM-DD scan, not re-checked)`
+  after the description, keeping the date of the scan that found it. Do not
+  re-verify it. Drop it only if the file no longer exists.
+
+Carried findings count toward the SECURITY_META totals, so a scan of a few files
+never makes open findings elsewhere disappear from SECURITY.md or from the
+counts `/codereview` and `/pr` read.
 
 After the findings, state coverage: each review dimension or file you did not
 fully review, and why (scope limit, size, missing access). A skipped dimension is
