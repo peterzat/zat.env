@@ -582,27 +582,52 @@ invoke `/codefix` to apply fixes. The codefix skill runs in a separate forked
 context: it reads CODEREVIEW.md findings as a spec and applies minimal fixes
 without self-evaluation.
 
+Before each `/codefix` invocation, record the working tree so you can tell
+exactly what codefix changed:
+```bash
+git stash create
+```
+It prints a commit holding the current working tree without changing anything,
+or nothing when the tree matches HEAD; call the printed commit (or `HEAD`)
+`PRE_FIX`.
+
 Codefix completion is delivered by the harness: the Skill invocation either
 returns the result directly or, when the fork runs as a background task, a
 task notification arrives when it finishes. Wait for that delivery and
 do not poll for completion: no `until`/`while` + `sleep` loops, no `pgrep`,
 no watching task-output files. The harness signal always arrives, and a polling
 loop can outlive the review as an orphaned process. The same
-applies to the `/security` invocation in Step 5.
+applies to the `/security` invocation in Step 5 and to the security re-check
+below.
 
-After codefix completes, re-review the changes. This is a refresh review within
-the current context: re-read the modified files, check whether findings are
-resolved, and check for new issues introduced by the fixes. Do NOT invoke
-`/codefix` again without updating CODEREVIEW.md first.
+After codefix completes, re-review its changes and re-check their security:
+
+- **Security re-check.** List the files codefix changed:
+  ```bash
+  codereview-marker surface <PRE_FIX>
+  ```
+  If the list is not empty, invoke `/security post-fix <files>` when Step 5
+  ran a scan in this review (it updates that scan's entry in place), or
+  `/security <files>` when Step 5 skipped the scan. No codefix change reaches
+  the push without a security pass, and SECURITY.md stops listing fixed
+  findings as open. It runs as a background fork; do the re-review and the
+  test run below while it runs, then wait for its completion before deciding
+  on the next cycle.
+- **Re-review.** This is a refresh review within the current context: re-read
+  the modified files, check whether findings are resolved, and check for new
+  issues introduced by the fixes.
+
+Do NOT invoke `/codefix` again without updating CODEREVIEW.md first.
 
 If the test suite exists, re-run it after each codefix pass. Compare pass/fail
 counts against the Step 3 baseline. If tests regressed, the fix cycle fails.
 
-If re-review finds remaining or new BLOCK/WARN findings, update CODEREVIEW.md
-with the new findings before invoking `/codefix` again.
+If the re-review or the security re-check finds remaining or new BLOCK/WARN
+findings, update CODEREVIEW.md with the new findings before invoking `/codefix`
+again.
 
 **Cycle limit: 3.** Each cycle is one CODEREVIEW.md update, one `/codefix`
-invocation, and one re-review. If BLOCKs remain after 3 cycles, or tests
+invocation, one security re-check, and one re-review. If BLOCKs remain after 3 cycles, or tests
 regressed, report remaining issues as "requires manual intervention." Do not
 attempt further fixes.
 

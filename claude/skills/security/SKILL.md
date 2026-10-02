@@ -59,6 +59,12 @@ Parse `$ARGUMENTS`:
   git diff --cached
   ```
 - **File path(s)** — review only the specified files
+- **`post-fix` followed by file paths** — `/codereview` Step 7 re-checking the
+  files `/codefix` just changed. Review only those files. The current SECURITY.md
+  entry was written earlier in the same `/codereview` run, so Step 5 updates it
+  in place (see Post-fix update) and prior findings in other files stay as they
+  are: they were checked earlier in this run, so Step 4's carry rule does not
+  apply to them.
 
 For full repo review: list all source files, excluding `.git/`, `node_modules/`,
 `.venv/`, `__pycache__/`, `vendor/`. Read configuration files first (`.env.example`,
@@ -169,6 +175,16 @@ uncommitted run carried forward. Drop only its `SECURITY_META` footer: the file
 must contain exactly one `SECURITY_META` line, because other skills grep its
 fields file-wide. State the carry-forward in your output so the user knows to
 commit SECURITY.md. The next run after a commit condenses normally.
+
+**Post-fix update.** In `post-fix` scope, do not start a new entry and skip the
+uncommitted-prior-entry check above: the current entry is this review's own, so
+it is uncommitted by design. Update it in place. Findings in the listed files
+that the fix resolved leave the Findings list and are named as resolved in the
+Summary; findings still present stay; new findings in the listed files are
+added. Leave the rest of the entry, the prior-review summary line, and any
+carried-forward block as they are. When the entry's scope is `"paths"`, add the
+listed files to `scanned_files` (sorted, no duplicates). Recompute the counts in
+SECURITY_META.
 
 Set the `scope` field in SECURITY_META to the actual review scope: `"full"`,
 `"changes-only"`, or `"paths"`. For path-scoped runs, include `"scanned_files"`

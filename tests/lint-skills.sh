@@ -134,6 +134,25 @@ has "${SKILLS}/codereview/SKILL.md" 'If the `/security` completion has not arriv
 has "${SKILLS}/codereview/SKILL.md" "set the report aside and finish Step 4" \
   "codereview: an early /security report does not shape the inline review"
 
+# Post-fix security re-check: codefix changes reach the push only after a
+# /security pass on exactly the files codefix changed (PRE_FIX snapshot plus
+# codereview-marker surface), and that pass updates this run's SECURITY.md
+# entry in place instead of tripping the uncommitted-prior-entry guard.
+has "${SKILLS}/codereview/SKILL.md" "^git stash create$" \
+  "codereview: Step 7 snapshots the tree before each codefix pass"
+has "${SKILLS}/codereview/SKILL.md" "codereview-marker surface <PRE_FIX>" \
+  "codereview: Step 7 lists the files codefix changed"
+has "${SKILLS}/codereview/SKILL.md" 'invoke `/security post-fix <files>`' \
+  "codereview: Step 7 re-checks codefix changes with /security post-fix"
+has "${SKILLS}/codereview/SKILL.md" "one security re-check, and one re-review" \
+  "codereview: each fix cycle includes a security re-check"
+has "${SKILLS}/security/SKILL.md" '\*\*`post-fix` followed by file paths\*\*' \
+  "security: accepts post-fix scope"
+has "${SKILLS}/security/SKILL.md" "^\*\*Post-fix update\.\*\*" \
+  "security: post-fix updates this run's entry in place"
+has "${SKILLS}/security/SKILL.md" "uncommitted-prior-entry check above" \
+  "security: post-fix skips the uncommitted-prior-entry guard for its own entry"
+
 # Skip for light review
 has "${SKILLS}/codereview/SKILL.md" "Skipped for light review" \
   "codereview: security chain skipped for light review"

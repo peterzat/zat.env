@@ -295,7 +295,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 5. Reviews for correctness, code quality, solution approach, spaghetti detection (mixed concerns in one commit), regression risk, and spec alignment (if SPEC.md exists)
 6. Collects `/security`'s findings, runs optional external reviewers (OpenAI, Google, local GPU) via `review-external.sh` if configured (findings tagged with provider name), and collects the built-in review's findings, tagged `(claude-code)`
 7. Classifies every finding as BLOCK / WARN / NOTE with evidence citations
-8. Delegates BLOCK/WARN fixes to `/codefix`, a separate skill that runs in its own forked context (builder/verifier separation, up to 3 fix/re-review cycles)
+8. Delegates BLOCK/WARN fixes to `/codefix`, a separate skill that runs in its own forked context (builder/verifier separation, up to 3 fix/re-review cycles). After each pass it re-reviews the changes and runs `/security` on exactly the files codefix changed, so no fix reaches the push without a security pass and SECURITY.md stops listing fixed findings as open
 9. Re-runs tests after each fix cycle; stops if tests regress
 10. Writes a content-addressed marker file so the pre-push hook allows the next `git push`
 11. Updates `CODEREVIEW.md` with a dated entry and structured metadata footer
@@ -318,7 +318,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Trigger:** Manual invocation, or chained automatically from `/codereview`.
 
-**Scope:** Controlled via arguments. `/security` reviews the full repo. `/security changes-only` focuses on the current diff. `/security path/to/file` reviews a specific file.
+**Scope:** Controlled via arguments. `/security` reviews the full repo. `/security changes-only` focuses on the current diff. `/security path/to/file` reviews a specific file. `/codereview` also uses `/security post-fix <files>` after a `/codefix` pass, which re-checks the changed files and updates the entry the same review wrote earlier.
 
 **What it does:**
 1. Reads prior security state from SECURITY.md, CODEREVIEW.md, and SPEC.md (scoped reads)
