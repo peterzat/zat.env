@@ -615,9 +615,10 @@ After codefix completes, re-review its changes and re-check their security:
   ```bash
   codereview-marker surface <PRE_FIX>
   ```
-  If the list is not empty, invoke `/security post-fix <files>` when Step 5
-  ran a scan in this review (it updates that scan's entry in place), or
-  `/security <files>` when Step 5 skipped the scan. No codefix change reaches
+  If the list is not empty, invoke `/security post-fix <files>` when this
+  review has already written a SECURITY.md entry (Step 5 scanned, or an
+  earlier cycle's re-check ran; it updates that entry in place), or
+  `/security <files>` when it has not. No codefix change reaches
   the push without a security pass, and SECURITY.md stops listing fixed
   findings as open. It runs as a background fork; do the re-review and the
   test run below while it runs, then wait for its completion before deciding

@@ -280,6 +280,50 @@ else
 fi
 teardown_test_repo
 
+# More than a pipe buffer of uncommitted names must still block (exit 2);
+# a writer cut off by SIGPIPE would exit 141, which Claude Code treats as a
+# non-blocking error.
+setup_test_repo
+mkdir -p "${TEST_REPO}/many"
+for i in $(seq 1 2500); do
+  echo "a" > "${TEST_REPO}/many/file-with-a-long-name-to-fill-the-pipe-buffer-${i}.txt"
+done
+git -C "${TEST_REPO}" add many
+git -C "${TEST_REPO}" commit -q -m "many files"
+for i in $(seq 1 2500); do
+  echo "b" > "${TEST_REPO}/many/file-with-a-long-name-to-fill-the-pipe-buffer-${i}.txt"
+done
+EXPECTED=$(cd "${TEST_REPO}" && git diff origin/main -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | sha256sum | cut -c1-16)
+echo "${EXPECTED}" > "${TEST_MARKER}"
+ec=0
+out=$(invoke_in_test_repo "git push" 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]] && [[ "${out}" == *"Commit them"* ]]; then
+  pass "uncommitted-fix: over 64 KB of uncommitted names still blocks"
+else
+  fail "uncommitted-fix: large uncommitted list expected exit 2 with message, got ${ec}"
+fi
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Dispatch: commits reverted only in the working tree → block"
+# ============================================================
+# The working tree matches the base ("nothing to review"), but the commits
+# being pushed do not.
+
+setup_test_repo
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed change"
+git -C "${TEST_REPO}" checkout -q origin/main -- file.txt
+ec=0
+out=$(invoke_in_test_repo "git push" 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]] && [[ "${out}" == *"file.txt"* ]]; then
+  pass "revert-in-worktree: exit code 2 (block), names file.txt"
+else
+  fail "revert-in-worktree: expected exit 2 naming file.txt, got ${ec}"
+fi
+teardown_test_repo
+
 # ============================================================
 echo ""
 echo "==> Dispatch: real repo, diff exists, marker stale → block"

@@ -86,11 +86,15 @@ EOF
   exit 1
 }
 
+# Every subcommand runs from the top level, so the EXCLUDES pathspecs (which
+# git resolves relative to the current directory) name the root review files.
 require_git() {
-  git rev-parse --show-toplevel >/dev/null 2>&1 || {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || {
     echo "codereview-marker: not in a git repository" >&2
     exit 1
   }
+  cd "${top}"
 }
 
 proj_hash() {

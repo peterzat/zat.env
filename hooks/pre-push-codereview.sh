@@ -248,6 +248,25 @@ fi
 HASH_EC=0
 DIFF_HASH=$(codereview-marker hash) || HASH_EC=$?
 if [[ "${HASH_EC}" -eq 2 ]]; then
+  # The working tree matches the base, but a push sends commits: committed
+  # changes reverted only in the working tree would go out unreviewed.
+  # Allow only when the commits match the working tree too.
+  if ! UNCOMMITTED=$(codereview-marker uncommitted 2>/dev/null); then
+    echo "Pre-push gate: codereview-marker uncommitted failed." >&2
+    echo "Refusing to push. Investigate, then retry." >&2
+    exit 2
+  fi
+  if [[ -n "${UNCOMMITTED}" ]]; then
+    {
+      echo "Pre-push gate: the working tree has nothing to review, but the commits"
+      echo "being pushed differ from it in these files:"
+      printf '%s\n' "${UNCOMMITTED}" | sed -n '1,20s/^/  /p'
+      echo ""
+      echo "Commit or discard the working-tree changes so the commits match what"
+      echo "you intend to push, then run /codereview and retry."
+    } >&2
+    exit 2
+  fi
   echo "Pre-push gate: nothing to review. Allowed." >&2
   exit 0
 fi
@@ -275,7 +294,7 @@ if [[ -f "${MARKER}" ]]; then
       {
         echo "Pre-push gate: /codereview passed, but these reviewed changes are not"
         echo "committed, so the push would send the commits without them:"
-        printf '%s\n' "${UNCOMMITTED}" | head -20 | sed 's/^/  /'
+        printf '%s\n' "${UNCOMMITTED}" | sed -n '1,20s/^/  /p'
         echo ""
         echo "Commit them, then retry the push; the review covers them, so the"
         echo "marker stays valid. If they should not ship, stash them and run"

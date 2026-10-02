@@ -434,6 +434,17 @@ echo "x" > first.sh; git add first.sh
 out=$("${SCRIPT}" uncommitted) ; ec=$?
 if [[ "${ec}" -eq 0 ]] && [[ "${out}" == "first.sh" ]]; then pass "uncommitted: unborn branch lists staged files"; else fail "uncommitted: unborn branch expected 'first.sh', got ${ec} '${out}'"; fi
 
+# From a subdirectory, the review output files at the root stay excluded and
+# the hash matches the one computed at the root.
+cd "${G_LOCAL}" || exit 1
+mkdir -p sub
+root_hash=$("${SCRIPT}" hash)
+cd sub || exit 1
+out=$("${SCRIPT}" uncommitted)
+if printf '%s\n' "${out}" | grep -qxF "CODEREVIEW.md"; then fail "uncommitted: subdirectory lists root CODEREVIEW.md"; else pass "uncommitted: subdirectory omits root CODEREVIEW.md"; fi
+sub_hash=$("${SCRIPT}" hash)
+if [[ -n "${root_hash}" ]] && [[ "${sub_hash}" == "${root_hash}" ]]; then pass "hash: subdirectory matches root"; else fail "hash: subdirectory '${sub_hash}' differs from root '${root_hash}'"; fi
+
 # Restore original cwd before exit so trap cleanup of WORK_DIR is safe.
 cd "${START_DIR}" || exit 1
 
