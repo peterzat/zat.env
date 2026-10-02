@@ -245,7 +245,7 @@ Beyond content-level instructions, skills use Claude Code's `effort` frontmatter
 
 **Persona:** Principal Product Manager.
 
-**Trigger:** Manual only (`/spec`). Not auto-invoked.
+**Trigger:** Manual (`/spec`). Runs inline in the current conversation, so interview mode can ask its questions and take the answers. The model may also run it, for example when the plan-mode hook suggests `/spec plan`.
 
 **What it does:**
 
