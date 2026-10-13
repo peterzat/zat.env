@@ -1,93 +1,49 @@
 ## Security Review — 2026-10-13 (scope: paths)
 
-**Summary:** Path-scoped scan of the 11 security-surface files changed since c03a14c, at HEAD
-6c9741a (the Windows 11 port, plus the a631978 fixes the prior post-fix re-check covered),
-with a post-fix re-check of the four files /codefix then changed (uncommitted): 0 BLOCK /
-8 WARN / 15 NOTE, and no secrets. New findings: one WARN, because the gate's hook entries
-keep Claude Code's default of running the push when the hook times out or crashes. On
-Windows, a 128-byte band of command lengths (a here-string deadlock) reached that path at
-HEAD, and so does a ~125 MB first push. There are also three new NOTEs: an awk command sink
-in the no-bc cost path, `git.exe push` passing the gate on Windows, and `-diff` attributes
-hiding hunks from the reviewed diff. 6c9741a resolves the jq fail-open NOTE. The other prior
-findings in these files are still present, and four in out-of-scope files are carried.
-Post-fix: the fix resolves the here-string hang (the hook now blocks across the band in
-about 5 s), and a repo path with spaces no longer stops the gate from starting. No finding
-is fully resolved: the `onFailure` WARN stays open, and the fix adds one NOTE, because its
-pipe read makes a command of 400 to 500 KB outlast the 30 s timeout.
+**Summary:** Path-scoped scan, at HEAD 0ccfae7 on the Linux box, of the five security-surface
+files changed since the 6c9741a scan: b065794 (the /codefix changes that scan's post-fix
+re-check reviewed before they were committed) and 0ccfae7 (a global gitignore rule for Claude
+Code's `.claude/settings.local.json`). 0 BLOCK / 8 WARN / 16 NOTE, and no secrets. Neither
+commit adds a finding. b065794 matches what the re-check reviewed and passes the hook, marker,
+and lint suites on Linux. The ignore rule touches only untracked files, which the gate neither
+hashes nor pushes. Every in-scope finding is still present, and the push-gate findings were
+reproduced again on Linux. Two entries changed. The tokenizer NOTE is restated: on Linux the
+cost is `_normalize_ops` (quadratic in bash 5.1, and run three times per hook call), not the
+read form, and the hook passes its 30 s timeout at about 400 to 720 KB. A pre-existing NOTE is
+listed here for the first time: the installer rewrites settings.json at the process umask.
+Eleven findings in out-of-scope files are carried.
 
 ### Findings
 
 ```
 [WARN] zat.env-install.sh:320-337 — the two pre-push gate entries set no `onFailure`, and by
-default Claude Code runs the tool call when a command hook times out, crashes, or cannot
-start. On Windows the hook nears its 30 s timeout on a large first push and, with the
-uncommitted /codefix change, on a command of 400 to 500 KB, so a push the gate recognizes
-goes out unreviewed. (New. The default predates 6c9741a; the Windows triggers arrive with
-it. Re-checked after /codefix: the here-string hang this WARN cited is fixed, and
-`onFailure` is still unset.)
-  Attack vector: no adversary is needed. The hook's fail-closed paths (exit 2 when
-    codereview-marker breaks, and since 6c9741a when jq cannot read the payload) hold only
-    while the script runs to completion. Three things skip them. (1) A long command, such
-    as a heredoc that writes a file followed by a commit and a push in one Bash call. At
-    HEAD, a length after _normalize_ops of 65,536 to 65,663 bytes hangs the `read -ra`
-    here-string (hooks/pre-push-codereview.sh:89, 142) on Git Bash. The fix closes that
-    band, but its pipe read now passes 30 s between 400 and 500 KB (NOTE below).
-    (2) On Windows, a first push (empty-tree base), or a branch that adds about 125 MB of
-    text, keeps `codereview-marker hash` running up to the timeout. (3) On any platform, a
-    moved or renamed zat.env checkout or a hook that cannot start exits with a code other
-    than 0 or 2, which is non-blocking. The fix quotes the script path in the stored
-    commands (lines 320, 341, 359), which closes the space-in-path case. A `$` or
-    backtick in the path still breaks the command, as before. The hooks reference ("Block
-    the action when a hook fails") says a timed-out command hook "doesn't block the tool
-    call ... so don't count on a stalled hook to act as a gate", and "a policy hook with a
-    wrong path or a crashing script lets everything through". The accepted "detection is
-    heuristic" risk covers pushes the hook does not recognize; it recognizes these.
-  Evidence: on this host (Git Bash 5.3.15, Claude Code 2.1.296), the hook was run directly
-    with a scratch XDG_CACHE_HOME against a scratch repo holding an unreviewed commit. At
-    HEAD, normalized commands of 65,535 or 65,664 bytes exited 2 in 3 to 5 s, and 65,536,
-    65,600, and 65,663 bytes were still running at a 40 s cap (exit 124). With the fix the
-    same three exited 2 in 4.9 to 5.0 s. A 125 MB first push took 29.8 s through the hook
-    (26.4 s in `codereview-marker hash`), and 50 MB took 14.0 s. From a zat.env copy at a
-    path with spaces, with HOME in the scratchpad, HEAD's installer stored a command that
-    exited 127 under `bash -c` and `sh -c`. The fixed installer replaced both gate entries
-    (no duplicates) with a command that exited 2. The live ~/.claude/settings.json keeps
-    the unquoted commands until the installer is re-run. The docs quotes are from
-    code.claude.com/docs/en/hooks.md, fetched 2026-10-13; the cancellation itself was not
-    observed live. tests/test-pre-push-hook.sh has no long command, and lint pins neither
-    the read form nor `onFailure`. Confidence: high on the mechanisms and the documented
-    behavior, low on how often a command or a diff is that large.
-  Remediation: add `"onFailure": "block"` to both entries (Claude Code 2.1.295 or later)
-    and pin it in lint, so a cancelled or crashed gate refuses the push. Raise the timeout
-    (for example to 120 s) so a large first push is not refused once failure blocks.
-    Tokenize in-process (NOTE below) and add a 65,600-byte test.
-    bin/spec-backlog-apply.sh:109 uses the same here-string form (out of scope; a hang
-    there is functional only).
-
-[NOTE] hooks/pre-push-codereview.sh:89, 142 — the uncommitted /codefix change reads the
-normalized command from a process substitution, and bash's `read` takes a pipe one byte per
-read() call. On Git Bash the hook therefore takes nearly twice as long on a long command and
-passes the 30 s timeout between 400 and 500 KB, where HEAD stayed under it to at least
-700 KB. With no `onFailure` (WARN above), that push runs unreviewed. (New in the fix.)
-  Attack vector: no adversary. One Bash call above that size that writes a file with a
-    heredoc and then commits and pushes. At HEAD the same command blocks in time,
-    consistent with bash reading a here-string too large for a pipe from a temp file in
-    buffered chunks. The fix trades the 128-byte hang band for this open-ended range.
-    A command that size is over 100k tokens in one tool call, so it is rare.
-  Evidence: run end to end as in the WARN with heredoc commands of 120, 250, 400, 500, and
-    700 KB. HEAD took 6.0, 9.8, 14.8, 19.3, and 25.6 s; the fix took 9.1, 18.3, 26.8,
-    34.5, and 47.0 s. Every run exited 2. A single read of a 1 MB line took 15.7 to 16.4 s
-    through the pipe and 5.6 to 5.7 s through HEAD's here-string. Not measured on Linux,
-    where a read() costs far less. Confidence: high on the mechanism, low on reachability.
-  Remediation: split in-process with globbing off, `set -f; t=( $(_normalize_ops "$1") );
-    set +f`, and the same for `toks` at line 142. Command substitution reads its pipe in
-    chunks, and the writer is a separate process, so it cannot deadlock. In this
-    re-check, that variant produced the same arrays and blocked the band in 2.7 to 2.9 s,
-    500 KB in 10.1 s, and 1 MB in 22.8 s. It also passed tests/test-pre-push-hook.sh 79/79.
-    Add 65,600-byte and 500 KB cases to the hook tests.
+default Claude Code runs the tool call when a command hook cannot start, exits with a code
+other than 0 or 2, or times out. Re-checked at 0ccfae7 on Linux: still present.
+  Attack vector: no adversary is needed. The hook refuses with exit 2, and a refusal holds
+    only while the hook runs to completion. On Linux three things skip it. A moved or renamed
+    zat.env checkout leaves the stored command pointing at a missing script (exit 127) until
+    the installer is re-run. An unreadable marker file makes `cat` at
+    hooks/pre-push-codereview.sh:297 fail under `set -e` (exit 1). A command of about 400 to
+    720 KB keeps the tokenizer past the 30 s timeout (NOTE below). On Windows the 6c9741a scan
+    measured a 125 MB first push at 29.8 s and the tokenizer passing 30 s at 400 to 500 KB. A
+    `$` or backtick in the checkout path also breaks the stored command. The hook recognizes
+    each of these pushes, so the accepted "detection is heuristic" risk does not cover them.
+  Evidence: the Claude Code 2.1.296 binary on this host defines the field for a hook that
+    "could not start ..., timed out, exited with a code other than 0 or 2": "'continue'
+    (default): the failure is reported and the action goes ahead. 'block': the failure counts
+    as exit code 2". The live ~/.claude/settings.json here carries b065794's quoted commands
+    and no `onFailure`. Against a scratch repo with an unreviewed commit, the hook exited 2
+    with no marker and with a stale readable marker, and exited 1 with the stale marker at mode
+    000 ("cat: ... Permission denied"). Invoking a missing hook path exited 127. Lint does not
+    pin `onFailure`. The cancellation itself was not observed live. Confidence: high on the
+    mechanism and the default, low on how often each trigger occurs.
+  Remediation: add `"onFailure": "block"` to both entries (Claude Code 2.1.295 or later) and
+    pin it in lint, so a missing, crashed, or timed-out gate refuses the push. Then raise the
+    timeout (for example to 120 s) so a slow but healthy run is not refused.
 
 [WARN] hooks/pre-push-codereview.sh:263-327 — the gate hashes the checked-out branch against
 its upstream and allows the push on a match, or on "nothing to review", whatever refs the push
-command names. Re-checked at 6c9741a: still present.
+command names. Re-checked at 0ccfae7 on Linux: still present.
   Attack vector: an agent pushes a ref other than the checked-out branch, such as
     `git push origin <other>`, `git push origin <other>:main`, or `git push --all origin`.
     With a valid marker on the current branch, or a current branch equal to its upstream,
@@ -95,79 +51,61 @@ command names. Re-checked at 6c9741a: still present.
     hook recognizes the push and checks the wrong content, so the accepted "detection is
     heuristic" risk does not cover this. It is the same-repo sibling of BACKLOG.md
     push-gate-pushed-repo.
-  Evidence: re-run at 6c9741a in a scratch repo (isolated XDG_CACHE_HOME, synthetic hook
-    input): with `codereview-marker write` run on main and an unreviewed commit on `evil`,
-    `git push origin evil` and `git push origin evil:main` both exited 0. The 2026-10-02
-    scan also reproduced `--all` and the equal-to-upstream case. tests/test-pre-push-hook.sh
-    has no case whose refspec names another branch. Confidence: high on the mechanism,
-    medium on how often agents push a non-current ref.
+  Evidence: in a scratch repo (scratch XDG_CACHE_HOME, synthetic hook input), with
+    `codereview-marker write` run on main and an unreviewed commit on `evil`,
+    `git push origin evil`, `git push origin evil:main`, and `git push --all origin` each
+    exited 0. tests/test-pre-push-hook.sh has no case whose refspec names another branch.
+    Confidence: high on the mechanism, medium on how often agents push a non-current ref.
   Remediation: gate any push whose refspec sources are not the current branch, HEAD, or a
-    tag; the per-push positional walk in is_tag_only_push (lines 152-168) already
-    isolates them. Block `--all`, `--mirror`, and `--branches` the same way. A git-native
-    pre-push hook (core.hooksPath), which receives the exact local and remote refs on
-    stdin, would close this, the compound-command WARN below, and push-gate-pushed-repo.
+    tag; the per-push positional walk in is_tag_only_push (lines 152-168) already isolates
+    them. Block `--all`, `--mirror`, and `--branches` the same way. A git-native pre-push hook
+    (core.hooksPath), which receives the exact local and remote refs on stdin, would close
+    this, the compound-command WARN below, and push-gate-pushed-repo.
 
 [WARN] hooks/pre-push-codereview.sh:263-327 — the hook judges the repository as it is before
 the command runs, so commits that the same command creates or imports ahead of its push are
-sent on the strength of the earlier state. Re-checked at 6c9741a: still present.
-  Attack vector: on a branch equal to its upstream with a clean tree, or one whose
-    committed state carries a valid marker, an agent runs `git merge <branch> && git push`,
+sent on the strength of the earlier state. Re-checked at 0ccfae7 on Linux: still present.
+  Attack vector: on a branch equal to its upstream with a clean tree, or one whose committed
+    state carries a valid marker, an agent runs `git merge <branch> && git push`,
     `git cherry-pick <sha> && git push`, or an edit, commit, and push in one call. The hook
-    finds nothing to review, or a matching marker and nothing uncommitted, and exits 0;
-    the commits the command then makes are pushed unreviewed. The hook recognizes the
-    push, so the accepted risk does not cover this.
-  Evidence: re-run at 6c9741a in a scratch repo: on main equal to origin/main, with an
-    unreviewed commit on `feat`, `git merge --no-edit feat && git push` exited 0 ("no
-    reviewable changes vs origin/main"). No test puts a history-changing command before
-    the push. Confidence: high on the mechanism, medium on frequency.
+    finds nothing to review, or a matching marker and nothing uncommitted, and exits 0; the
+    commits the command then makes are pushed unreviewed. The hook recognizes the push, so
+    the accepted risk does not cover this.
+  Evidence: in a scratch repo on main equal to origin/main, with an unreviewed commit on
+    `feat`, `git merge --no-edit feat && git push` exited 0 ("Pre-push gate: nothing to
+    review. Allowed."). No test puts a history-changing command before the push.
+    Confidence: high on the mechanism, medium on frequency.
   Remediation: block any command in which another statement comes before a `git push`
     (ignoring a leading `(`, `{`, or `!`), and tell the agent to run the other statements
     first and `git push` as its own Bash call; the token indices from
     _push_subcommand_indices (lines 86-118) show what comes first. This also stops
     `cd <other> && git push`. A git-native pre-push hook would close it outright.
 
-[WARN] bin/codereview-marker:156, 167, 173, 177 — `list_surface`, `list_uncommitted`, and
-`compute_hash` call `git diff` without `--ignore-submodules`, so when a submodule has
-`ignore = all` (in .gitmodules, or `diff.ignoreSubmodules=all` in any git config), its pointer
-changes are left out of the marker hash, the uncommitted check, the security surface, and the
-review diff (claude/skills/codereview/SKILL.md:238, 471). Re-checked at 6c9741a: still present.
-  Attack vector: in a project with a submodule, a commit moves the pointer to an older,
-    vulnerable release or an unreviewed upstream commit. With `ignore = all` already in
-    .gitmodules, `hash` exits 2 and the hook prints "nothing to review. Allowed."; without
-    it, the same commit can add `ignore = all`, and every reviewer sees only that line
-    while `codereview-marker write` produces a marker the hook accepts.
-  Evidence: the four calls are unchanged since the a631978 fixes, against which the
-    2026-10-02 post-fix re-check reproduced both cases (git 2.34.1, scratch repos). Not
-    re-run here. Confidence: high on the mechanism, low on how often it is reached.
-  Remediation: pass `--ignore-submodules=dirty` to every `git diff` in the script (the
-    hash of a repo without submodules is unchanged), add it to the review diffs in
-    SKILL.md Steps 2, 5.5, E.3, and E.4 (or add a `codereview-marker diff` subcommand),
-    update the lint pins that match those commands, and add an `ignore = all` test.
-
 [WARN] claude/skills/codereview/SKILL.md:269-277 — the light tier treats `.txt` and
 `.gitconfig` files as plain documentation, so a diff limited to them skips /security, the
-tests, the external reviewers, and the built-in review, and still gets a marker. Re-checked
-at 6c9741a: text unchanged.
+tests, the external reviewers, and the built-in review, and still gets a marker. Re-checked at
+0ccfae7: text unchanged.
   Attack vector: gitconfig/aliases.gitconfig is live configuration. zat.env-install.sh:78-82
     adds it to ~/.gitconfig through include.path, and it can set `core.fsmonitor`,
     `core.pager`, `core.sshCommand`, or a `!` alias, each of which runs a command during
-    ordinary git use. Downstream, `requirements*.txt` (pip accepts `--index-url` and
-    direct URL requirements) and `CMakeLists.txt` share the extension. Such a change is
-    reviewed only for "broken links/references, accidental secret leaks in prose, and
-    factual accuracy" (lines 283-284), while `.json`, `.yaml`, and `.toml` get the full
-    tier because they are operationally live (lines 271-272).
+    ordinary git use. Downstream, `requirements*.txt` (pip accepts `--index-url` and direct
+    URL requirements) and `CMakeLists.txt` share the extension. Such a change is reviewed
+    only for "broken links/references, accidental secret leaks in prose, and factual
+    accuracy" (lines 283-284), while `.json`, `.yaml`, and `.toml` get the full tier because
+    they are operationally live (lines 271-272).
   Evidence: lines 269-277 are unchanged, and `codereview-marker surface` lists both
-    extensions (bin/codereview-marker:133-135), so the gap is in the tier rule. The
-    2026-10-02 scan ran a `core.fsmonitor` set through an included file on `git status`.
-    Confidence: high on the mechanism.
+    extensions (bin/codereview-marker:133-135), so the gap is in the tier rule. This run's
+    own diff (gitconfig/ignore-global, a gitignore file that cannot run anything) took the
+    full tier only because it has no extension. The 2026-10-02 scan ran a `core.fsmonitor`
+    set through an included file on `git status`. Confidence: high on the mechanism.
   Remediation: drop `.txt` and `.gitconfig` from the light tier (or keep only `.gitignore`
-    and prose `.txt` that is neither a dependency manifest nor a build file), and update
-    the lint pin at tests/lint-skills.sh:420.
+    and prose `.txt` that is neither a dependency manifest nor a build file), and update the
+    lint pin at tests/lint-skills.sh:420.
 
 [WARN] claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425, 555-561 — review state
 that the reviewed commits can change decides how deeply those commits are reviewed, and the
 changes never appear in the reviewed diff (same trust in claude/skills/security/SKILL.md:43-46
-and claude/skills/pr/SKILL.md:184-191, not re-checked). Re-checked at 6c9741a: unchanged.
+and claude/skills/pr/SKILL.md:184-191, not re-checked). Re-checked at 0ccfae7: unchanged.
   Attack vector: commits the operator did not author (a contributor branch merged or
     checked out locally, a cherry-picked patch) edit CODEREVIEW.md and SECURITY.md beside
     the code. A REVIEW_META with block 0, the right base, and reviewed_up_to at the code
@@ -187,10 +125,28 @@ and claude/skills/pr/SKILL.md:184-191, not re-checked). Re-checked at 6c9741a: u
     META and Accepted Risks from `git show "$(codereview-marker base):<file>"`, and do not
     honor Accepted Risks added in the range until the user confirms them.
 
+[WARN] bin/codereview-marker:156, 167, 173, 177 — `list_surface`, `list_uncommitted`, and
+`compute_hash` call `git diff` without `--ignore-submodules`, so when a submodule has
+`ignore = all` (in .gitmodules, or `diff.ignoreSubmodules=all` in any git config), its pointer
+changes are left out of the marker hash, the uncommitted check, the security surface, and the
+review diff (claude/skills/codereview/SKILL.md:238, 471) (carried from the 2026-10-02 scan,
+not re-checked).
+  Attack vector: in a project with a submodule, a commit moves the pointer to an older,
+    vulnerable release or an unreviewed upstream commit. With `ignore = all` already in
+    .gitmodules, `hash` exits 2 and the hook prints "nothing to review. Allowed."; without
+    it, the same commit can add `ignore = all`, and every reviewer sees only that line
+    while `codereview-marker write` produces a marker the hook accepts.
+  Evidence: as recorded on 2026-10-02 (both cases reproduced in scratch repos, git 2.34.1)
+    and re-read at 6c9741a. bin/codereview-marker is unchanged since 6c9741a.
+  Remediation: pass `--ignore-submodules=dirty` to every `git diff` in the script (the
+    hash of a repo without submodules is unchanged), add it to the review diffs in
+    SKILL.md Steps 2, 5.5, E.3, and E.4 (or add a `codereview-marker diff` subcommand),
+    update the lint pins that match those commands, and add an `ignore = all` test.
+
 [WARN] claude/global-claude.md:108 — the convention loaded into every session binds every
 service to 0.0.0.0. That is safe only behind a host firewall that sees the service's traffic,
-which Docker-published ports bypass and which the documented setup path never enables.
-Re-checked at 6c9741a: still present (moved from line 104), and it now loads on Windows too.
+which Docker-published ports bypass and which the documented setup path never enables
+(carried from the 2026-10-02 scan, not re-checked).
   Attack vector: an agent follows this line and claude/references/networking.md:14 to
     start a container for a dev UI or model server (Jupyter, Gradio, an OpenAI-compatible
     server). Docker publishes the port through its own NAT and FORWARD rules ahead of UFW,
@@ -199,10 +155,9 @@ Re-checked at 6c9741a: still present (moved from line 104), and it now loads on 
     the rule also reaches Windows sessions, and claude/references/windows.md tells them
     that networking.md, the only place the firewall premise is written down, describes
     the Linux GPU box.
-  Evidence: the rule is unchanged. The 2026-10-02 scan found a public /32 on the Linux box
-    with ufw and docker active and no `"iptables": false`; its rules are root-only and
-    were not read. Windows Defender Firewall rules on this host were not inspected.
-    Confidence: high on the Docker and UFW mechanism, medium on exposure at a given time.
+  Evidence: as recorded on 2026-10-02 (a public /32 on the Linux box with ufw and docker
+    active and no `"iptables": false`; its rules are root-only and were not read) and
+    re-read at 6c9741a. global-claude.md is unchanged since 6c9741a.
   Remediation: bind to the Tailscale address rather than all interfaces (`--host
     "$(tailscale ip -4)"`, `-p "$(tailscale ip -4):PORT:PORT"`), or 127.0.0.1 plus
     `tailscale serve`. If 0.0.0.0 stays, add DOCKER-USER rules that drop forwarded traffic
@@ -224,39 +179,62 @@ gate never compares with local HEAD (carried from the 2026-10-02 scan, not re-ch
     ':!SPEC.md'`), stop unless the remote PR head equals local HEAD, and pass
     `--match-head-commit` where gh supports it.
 
-[NOTE] bin/review-external.sh:276-278 — without bc, `_calc` splices the cost expression into
-awk program text, and awk's `system()` runs commands, so a non-integer operand would execute
-as the user; `_count` is the only guard. (New in 6c9741a.)
-  Attack vector: none at HEAD. Lines 357-359 and 464-466 pass all six token counts through
-    `_count` before `_calc` sees them (lines 375, 478). If a later edit hands `_calc` a raw
-    value, a provider response with `"input_tokens":"system(\"cmd\")"` runs cmd on every
-    host without bc, which includes every Git Bash install. Before 6c9741a such a host
-    printed "?" and evaluated nothing, and bc's worst case is a loop. Only the provider,
-    or someone who can tamper with its TLS connection, controls that field.
-  Evidence: `_calc` and `_count` extracted from HEAD and run in the scratchpad: an operand
-    of `system("echo SINK-RAN > ran.txt")` wrote the file, and `_count` maps the same
-    string to 0. bc is absent on this host, so the awk branch is the one that runs. The
-    hostile-value test (tests/test-review-external.sh:883-892) puts a non-integer only in
-    OpenAI input_tokens, so dropping `_count` from any of the other five counts would pass
-    the suite. The `_count` comment (line 282) still names only bc. Confidence: high on
-    the mechanism.
-  Remediation: keep the awk program fixed and pass the numbers with `-v`, or have `_calc`
-    print "?" for any expression that is not digits, dots, spaces, parentheses, and
-    `*/+`. Extend the hostile-value test to every count, once with bc removed from PATH.
+[NOTE] hooks/pre-push-codereview.sh:63-73, 89, 142 — the hook's tokenizing time grows with
+the square of the command's length, so a long command passes the 30 s timeout, and without
+`onFailure` (WARN above) the push then runs. Re-checked at 0ccfae7 on Linux, which corrects
+the cause the 6c9741a entry gave: the process-substitution read from b065794 is not the
+Linux cost. `_normalize_ops` pads operators with six bash pattern substitutions, each
+quadratic in bash 5.1, and the hook runs it three times (once in is_git_push, twice in
+is_tag_only_push).
+  Attack vector: no adversary. One Bash call that writes a large file with a heredoc and
+    then commits and pushes. A command that size is well over 100k tokens in one tool call,
+    so it is rare.
+  Evidence: end to end against a scratch repo with an unreviewed commit, using shell-like
+    text with one operator character per ~13 bytes: 65.6 KB took 0.45 s, 250 KB 4.2 s,
+    500 KB 14.7 s, 650 KB 24.6 s, 750 KB 32.0 s, 1 MB 62.3 s, and 4 MB was still running at
+    a 120 s cap. Every run that finished exited 2. 6c9741a's here-string and the in-process
+    split the 6c9741a entry proposed took 15.6 and 14.4 s at 500 KB and 57.2 and 55.6 s at
+    1 MB, the same as HEAD. Profiled: one `_normalize_ops` call took 0.29, 1.12, and 4.4 s
+    at 125, 250, and 500 KB, and the read took 30 to 139 ms. Denser text is slower: with
+    one operator per ~4.5 bytes, one call took 14.3 s at 500 KB, so the hook passes 30 s
+    near 400 KB. On Git Bash the 6c9741a re-check measured the same code at 34.5 s for
+    500 KB. No hook test uses a long command. Confidence: high on the mechanism, low on
+    reachability.
+  Remediation: normalize once in main and pass the tokens to both functions, and pad the
+    operators in one linear pass, for example `tr '\n' ';' | sed 's/[;|&()]/ & /g'`, which
+    produced identical tokens in 19 ms at 500 KB. Or refuse (exit 2) any recognized push
+    whose command exceeds a fixed size, telling the agent to push in its own Bash call. Add
+    65,600-byte and 500 KB cases to tests/test-pre-push-hook.sh.
+
+[NOTE] zat.env-install.sh:200, 208 — every settings.json write creates a new file at the
+process umask and moves it into place (also lines 262, 271, 280, 302, 337, 354, 372), so a
+settings.json the user restricted to 0600 comes back 0644 or 0664 on each run. (Pre-existing;
+carried in CODEREVIEW.md since 2026-10-01 and listed here for the first time.)
+  Attack vector: settings.json can hold secrets in its `env` block, and its hooks run as the
+    user. Where another account can traverse the home directory (macOS creates
+    /Users/<name> as 0755), that account can read the file after a re-run; with umask 0002
+    and a primary group shared with other accounts, it can also edit the hooks. Not
+    reachable on this host: the home directory is 0750, and group peter has no other
+    members. The installer itself writes no secret there.
+  Evidence: ~/.claude/settings.json here is 0664 (umask 0002) after today's install. In the
+    scratchpad, a 0600 file rewritten with the installer's `jq ... > tmp && mv` pattern
+    came back 0664. Whether Claude Code's own settings writes keep the mode was not
+    checked. Confidence: high on the mechanism, low on reachability.
+  Remediation: `umask 077` at the top of the installer (which also closes the reviewer
+    .env's brief creation window), or restore the file's previous mode after each rewrite.
 
 [NOTE] hooks/pre-push-codereview.sh:92 — the walker treats only the token `git` as git, so
 `git.exe push`, which runs git in Git Bash, passes the gate. This is the Windows counterpart
 of the absolute-path spelling in the accepted "detection is heuristic" risk; it is listed for
-a decision, not re-flagged. (New with Windows support.)
+a decision, not re-flagged. Re-checked at 0ccfae7: line 92 unchanged.
   Attack vector: an agent on Windows writes `git.exe push`, the native program's file
     name. The hook exits 0 for it, so whether Claude Code's `if` filter passes the command
     to the hook does not matter.
-  Evidence: in this session, with zat.env unreviewed and no marker or skip marker,
-    `cd <scratch repo> && git.exe push` pushed a scratch commit to a scratch bare repo,
-    while `git -C <scratch repo> push` and `cd <scratch repo> && git -c
-    push.default=current push` were blocked. Run directly against a repo with an
-    unreviewed commit, the hook exited 2 for `git push` and 0 for `git.exe push` and
-    `/clangarm64/bin/git.exe push`. Confidence: high on the mechanism, low on frequency.
+  Evidence: run directly on Linux against a scratch repo with an unreviewed commit, the hook
+    exited 2 for `git push` and 0 for `git.exe push` (and for `/usr/bin/git push`, the
+    accepted spelling). The spelling runs git only on Windows, where the 6c9741a scan pushed
+    a scratch commit this way through the live gate. Confidence: high on the mechanism, low
+    on frequency.
   Remediation: in _push_subcommand_indices, treat a token whose basename is `git` or
     `git.exe` as git (which also closes the accepted absolute-path case), add tests, and
     confirm with a live push that the `if` filter reaches the hook for `git.exe push`. Or
@@ -265,7 +243,7 @@ a decision, not re-flagged. (New with Windows support.)
 [NOTE] claude/skills/codereview/SKILL.md:238, 471 — the review diffs honor the repository's
 own .gitattributes, so a text file marked `-diff` or `binary` reaches every diff reader as
 "Binary files a/<f> and b/<f> differ", while the marker hash still binds its content (same in
-the external-mode diffs at lines 141 and 165). (New.)
+the external-mode diffs at lines 141 and 165). Re-checked at 0ccfae7: still present.
   Attack vector: a commit the operator did not write adds `<file> -diff` to .gitattributes
     beside a change to that file; or, more commonly, a downstream repo marks a lockfile
     `-diff` to quiet noise, and a dependency swap in it reaches review as that one line.
@@ -273,38 +251,19 @@ the external-mode diffs at lines 141 and 165). (New.)
     refresh review reads only diff hunks for already-reviewed files (lines 333-335). A
     full-tier inline review and /security still read the whole file (it stays in
     `codereview-marker surface`), but nothing marks what changed.
-  Evidence: in a scratch repo, one commit added `app.py -diff` and changed `return token
-    == SECRET` to `return True`. The Step 2 diff showed the .gitattributes hunk and
-    "Binary files a/app.py and b/app.py differ"; `surface` listed both files; the hash
-    changed when app.py changed again, so the gate binds the content; `git diff --text`
-    showed the edit. Confidence: high on the mechanism, low on likelihood.
+  Evidence: re-run on Linux (git 2.34.1). One commit added `app.py -diff` and changed
+    `return token == SECRET` to `return True`. The Step 2 diff showed the .gitattributes
+    hunk and "Binary files a/app.py and b/app.py differ", `surface` listed both files, and
+    `git diff --numstat` printed `-` counts for app.py. Confidence: high on the mechanism,
+    low on likelihood.
   Remediation: in Step 2, list the changed files git renders as binary (`git diff
     --numstat` prints `-` counts for them), review any that are text with `git diff --text
     -- <file>`, and send those hunks to the external reviewers too; report an added
     `-diff` or `binary` attribute on a text path as a finding.
 
-[NOTE] bin/codereview-marker:131-144 — the security surface keeps agent-instruction markdown
-only by a fixed name list, so markdown that agents read as instructions under other names
-counts as plain documentation. Re-checked at 6c9741a: still present, with a new instance.
-  Attack vector: global-claude.md:96, :100, and :108 point sessions at
-    claude/references/windows.md, ml-gpu.md, and networking.md, which agents follow as
-    conventions; CLAUDE.md tells skill authors to move details into a skill's references/
-    directory; a CLAUDE.md can `@`-import any markdown file. in_surface drops all of
-    these, so a diff limited to them takes the light tier, and in a full-tier run they
-    never reach /security's file list. 6c9741a added windows.md, which tells every Windows
-    session how to set up Python and how to run PowerShell from bash, and
-    `codereview-marker surface c03a14c` omitted it, so it was not in this scan's list.
-  Evidence: in_surface returns 1 for any `.md` whose basename is not in the list and whose
-    path has no `.claude/` component (lines 133-143); tests/test-codereview-marker.sh:372
-    and 393-395 pin docs/guide.md as omitted. windows.md was read here as context, and its
-    guidance is benign. Confidence: high on the mechanism, low on likelihood.
-  Remediation: also keep `*/references/*.md` and markdown under zat.env's `claude/` tree,
-    and files a CLAUDE.md `@`-imports; or invert the rule and drop only known prose paths
-    (README*, docs/, CHANGELOG*).
-
 [NOTE] claude/skills/codereview/SKILL.md:460-464 — the secret-in-diff guard relies on a step
 that reports secrets, and in a full-tier review no step looks for them in plain markdown.
-Re-checked at 6c9741a: unchanged.
+Re-checked at 0ccfae7: unchanged.
   Attack vector: no adversary. A diff touches code and also adds a key to a markdown file,
     so it takes the full tier. Step 4's full-tier dimensions (lines 363-380) include no
     secret check (only the light tier's reduced scope does, line 283), and /security
@@ -320,7 +279,7 @@ Re-checked at 6c9741a: unchanged.
 [NOTE] claude/skills/codereview/SKILL.md:405-410, 437-441 — the model extracts the commit
 field of SECURITY.md's META footer and pastes it into a shell command, so codereview-marker's
 leading-dash check (bin/codereview-marker:146-155) runs only after the shell has expanded it.
-Re-checked at 6c9741a: unchanged.
+Re-checked at 0ccfae7: unchanged.
   Attack vector: a commit that edits SECURITY.md puts a `$(...)` or backtick span in the
     footer's commit value. If the model substitutes it unquoted or in double quotes into
     `codereview-marker surface <meta-commit>`, the substitution runs under the skill's
@@ -332,72 +291,98 @@ Re-checked at 6c9741a: unchanged.
     hex characters), or add a codereview-marker subcommand that reads the footer, and
     update the lint pin at tests/lint-skills.sh:401.
 
-[NOTE] bin/review-external.sh:365 — the long-context price comparison is a bash arithmetic
-context, which expands a command substitution hidden in an array subscript. `_count` (lines
-284-286) makes it safe, but no test covers this sink; the Gemini comparison at line 471 is the
-same. Re-checked at 6c9741a: code unchanged (moved from lines 357 and 463). The awk sink above
-is the same class.
-  Attack vector: none at HEAD. If a later edit compares the raw jq output instead of the
-    `_count` value, a provider response carrying "input_tokens":"PATH[$(cmd)]" runs cmd
-    as the user.
-  Evidence: the token-count lines (357-359, 464-466) and the comparisons are unchanged
-    since the 2f556b0 scan, whose mutant run executed the payload while the suite still
-    passed. The hostile-value test sends "1; while (1) { }", and no test sends a hostile
-    Gemini count. Confidence: high on the mechanism.
-  Remediation: name the comparisons and the awk branch in the `_count` comment, change the
-    hostile-value test to a payload such as "PATH[$(: > ${TEST_DIR}/ran)]" and assert the
-    file does not exist, and add the same case for promptTokenCount.
-
 [NOTE] hooks/pre-push-codereview.sh:241-245 — the skip marker is honored at any age and for
 any diff, so a marker left by a tag-only push or a terminal push lets a later, unreviewed
-agent push through. Deferred to BACKLOG.md (skip-marker-bound-to-diff). Re-checked at
-6c9741a: unchanged (moved from lines 226-230).
+agent push through. Deferred to BACKLOG.md (skip-marker-bound-to-diff). Re-checked at 0ccfae7:
+unchanged.
   Attack vector: a leftover marker plus a later agent push.
-  Evidence: same code; the 2026-10-01 scan reproduced a 30-day-old marker being honored.
-    Confidence: high on the mechanism, low on frequency.
+  Evidence: on Linux, a skip marker backdated 30 days let `git push` from a scratch repo with
+    an unreviewed commit through (exit 0), and the hook removed it. Confidence: high on the
+    mechanism, low on frequency.
   Remediation: store `codereview-marker hash` in the marker and honor it only on a match,
     or add an age limit.
 
-[NOTE] bin/codereview-marker:104-109, 188 — marker_dir ignores mkdir and chmod failures and
-checks neither the directory's owner nor whether it is a symlink, and `write` follows a
-symlinked marker path. Deferred to BACKLOG.md (marker-dir-ownership-check). Re-checked at
-6c9741a: unchanged.
-  Attack vector: needs XDG_CACHE_HOME in a directory another account can write, where that
-    account pre-creates the directory or plants a symlink at the marker path. On Windows
-    `chmod 700` changes nothing, so the directory's privacy rests on the ACL it inherits.
-  Evidence: on this Windows host Git Bash reads ~/.cache/claude-codereview back as 755
-    after the chmod, and its ACL (inherited from the profile) grants only SYSTEM,
-    Administrators, and the user; tests/test-codereview-marker.sh now skips the mode check
-    there. The 2026-10-02 scan confirmed the errexit behavior. Confidence: high on the
-    mechanism, low on reachability.
-  Remediation: verify a real directory owned by the current user and private to it (mode
-    0700, or an ACL check on Windows) and fail otherwise, then write the marker to a temp
-    file in that directory and rename it into place.
-
 [NOTE] hooks/pre-push-codereview.sh:226-327 — the hook evaluates the repository at its own
 working directory, not the repository being pushed. Deferred to BACKLOG.md
-(push-gate-pushed-repo). Re-checked at 6c9741a: still present.
+(push-gate-pushed-repo). Re-checked at 0ccfae7: still present.
   Attack vector: `git -C <other> push`, or `cd <other> && git push`, run from a clean
     repository or a non-git directory pushes <other> without review. The .git-directory
-    variant from the 2026-10-02 re-check (line 226 treats a failed `--show-toplevel`
-    inside .git as "not in a git repo") is unchanged.
-  Evidence: this session showed the mechanism live. The gate blocked `git -C <scratch
-    repo> push` and `cd <scratch repo> && git -c push.default=current push` because
-    zat.env, the session's directory, had no marker. The scratch repo's own state was
-    never consulted, so with zat.env reviewed both would have been allowed. Confidence:
-    high on the mechanism, low on reachability of the .git variant.
+    variant (line 226 treats a failed `--show-toplevel` inside .git as "not in a git
+    repo") is unchanged.
+  Evidence: on Linux, from a scratch repo equal to its upstream, `git -C <other> push` and
+    `cd <other> && git push` exited 0, while `git push` run inside <other>, which held an
+    unreviewed commit, exited 2. Confidence: high on the mechanism, low on reachability of
+    the .git variant.
   Remediation: resolve the target repo from the command (`-C`, `--git-dir`, a leading
     `cd <dir> &&`) and evaluate the marker there, failing closed when it cannot be
     resolved, or move to a git-native pre-push hook. For the .git variant, pass through
     only when `git rev-parse --git-dir` fails.
 
+[NOTE] bin/review-external.sh:276-278 — without bc, `_calc` splices the cost expression into
+awk program text, and awk's `system()` runs commands, so a non-integer operand would execute
+as the user; `_count` is the only guard (carried from the 2026-10-13 scan, not re-checked).
+  Attack vector: none at HEAD. Lines 357-359 and 464-466 pass all six token counts through
+    `_count` before `_calc` sees them (lines 375, 478). If a later edit hands `_calc` a raw
+    value, a provider response with `"input_tokens":"system(\"cmd\")"` runs cmd on every
+    host without bc, which includes every Git Bash install. Only the provider, or someone
+    who can tamper with its TLS connection, controls that field.
+  Evidence: as recorded at 6c9741a (`_calc` run in a scratchpad executed a `system()`
+    operand; `_count` maps it to 0; the hostile-value test covers only OpenAI
+    input_tokens). bin/review-external.sh is unchanged since 6c9741a.
+  Remediation: keep the awk program fixed and pass the numbers with `-v`, or have `_calc`
+    print "?" for any expression that is not digits, dots, spaces, parentheses, and
+    `*/+`. Extend the hostile-value test to every count, once with bc removed from PATH.
+
+[NOTE] bin/codereview-marker:131-144 — the security surface keeps agent-instruction markdown
+only by a fixed name list, so markdown that agents read as instructions under other names
+counts as plain documentation (carried from the 2026-10-02 scan, not re-checked).
+  Attack vector: global-claude.md:96, :100, and :108 point sessions at
+    claude/references/windows.md, ml-gpu.md, and networking.md, which agents follow as
+    conventions; CLAUDE.md tells skill authors to move details into a skill's references/
+    directory; a CLAUDE.md can `@`-import any markdown file. in_surface drops all of
+    these, so a diff limited to them takes the light tier, and in a full-tier run they
+    never reach /security's file list.
+  Evidence: as recorded on 2026-10-02 and at 6c9741a, where `codereview-marker surface
+    c03a14c` omitted the new windows.md. bin/codereview-marker is unchanged since 6c9741a.
+  Remediation: also keep `*/references/*.md` and markdown under zat.env's `claude/` tree,
+    and files a CLAUDE.md `@`-imports; or invert the rule and drop only known prose paths
+    (README*, docs/, CHANGELOG*).
+
+[NOTE] bin/review-external.sh:365 — the long-context price comparison is a bash arithmetic
+context, which expands a command substitution hidden in an array subscript. `_count` (lines
+284-286) makes it safe, but no test covers this sink; the Gemini comparison at line 471 is the
+same (carried from the 2026-10-01 scan, not re-checked).
+  Attack vector: none at HEAD. If a later edit compares the raw jq output instead of the
+    `_count` value, a provider response carrying "input_tokens":"PATH[$(cmd)]" runs cmd
+    as the user.
+  Evidence: as recorded on 2026-10-01 (a mutant run executed the payload while the suite
+    still passed) and re-read at 6c9741a. bin/review-external.sh is unchanged since 6c9741a.
+  Remediation: name the comparisons and the awk branch in the `_count` comment, change the
+    hostile-value test to a payload such as "PATH[$(: > ${TEST_DIR}/ran)]" and assert the
+    file does not exist, and add the same case for promptTokenCount.
+
+[NOTE] bin/codereview-marker:104-109, 188 — marker_dir ignores mkdir and chmod failures and
+checks neither the directory's owner nor whether it is a symlink, and `write` follows a
+symlinked marker path. Deferred to BACKLOG.md (marker-dir-ownership-check) (carried from the
+2026-10-02 scan, not re-checked).
+  Attack vector: needs XDG_CACHE_HOME in a directory another account can write, where that
+    account pre-creates the directory or plants a symlink at the marker path. On Windows
+    `chmod 700` changes nothing, so the directory's privacy rests on the ACL it inherits.
+  Evidence: as recorded on 2026-10-02 and at 6c9741a (the Windows ACL grants only SYSTEM,
+    Administrators, and the user). test-codereview-marker.sh's mode check passes on this
+    Linux host.
+  Remediation: verify a real directory owned by the current user and private to it (mode
+    0700, or an ACL check on Windows) and fail otherwise, then write the marker to a temp
+    file in that directory and rename it into place.
+
 [NOTE] bin/codereview-marker:170-178 — the marker hashes only the net diff against the base,
 so a secret committed and then deleted inside the pushed range ships in history without
-review. Deferred to BACKLOG.md (push-gate-net-diff-secret). Re-checked at 6c9741a: unchanged.
+review. Deferred to BACKLOG.md (push-gate-net-diff-secret) (carried from the 2026-10-02 scan,
+not re-checked).
   Attack vector: no adversary needed; an agent commits a key, removes it in a later
     commit, and the review sees only the net diff.
-  Evidence: compute_hash diffs the base against the working tree, and /codereview reviews
-    the same net diff. Confidence: high on the mechanism, low on frequency.
+  Evidence: as recorded on 2026-10-02 (compute_hash diffs the base against the working
+    tree, and /codereview reviews the same net diff).
   Remediation: scan the per-commit diffs of `<base>..HEAD` for key patterns before
     writing the marker.
 
@@ -435,89 +420,64 @@ generativelanguage.googleapis.com (carried from the 2026-10-01 scan, not re-chec
 
 ### Coverage
 
-All eight dimensions were reviewed for the 11 files at HEAD 6c9741a.
+All eight dimensions were reviewed for the five files at HEAD 0ccfae7.
 
-- Read in full: hooks/pre-push-codereview.sh (344 lines), bin/codereview-marker (217),
-  bin/review-external.sh (615), zat.env-install.sh (422), claude/skills/codereview/SKILL.md
-  (742), claude/global-claude.md (112), CLAUDE.md (81), and .gitattributes (6).
-- Read through their diffs since c03a14c with the surrounding code: tests/lint-skills.sh
-  (1,914; the new Windows and curl-key pins, and the pins at lines 398-422 that findings
-  cite), tests/test-codereview-marker.sh (469), and tests/test-pre-push-hook.sh (664, plus
-  its setup helpers). The a631978 hunks were read line by line by the 2026-10-02 post-fix
-  re-check.
-- Runs on Windows 11 ARM64 (Git Bash 5.3.15, git 2.55.0.windows.3, jq 1.8.2, gawk 5.4.0, no
-  bc, Claude Code 2.1.296), with XDG_CACHE_HOME in the scratchpad: test-pre-push-hook.sh
-  79/79, test-codereview-marker.sh 68/68 plus one skip (NTFS mode), lint-skills.sh 477/477.
-  tests/test-review-external.sh was not run, because its invalid-key tests reach the real
-  providers (NOTE above); review-external.sh ran once against a recording curl stub instead.
-- Live checks through this session's own gate, with zat.env unreviewed and no marker or skip
-  marker present: the gate blocked a scratch setup command that contained a push,
-  `git -C <scratch repo> push`, and `cd <scratch repo> && git -c push.default=current push`;
-  `cd <scratch repo> && git.exe push` went through. Every push targeted a scratch bare repo
-  in the scratchpad. Nothing else was pushed, and zat.env's working tree was unchanged.
+- Read in full: hooks/pre-push-codereview.sh (344 lines), zat.env-install.sh (425),
+  claude/skills/codereview/SKILL.md (742), and gitconfig/ignore-global (24).
+- tests/lint-skills.sh (1,916) was read in part: its helpers, the b065794 hunks, the pins
+  findings cite (lines 380-440), and the frontmatter and Windows sections (lines 1800-1916).
+  The rest was searched for eval, source, `bash -c`, interpreter calls, temp files, network
+  calls, and file writes, which found only grep pins and a fixed `python3 -c` program. It was
+  not read line by line; earlier scans covered it through its diffs.
+- Every commit since 6c9741a was read. b065794 and 0ccfae7 change code; 916d070, 35a2fbf, and
+  bfed238 change only CODEREVIEW.md, SECURITY.md, and README.md.
+- Runs on Linux (bash 5.1.16, git 2.34.1, jq 1.6, shellcheck 0.8.0, Claude Code 2.1.296),
+  with XDG_CACHE_HOME in the scratchpad: test-pre-push-hook.sh 79/79,
+  test-codereview-marker.sh 69/69 (the marker-directory mode check runs here),
+  lint-skills.sh 502/502 (with shellcheck and PyYAML). This is the first Linux run of these
+  suites since the Windows port. tests/test-review-external.sh was not run, because its
+  invalid-key tests reach the real providers (NOTE above).
+- The gate checks ran the hook directly, with synthetic payloads, against scratch repos in
+  the scratchpad. No command in a payload was executed, nothing was pushed, and zat.env's
+  working tree was not changed.
+- Out of scope but used as context: bin/codereview-marker (read in full), CODEREVIEW.md,
+  SPEC.md, the BACKLOG.md origins of the deferred findings, and the hook schema text in the
+  Claude Code 2.1.296 binary.
 - Checked and not findings:
-  - CR stripping (hooks/pre-push-codereview.sh:208): Git Bash itself removes a bare CR and
-    joins the words around it (`echo<CR>WORD` runs `echoWORD`), and Linux bash keeps the CR
-    inside the word, so the stripped string tokenizes the way the command runs.
-  - The jq path: with jq off PATH, or an unparseable payload, the hook exits 2. An empty
-    payload or one without `tool_input.command` reads as "not a push"; the hooks docs give
-    the PowerShell tool's command in `tool_input.command`, the same field as Bash.
-  - API keys reach curl only on stdin: with a recording stub, curl's arguments held `-H @-`
-    and neither key, and stdin held both headers. printf is a builtin, so no process
-    carries a key in its argv.
-  - The `if` filter reaches the hook for git-level options: `git -C <dir> push` and
-    `git -c k=v push` were both gated live.
-  - The PowerShell entry is idle here: this session has no PowerShell tool, and settings.json
-    sets `env.CLAUDE_CODE_USE_POWERSHELL_TOOL` to "0". How an `if` rule matches compound
-    PowerShell commands is undocumented and was not tested.
-  - Windows file modes: `chmod 700` and `chmod 600` read back as 755 and 644, but the ACLs on
-    ~/.cache/claude-codereview and ~/.config/claude-reviewers/.env grant only SYSTEM,
-    Administrators, and the user.
-  - Developer Mode, which the installer now requires, lets standard accounts create file
-    symlinks. Junctions and object-manager links were already open to them, so it was not
-    reported.
-  - `* text=auto eol=lf` normalizes the hashed diff and the committed blobs the same way, so
-    it cannot open a gap between them. `winpath`, the symlink probe (`mktemp -d`), the
-    codereview-marker shadow warning, and the `winget install jqlang.jq` hint touch nothing
-    outside the user's own directories.
-- Not verified: the end-to-end timeout (Claude Code cancelling the gate at 30 s and running
-  the command) is from the hooks reference, not observed; the here-string band on Linux,
-  where bash can check the pipe's capacity before using it, and on macOS; whether the `if`
-  filter passes `git.exe push` to the hook; Windows Defender Firewall rules for the 0.0.0.0
-  WARN.
-- Out of scope but used as context: claude/references/windows.md (see the in_surface NOTE),
-  claude/references/networking.md, README.md, BACKLOG.md, hooks/README.md, and the Claude
-  Code hooks reference.
-- Post-fix re-check (/codereview Step 7) of the four files /codefix changed, uncommitted on
-  6c9741a: hooks/pre-push-codereview.sh (lines 89 and 142), zat.env-install.sh (the
-  stale-hook prune and the quoted hook commands), claude/skills/codereview/SKILL.md (line
-  511), and tests/lint-skills.sh (two pins). All eight dimensions were reviewed on the
-  changed hunks, and the prior findings in these files were re-checked. Their cited lines
-  are unchanged except the `onFailure` WARN's (317-334 is now 320-337). With the fix:
-  test-pre-push-hook.sh 79/79, lint-skills.sh 478/478. Checked and not findings:
-  - `MSYS_NO_PATHCONV=1` (SKILL.md:511) reaches the Step 5.6 child and everything it
-    spawns, the gate hook included. Scratch repos were tested with an upstream, with none
-    (empty-tree base), and with a valid marker. With and without the variable,
-    `codereview-marker base` and `hash` printed the same values, and the hook returned the
-    same exit codes. The gate hands native git no POSIX path except /dev/null, which Git
-    for Windows maps itself. test-pre-push-hook.sh fails 32 of 79 with the variable
-    exported. That is because the harness passes /tmp paths to native `git -C`, so its
-    test repos are never created; the gate itself is unaffected.
-  - The prune loop reads whole lines from a process substitution, and nothing in its body
-    reads stdin. A quoted command for a missing script was pruned, and the live entries
-    stayed. Double quotes leave `$`, backticks, and `"` in REPO_DIR live, as the unquoted
-    form did. REPO_DIR is the operator's own checkout path.
-  - The `|| true` after each `read` changes no outcome. Both functions run inside `$(...)`
-    or an `if`, where errexit is already off, and token counts matched HEAD's at every
-    size tested.
+  - 0ccfae7: ignore rules apply only to untracked files. `codereview-marker` builds the
+    hash, the uncommitted list, and the security surface from `git diff`
+    (bin/codereview-marker:156, 167, 173, 177), which sees only tracked files, so the gate
+    and the review are unchanged. A repo that tracks `.claude/settings.local.json` still
+    shows its changes. Claude Code appends the same rule itself when it creates the file
+    (the reason for the commit), so hiding an untracked copy from `git status` matches its
+    stock behavior. The rule also keeps per-project permission rules, and any `env` secrets
+    in them, out of commits. zat.env's own .gitignore:18 already ignores `.claude/`.
+  - b065794 on Linux: the process-substitution read yields the same tokens (79/79, and every
+    long-command run that finished exited 2). ~/.claude/settings.json here carries the
+    quoted hook commands from today's install. `MSYS_NO_PATHCONV=1` does nothing off
+    Windows.
+  - If the process substitution at lines 89 and 142 could not be opened, `|| true` would
+    leave no tokens, which reads as "not a push". Bash opens it through /dev/fd, which
+    exists wherever /proc is mounted, and the here-string it replaced failed the same way
+    when bash could not create its temp file.
+  - The stale-hook prune (zat.env-install.sh:289-306) reads whole lines and passes the
+    script's basename to jq as a regex string. It acts only on entries whose zat.env script
+    is missing. REPO_DIR in the double-quoted hook commands is the operator's own path.
+  - lint-skills.sh:1835-1838 runs `python3 -c 'import yaml'`, which imports from the
+    current directory first. Lint runs from the zat.env checkout, and anyone able to plant
+    yaml.py there can edit lint itself.
+- Not verified: Claude Code cancelling a hook at 30 s and running the command (taken from
+  the binary's field description, not observed); whether Claude Code's own settings.json
+  writes keep a restricted mode; Windows timings at this HEAD (the 6c9741a re-check
+  measured the same hook code there before it was committed).
 
-Git history checked for secrets: the full history of all 11 files through c03a14c was
-checked by the 2026-10-02 scan. This scan pattern-scanned a631978, d6b9410, and 6c9741a
-(`git show`) and the current tree of the 11 files for OpenAI, Anthropic, Google, GitHub, AWS,
-Slack, Hugging Face, and Tailscale keys, private-key headers, and generic key, token, secret,
-and password assignments. The only hits were the documented fake key names in SECURITY.md
-prose. The post-fix re-check scanned the uncommitted diff of its four files the same way,
-with no hits. PII: nothing new; windows.md uses the placeholder `C:\Users\me`.
+Git history checked for secrets: `git log -p --follow -3` for each of the five files, and
+every diff in 6c9741a..HEAD. zat.env-install.sh is the credential-handling file in scope (it
+creates the reviewer key file). Both were pattern-scanned for OpenAI, Anthropic, Google,
+GitHub, AWS, Slack, Hugging Face, and Tailscale keys, private-key headers, and generic key,
+token, secret, and password assignments. The only hit was a removed SECURITY.md line naming
+the documented fake test keys. The earlier history of these files was covered by the
+2026-10-02 scan and the 2026-10-13 scan of 6c9741a. PII: none in the five files.
 
 ### Accepted Risks
 
@@ -527,8 +487,9 @@ with no hits. PII: nothing new; windows.md uses the placeholder `C:\Users\me`.
   enumerate every spelling. Accepted 2026-08-20 because README.md:222 and the script
   comment (lines 216-220) state plainly that the deny list is a speed bump.
   `autoMode.classifyAllShell` sends these commands through the classifier in auto mode,
-  so the risk as accepted applies to the other permission modes. The Linux host had the
-  setting on 2026-10-01, and this Windows host has it (verified 2026-10-13).
+  so the risk as accepted applies to the other permission modes. The Linux host has the
+  setting (verified 2026-10-01 and again 2026-10-13), and so did the Windows host
+  (verified 2026-10-13).
 - **Venv-activation chains auto-approved outside auto mode**
   (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes,
   the hook returns allow for `. .venv/bin/activate && <anything>`, including pipes,
@@ -559,8 +520,9 @@ with no hits. PII: nothing new; windows.md uses the placeholder `C:\Users\me`.
   the advisory codereview gate. Accepted under the advisory-gate threat model. The hook
   is intentionally simple and biased toward over-detection. This does not cover a
   recognized push checked against the wrong ref or the wrong state (the refspec and
-  compound-command WARNs), or a recognized push whose hook times out (the `onFailure`
-  WARN). Whether the Windows spelling `git.exe push` belongs here is open (NOTE above).
+  compound-command WARNs), or a recognized push whose hook times out or fails (the
+  `onFailure` WARN). Whether the Windows spelling `git.exe push` belongs here is open
+  (NOTE above).
 - **Diff content forwarded to third-party APIs** (`bin/review-external.sh`): when
   configured, the full git diff goes to OpenAI and Google, so any secrets in the diff
   would be exposed. Sending the diff is the script's explicit purpose, and the user opts
@@ -569,11 +531,11 @@ with no hits. PII: nothing new; windows.md uses the placeholder `C:\Users\me`.
   /codereview external has no such check.
 
 ---
-*Prior review (2026-10-02, scope: paths, at c03a14c, with a post-fix re-check of the six
-files /codefix changed): 15 files, 0 BLOCK / 7 WARN / 12 NOTE. The WARNs were push-gate and
-review-gate gaps (refspec, compound commands, submodule `ignore = all`, /pr merge ancestry,
-the light tier's `.txt` and `.gitconfig`, review state inside the reviewed commits) and the
-0.0.0.0 convention. The re-check confirmed the four codefix fixes, since committed as
-a631978. All of its findings except the jq fail-open NOTE are still open above.*
+*Prior review (2026-10-13, scope: paths, at 6c9741a, with a post-fix re-check of the four
+files /codefix changed): 11 files, 0 BLOCK / 8 WARN / 15 NOTE, no secrets. New then: the
+`onFailure` WARN (a gate hook that times out, crashes, or cannot start lets the push run), and
+NOTEs for the awk cost sink, `git.exe push`, and `-diff` attributes; it resolved the jq
+fail-open NOTE. The re-check confirmed the /codefix fixes, since committed as b065794, and
+added the tokenizer timing NOTE, restated above.*
 
-<!-- SECURITY_META: {"date":"2026-10-13","commit":"6c9741a108253962cd237c71d0bb035eeafbeb4b","scope":"paths","scanned_files":[".gitattributes","CLAUDE.md","bin/codereview-marker","bin/review-external.sh","claude/global-claude.md","claude/skills/codereview/SKILL.md","hooks/pre-push-codereview.sh","tests/lint-skills.sh","tests/test-codereview-marker.sh","tests/test-pre-push-hook.sh","zat.env-install.sh"],"block":0,"warn":8,"note":15} -->
+<!-- SECURITY_META: {"date":"2026-10-13","commit":"0ccfae7caabed5316aeb8a2849f1203c340c6fc8","scope":"paths","scanned_files":["claude/skills/codereview/SKILL.md","gitconfig/ignore-global","hooks/pre-push-codereview.sh","tests/lint-skills.sh","zat.env-install.sh"],"block":0,"warn":8,"note":16} -->

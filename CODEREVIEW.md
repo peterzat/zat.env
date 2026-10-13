@@ -1,19 +1,27 @@
-## Review — 2026-10-13 (commit: 35a2fbf)
+## Review — 2026-10-13 (commit: 0ccfae7)
 
-**Summary:** Light review (docs only) of 35a2fbf, the one unpushed commit, which rewrites the opening of README's Windows 11 section to resolve the prior review's README.md:167-169 NOTE. The old text said the installer's Windows branches "and the fallbacks below" are never reached on Linux or macOS; the new text keeps the installer claim and says the stdin key handoff and the awk cost fallback apply on every platform. Verified against the code: every installer Windows branch is gated on `PLATFORM=windows`, which `uname -s` sets only for MINGW, MSYS, or CYGWIN (zat.env-install.sh:10-14, 33, 44, 279); both provider calls pipe the key to `curl -H @-` with no platform test (bin/review-external.sh:324-326, 427-430), and the local reviewer sends no key; `_calc` chooses awk on `command -v bc` alone (bin/review-external.sh:267-280). The hook's CR strip (hooks/pre-push-codereview.sh:208) also runs everywhere but changes nothing where jq writes LF, so naming two changes is accurate. No links added, no secrets in prose. tests/lint-skills.sh 478/478, including the README pins; the other suites were not run for a docs-only change.
+**Summary:** Refresh review of 0ccfae7, the one unpushed commit, which adds `**/.claude/settings.local.json` to gitconfig/ignore-global (the file `core.excludesfile` points at, zat.env-install.sh:76). Full tier: `codereview-marker surface` lists the file and it has none of the light-tier extensions. The rule is correct: in a scratch repo it ignored `.claude/settings.local.json` at the root and in a subdirectory and did not ignore `.claude/settings.json`. The commit message is accurate: Claude Code 2.1.296's append routine (read from the installed binary) runs `git check-ignore` first, skips when the exact `**/<path>` line is already present, and otherwise appends `\n**/.claude/settings.local.json\n` to `core.excludesfile`, which matches this diff byte for byte; ignore rules do not affect tracked files, and the marker hash, the uncommitted check, and the security surface read tracked files only. tests/run-all.sh 807/807 across 6 suites on Linux. /security scanned the five surface files changed since its last META commit (b065794 and 0ccfae7): no new findings, no secrets.
 
 **External reviewers:**
-Skipped (light review).
+None configured.
 
 **Built-in review:**
-Skipped (light review).
+`/code-review high`: 4 findings, 2 kept after Step 6 (one merged with an inline finding, one NOTE). Dropped: "Claude Code's skip of an existing line is undocumented and could drift" (refuted: the append is gated on `git check-ignore`, so any matching rule suffices), and "the new line has no section comment" (style).
 
 ### Findings
 
-No issues found in this diff. The open findings from the 2026-10-13 review of 6c9741a are carried forward below at their original severity. The code they cite has not changed since b065794 (only CODEREVIEW.md, SECURITY.md, and README.md differ), so they were not re-checked.
+Two NOTEs in this diff, no BLOCK or WARN. The open findings from the 2026-10-13 review of 6c9741a are carried forward below at their original severity; the code they cite has not changed since b065794. /security re-checked the five files in its scope on Linux and updated two entries (onFailure WARN, hook tokenizer NOTE); the others are carried without re-checking.
 
-[WARN] zat.env-install.sh:320-337 — (security) A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`, so the hook's exit-2 refusals hold only when it runs to completion. A 125 MB first push took 29.8 s on Windows against the 30 s timeout, and a moved checkout or a `$` or backtick in the repo path keeps the hook from starting. The Git Bash here-string hang that also led here was fixed in b065794.
-  Evidence: SECURITY.md 2026-10-13; Claude Code 2.1.296 implements the field ("blocking because onFailure is \"block\"").
+[NOTE] gitconfig/ignore-global:24 — The fix covers one of two paths Claude Code 2.1.296 appends to `core.excludesfile`, and that setting points at this tracked file, so the next append again dirties the tree and the pre-push `uncommitted` check refuses every push from zat.env (also claude-code)
+  Evidence: the binary's append routine has a second caller, which passes `.claude/.cc-writes/` once per session when a staging directory is set up in a repo that does not already ignore `.claude/.cc-writes/sample-file.txt`; it would append `**/.claude/.cc-writes/`. No `.claude/.cc-writes` directory exists under ~/src yet, so whether that feature runs on this machine is unverified. The failure is fail-safe (the hook names the file). Confidence: high on the code path, low on when it fires.
+  Suggested fix: Add `**/.claude/.cc-writes/` now, in that exact form so both of Claude Code's checks pass. The structural fix (point `core.excludesfile` at a user-owned file the installer seeds from the repo copy) changes install behavior for every adopter and requires a user decision.
+
+[NOTE] gitconfig/ignore-global:24 — Nothing records why the line is there: unlike the other blocks it has no comment, and no lint check pins it. It looks redundant in this repo, whose .gitignore already ignores `.claude/`, so a later tidy-up could remove it and bring back the push refusal (claude-code)
+  Evidence: gitconfig/ignore-global:23-24; .gitignore:18. Confidence: low that it matters.
+  Suggested fix: Optional. A one-line comment naming Claude Code as the writer, or a sentence in CLAUDE.md's gitconfig bullet saying Claude Code appends to this file.
+
+[WARN] zat.env-install.sh:320-337 — (security) A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`, so the hook's exit-2 refusals hold only when it runs to completion. A 125 MB first push took 29.8 s on Windows against the 30 s timeout, and a moved checkout or a `$` or backtick in the repo path keeps the hook from starting. The Git Bash here-string hang that also led here was fixed in b065794. Re-checked on Linux at 0ccfae7: still present, with three Linux triggers (a moved checkout exits 127, an unreadable marker file makes `cat` at hooks/pre-push-codereview.sh:297 exit 1, a command of about 400 to 720 KB outlasts the timeout).
+  Evidence: SECURITY.md 2026-10-13 (both entries); the Claude Code 2.1.296 binary documents `'continue'` as the default ("the action goes ahead"); the live ~/.claude/settings.json carries b065794's quoted commands and no `onFailure`.
   Suggested fix: Requires a user decision (changes the gate for every project). Add `"onFailure": "block"` to both gate entries (needs Claude Code 2.1.295 or later; how an older client treats the field is unverified) and raise the timeout so a large first push is not refused once failure blocks.
 
 [WARN] hooks/pre-push-codereview.sh — (security) The gate hashes the checked-out branch and allows on a match or on "nothing to review", whatever refs the push names; `git push origin <other>` and `<other>:main` were re-reproduced as allowed on 2026-10-13
@@ -38,11 +46,8 @@ No issues found in this diff. The open findings from the 2026-10-13 review of 6c
 [WARN] claude/global-claude.md:108 — (security) The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule now also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply
   Suggested fix: Requires a user decision (machine-wide networking convention). Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
-[NOTE] hooks/pre-push-codereview.sh:89, 142 — (security) The here-string fix reads through process substitution, which bash reads one byte at a time; the hook reads the command three times, so on Git Bash a 500 KB command now takes 34.5 s against 19.3 s before, past the 30 s timeout (fail open without onFailure). Needs over 100k tokens in one tool call; the old hang sat at about 16k tokens.
-  Suggested fix: Split inside the shell instead: `set -f; t=( $(_normalize_ops "$1") ); set +f`, and the same for `toks` (/security measured 2.8 s across the 64 KiB band, 10.1 s at 500 KB, 79/79 hook tests). Add 65,600-byte and 500 KB test cases.
-
-[NOTE] (regression risk) — The full suite has run only on Windows ("not yet run on Linux", per the commit message), and Linux is the primary target. Changes that execute there: both providers' curl calls read the key header from stdin (`-H @-`), the hook refuses on jq failure, strips CR, and reads through process substitution, the quoted hook commands and line-reading prune loop, and test-pre-push-hook.sh's sanitized PATH and CRLF jq shim. Traced each and expect them to pass. Confidence: medium.
-  Suggested fix: Run tests/run-all.sh on the Linux box before or right after pushing, and re-run zat.env-install.sh there.
+[NOTE] hooks/pre-push-codereview.sh:63-73, 89, 142 — (security) The hook's tokenizing time grows with the square of the command length, so a long command passes the 30 s timeout (fail open without onFailure). Restated by /security on Linux at 0ccfae7: the cost is `_normalize_ops` (six bash pattern substitutions, quadratic in bash 5.1, run three times per hook call), not the process-substitution read. 500 KB took 14.7 s, 750 KB 32.0 s, and operator-dense text passes 30 s near 400 KB; Git Bash measured 34.5 s at 500 KB. Needs over 100k tokens in one tool call.
+  Suggested fix: Normalize once in main and pass the tokens to both functions, padding operators in one linear pass (`tr '\n' ';' | sed 's/[;|&()]/ & /g'` gave identical tokens in 19 ms at 500 KB); the in-process split proposed last time is no faster on Linux. Or refuse a recognized push whose command exceeds a fixed size. Add 65,600-byte and 500 KB test cases.
 
 [NOTE] hooks/pre-push-codereview.sh:4-7 — The header still says the hook is installed "as a PreToolUse hook on Bash ... with an "if" filter on Bash(git push*)"; it is now also registered for the PowerShell tool.
   Suggested fix: Mention the PowerShell entry.
@@ -167,7 +172,7 @@ No issues found in this diff. The open findings from the 2026-10-13 review of 6c
 [NOTE] (carried forward) bin/review-external.sh:151 — gemini_thinking accepts `minimal`, which the header, install template, and validation message do not list (claude-code)
   Suggested fix: Document `minimal`, or drop it.
 
-[NOTE] (carried forward, security) zat.env-install.sh:208 — Each settings.json rewrite moves a new .tmp file into place, so a 0600 settings.json returns at the default umask (same at every later rewrite)
+[NOTE] (carried forward, security) zat.env-install.sh:200, 208 — Each settings.json rewrite moves a new .tmp file into place, so a 0600 settings.json returns at the default umask (same at every later rewrite). Now also in SECURITY.md; not reachable on this host (home 0750, no other group members)
   Suggested fix: `umask 077` at the top of the script.
 
 [NOTE] (carried forward) bin/review-external.sh — The default Gemini model is a preview that can be withdrawn on short notice. Deferred to BACKLOG.md (gemini-stable-model-default).
@@ -200,7 +205,7 @@ No issues found in this diff. The open findings from the 2026-10-13 review of 6c
 [NOTE] (carried forward, security) hw-bootstrap.sh:197 — Docker group membership lets anything running as the user obtain root without a password.
   Suggested fix: Accept as a risk, or move to rootless Docker.
 
-Resolved since the prior review: README.md:167-169, the Windows section's claim that the fallbacks are never reached on Linux or macOS (fixed by 35a2fbf).
+Resolved since the prior review: the (regression risk) NOTE that the Windows port's suite had run only on Windows. tests/run-all.sh passed 807/807 on Linux in this run, and the live ~/.claude/settings.json carries b065794's quoted hook commands, so the installer has been re-run here.
 
 ### Fixes Applied
 
@@ -215,6 +220,6 @@ None.
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-10-13, commit 6c9741a): Refresh review of the Windows 11 (Git Bash) port; 0 BLOCK / 8 WARN / 55 NOTE, with three WARNs auto-fixed (quoted hook paths, MSYS mangling of the Step 5.6 prompt, the Git Bash here-string hang) and committed in b065794, and eight gate and policy WARNs left for a user decision.*
+*Prior review (2026-10-13, commit 35a2fbf): Light review of README's Windows section rewrite, which resolved the 6c9741a review's README.md:167-169 NOTE; no new findings, and 0 BLOCK / 8 WARN / 54 NOTE carried from the Windows port review.*
 
-<!-- REVIEW_META: {"date":"2026-10-13","commit":"35a2fbf","reviewed_up_to":"35a2fbf34df1250e90d94a28b28875eb5f095d2c","base":"origin/main","tier":"light","block":0,"warn":8,"note":54} -->
+<!-- REVIEW_META: {"date":"2026-10-13","commit":"0ccfae7","reviewed_up_to":"0ccfae7caabed5316aeb8a2849f1203c340c6fc8","base":"origin/main","tier":"refresh","block":0,"warn":8,"note":55} -->
