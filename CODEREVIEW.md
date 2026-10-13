@@ -1,99 +1,135 @@
-## Review — 2026-10-02 (commit: c03a14c)
+## Review — 2026-10-13 (commit: 6c9741a)
 
-**Review scope:** Refresh review. Focus: 18 file(s) changed since prior review (commit 2f556b0), which is every file in the unpushed range origin/main..c03a14c (11 commits). 0 already-reviewed file(s).
+**Review scope:** Refresh review. Focus: 16 file(s) changed since prior review (commit c03a14c), which covers every file in the unpushed range origin/main..6c9741a (1 commit, 14 files). 0 already-reviewed file(s).
 
-**Summary:** Reviewed the 11 unpushed commits: control-character stripping in review-external.sh, the `codereview-marker surface` security surface and light-tier rule, carrying open /security findings past a scoped run, launching /security at the end of Step 2, the post-fix /security re-check, quoted argument-hint frontmatter with /spec inline, the uncommitted-changes push check, the secret-in-diff skip for external reviewers, and BACKLOG/README updates. Four WARNs in the new code were auto-fixed (a SIGPIPE fail-open in the new hook branch, the "nothing to review" exit still passing commits reverted only in the working tree, cwd-relative review-file excludes, and the post-fix condition when Step 5 skipped). Seven pre-existing gate and policy WARNs from /security remain open for a user decision. tests/run-all.sh 786/786 before fixes, 790/790 after. /security (paths, 15 files) found 0 BLOCK / 5 WARN / 12 NOTE; its post-fix re-check of the 6 files codefix changed confirmed the fixes and added 2 pre-existing WARNs (0 BLOCK / 7 WARN / 12 NOTE). The fixes are uncommitted: the push gate will refuse the push until they are committed.
+**Summary:** Reviewed 6c9741a, the Windows 11 (Git Bash) port: CR stripping and jq fail-closed in the pre-push hook, the gate registered for the PowerShell tool, the installer's Windows branches (native symlink probe, winpath for git config, CLAUDE_CODE_USE_POWERSHELL_TOOL=0, CR-safe stale-hook scan, codereview-marker shadow warning), API keys to curl on stdin, the awk cost fallback, .gitattributes, windows.md, and README/CLAUDE.md/BACKLOG updates. The port's own changes hold up: the CRLF test fails without the fix, the PowerShell tool's input field is `command` (checked in the 2.1.296 binary), and the awk fallback matches exact truncation on nine edge values. Three WARNs in adjacent code were auto-fixed: unquoted hook paths that open the gate under a profile path with a space, MSYS mangling of the Step 5.6 prompt (seen in this run), and a Git Bash here-string hang near 64 KiB. Adding `onFailure: "block"` to the gate needs a user decision. tests/run-all.sh 780/780 before fixes, 781/781 after (shellcheck and PyYAML checks skipped, not installed). /security (paths, 11 files) found 0 BLOCK / 8 WARN / 14 NOTE; its post-fix re-check of the 4 files codefix changed confirmed both fixes and added 1 NOTE (0 BLOCK / 8 WARN / 15 NOTE). The fixes are uncommitted: the push gate will refuse the push until they are committed. The live ~/.claude/settings.json keeps the unquoted hook commands until zat.env-install.sh is re-run.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 6 findings, 6 kept after Step 6 (3 WARN, all auto-fixed, one also found inline; 3 NOTE).
+`/code-review high`: 9 findings, 9 kept after Step 6 (2 WARN, both auto-fixed; 7 NOTE, 3 of them also found inline or by /security; the stale-hook prune finding folded into a WARN).
 
 ### Findings
 
-[WARN] hooks/pre-push-codereview.sh:248-311 — (security) The gate hashes the checked-out branch and allows on a match or on "nothing to review", whatever refs the push names; `git push origin <other>`, `<other>:main`, and `--all` pushed unreviewed refs in a scratch repo
-  Evidence: SECURITY.md 2026-10-02, reproduced with synthetic hook input and re-confirmed against the fixed hook. Pre-existing hook logic, the same-repo sibling of BACKLOG push-gate-pushed-repo.
-  Suggested fix: Requires a user decision (changes the gate for every project). Gate pushes whose refspec sources are not the current branch, HEAD, or a tag, or move to a git-native pre-push hook, which receives the exact refs.
+[WARN] zat.env-install.sh:320-337 — (security) A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`, so the hook's exit-2 refusals hold only when it runs to completion. A 125 MB first push took 29.8 s on Windows against the 30 s timeout, and a moved checkout or a `$` or backtick in the repo path keeps the hook from starting. The Git Bash here-string hang that also led here is fixed (see Fixes Applied).
+  Evidence: SECURITY.md 2026-10-13; Claude Code 2.1.296 implements the field ("blocking because onFailure is \"block\"").
+  Suggested fix: Requires a user decision (changes the gate for every project). Add `"onFailure": "block"` to both gate entries (needs Claude Code 2.1.295 or later; how an older client treats the field is unverified) and raise the timeout so a large first push is not refused once failure blocks.
 
-[WARN] hooks/pre-push-codereview.sh:248-311 — (security) The hook judges the repo as it is before the command runs, so `git merge feat && git push`, `git cherry-pick feat && git push`, or edit, commit, and push in one Bash call on a clean branch are allowed
-  Evidence: SECURITY.md 2026-10-02 (post-fix re-check), reproduced in scratch repos. Pre-existing; the new uncommitted check cannot see commits that do not exist yet.
+[WARN] hooks/pre-push-codereview.sh — (security) The gate hashes the checked-out branch and allows on a match or on "nothing to review", whatever refs the push names; `git push origin <other>` and `<other>:main` were re-reproduced as allowed on 2026-10-13
+  Evidence: SECURITY.md 2026-10-13. Pre-existing hook logic, the same-repo sibling of BACKLOG push-gate-pushed-repo.
+  Suggested fix: Requires a user decision. Gate pushes whose refspec sources are not the current branch, HEAD, or a tag, or move to a git-native pre-push hook, which receives the exact refs.
+
+[WARN] hooks/pre-push-codereview.sh — (security) The hook judges the repo as it is before the command runs, so `git merge feat && git push` (re-reproduced 2026-10-13), `git cherry-pick feat && git push`, or edit, commit, and push in one Bash call on a clean branch are allowed
   Suggested fix: Requires a user decision. Block a command where another statement precedes `git push`, or move to a git-native pre-push hook.
 
-[WARN] bin/codereview-marker:162-178 — (security) A submodule with `ignore = all` hides its pointer changes from `git diff`, so the marker hash, the uncommitted check, the security surface, and the review diff all miss them; a diff that adds `ignore = all` next to a pointer change shows reviewers one line
-  Evidence: SECURITY.md 2026-10-02 (post-fix re-check), reproduced in scratch repos. No project under ~/src uses submodules today.
-  Suggested fix: Requires a user decision. Add `--ignore-submodules=dirty` to the script's diffs and the codereview skill's review diffs (hash unchanged for repos without submodules).
+[WARN] bin/codereview-marker:162-178 — (security) A submodule with `ignore = all` hides its pointer changes from `git diff`, so the marker hash, the uncommitted check, the security surface, and the review diff all miss them
+  Suggested fix: Requires a user decision. Add `--ignore-submodules=dirty` to the script's diffs and the codereview skill's review diffs.
 
-[WARN] claude/skills/pr/SKILL.md:184-191 — (security) /pr merge accepts a review of any ancestor of local HEAD and never compares the remote PR head with local HEAD, so a commit added after the review merges with the gate passing
-  Evidence: SECURITY.md 2026-10-02, reproduced with the skill's own commands. Pre-existing; this diff changed only the file's argument-hint.
+[WARN] claude/skills/pr/SKILL.md:184-191 — (security) /pr merge accepts a review of any ancestor of local HEAD and never compares the remote PR head with local HEAD (carried, not re-checked this run)
   Suggested fix: Requires a user decision. Require no non-review-file change since `reviewed_up_to` and a remote head equal to local HEAD.
 
-[WARN] claude/skills/codereview/SKILL.md:269-277 — (security) The light tier still treats `.txt` and `.gitconfig` as plain documentation, so a diff limited to `gitconfig/aliases.gitconfig` (live in ~/.gitconfig via include; it can set core.fsmonitor or `!` aliases) or a downstream `requirements*.txt` or `CMakeLists.txt` skips /security, tests, and external reviewers
-  Evidence: SECURITY.md 2026-10-02 (a core.fsmonitor set through an include ran on `git status`). The rule dates from a262d48; fe3cb3d restated it. The inline review reached the same conclusion for `.gitconfig`.
-  Suggested fix: Requires a user decision (tiering policy for every project). Drop `.txt` and `.gitconfig` from the light tier, and update README and the lint pin at tests/lint-skills.sh:420.
+[WARN] claude/skills/codereview/SKILL.md:269-277 — (security) The light tier still treats `.txt` and `.gitconfig` as plain documentation, so a diff limited to `gitconfig/aliases.gitconfig` or a downstream `requirements*.txt` or `CMakeLists.txt` skips /security, tests, and external reviewers
+  Suggested fix: Requires a user decision (tiering policy for every project). Drop `.txt` and `.gitconfig` from the light tier, and update README and the lint pin.
 
-[WARN] claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425 — (security) CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed (refresh tier with an empty focus set, a skipped /security, planted Accepted Risks), and the review diff excludes those files
-  Evidence: SECURITY.md 2026-10-02; the deterministic part reproduced in a scratch repo, the model-executed downgrades not run end to end. Pre-existing design.
+[WARN] claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425 — (security) CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files
   Suggested fix: Requires a user decision. Take the full tier and read prior META from the base when a commit not authored by the operator touched the review files.
 
-[WARN] claude/global-claude.md:104 — (security) The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW
-  Evidence: SECURITY.md 2026-10-02; this host has a public address, exposure at a given time unconfirmed (rules are root-only). Pre-existing; not changed by this diff.
-  Suggested fix: Requires a user decision (machine-wide networking convention). Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW in hw-bootstrap.sh.
+[WARN] claude/global-claude.md:108 — (security) The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule now also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply
+  Suggested fix: Requires a user decision (machine-wide networking convention). Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
-[NOTE] bin/codereview-marker:131 — `in_surface` keeps agent-instruction markdown only by filename or a `.claude/` path, so a skill's `references/*.md` (the layout CLAUDE.md recommends) and `claude/references/*.md` (read through global-claude.md) count as plain docs: a diff limited to them takes the light tier and never reaches /security (claude-code, also security)
+[NOTE] hooks/pre-push-codereview.sh:89, 142 — (security) The here-string fix reads through process substitution, which bash reads one byte at a time; the hook reads the command three times, so on Git Bash a 500 KB command now takes 34.5 s against 19.3 s before, past the 30 s timeout (fail open without onFailure). Needs over 100k tokens in one tool call; the old hang sat at about 16k tokens.
+  Suggested fix: Split inside the shell instead: `set -f; t=( $(_normalize_ops "$1") ); set +f`, and the same for `toks` (/security measured 2.8 s across the 64 KiB band, 10.1 s at 500 KB, 79/79 hook tests). Add 65,600-byte and 500 KB test cases.
+
+[NOTE] (regression risk) — The full suite has run only on Windows ("not yet run on Linux", per the commit message), and Linux is the primary target. Changes that execute there: both providers' curl calls read the key header from stdin (`-H @-`), the hook refuses on jq failure, strips CR, and reads through process substitution, the quoted hook commands and line-reading prune loop, and test-pre-push-hook.sh's sanitized PATH and CRLF jq shim. Traced each and expect them to pass. Confidence: medium.
+  Suggested fix: Run tests/run-all.sh on the Linux box before or right after pushing, and re-run zat.env-install.sh there.
+
+[NOTE] README.md:167-169 — "the installer's Windows branches and the fallbacks below are never reached on Linux or macOS", but the stdin key handoff is the only path on every platform, and the awk cost fallback runs on any host without `bc` (hw-bootstrap.sh does not install it). CLAUDE.md's wording ("plus fixes that behave identically there") is accurate.
+  Suggested fix: Say the curl change applies everywhere and the awk fallback runs wherever `bc` is missing.
+
+[NOTE] hooks/pre-push-codereview.sh:4-7 — The header still says the hook is installed "as a PreToolUse hook on Bash ... with an "if" filter on Bash(git push*)"; it is now also registered for the PowerShell tool.
+  Suggested fix: Mention the PowerShell entry.
+
+[NOTE] hooks/README.md:98 — The manual test recipe says `echo '{}' | bash .../pre-push-codereview.sh` "should block (no marker)", but `{}` has no command, which reads as "not a push" and exits 0 (before and after this diff). Pre-existing.
+  Suggested fix: Use a payload with `{"tool_input":{"command":"git push"}}`.
+
+[NOTE] hooks/pre-push-codereview.sh:198 — An empty payload still fails open: `jq` exits 0 with no output on empty input, so the command reads as empty and the hook exits 0. Truncated JSON now fails closed (jq exit 5). Claude Code always sends a payload, so reachability is low; since the hook runs only for commands already matched as `git push*`, an empty command could be refused too.
+  Suggested fix: Optionally treat an empty INVOKED_CMD as a refusal.
+
+[NOTE] tests/test-pre-push-hook.sh:577 — PATH_SANITIZED keeps jq's directory, so where jq lives in ~/bin next to codereview-marker the "codereview-marker missing" test fails falsely (loud, not silent) (also claude-code)
+  Suggested fix: Build a temp directory that links only `git` and `jq`.
+
+[NOTE] zat.env-install.sh:12 — `CYGWIN*` maps to windows, but Cygwin reads `CYGWIN=winsymlinks:...`, not `MSYS`, and Cygwin's own symlinks pass the `[[ -L ]]` probe while native programs such as Claude Code may not follow them (also claude-code)
+  Suggested fix: Drop `CYGWIN*` from the case (Claude Code requires Git Bash), or set `CYGWIN=winsymlinks:nativestrict` as well.
+
+[NOTE] zat.env-install.sh:105 — Skill directories copied by a pre-nativestrict Windows install are not symlinks, so every re-run prints "exists and is not a symlink — skipping" and leaves the frozen copies; ~/.claude/CLAUDE.md and ~/bin entries are replaced (claude-code)
+  Suggested fix: On Windows, tell the user to delete the copies, or replace a directory whose contents match the repo skill.
+
+[NOTE] hooks/pre-push-codereview.sh:208 — The CR fix is repeated per consumer (hook, installer `tr -d '\r'`, windows.md advice); `jq -b` stops CRLF at the source (claude-code)
+  Suggested fix: Optional. Verify the oldest supported jq accepts `-b` first (Ubuntu 22.04 ships jq 1.6; `--binary` may be newer, confidence low).
+
+[NOTE] zat.env-install.sh:388 — The shadow warning compares path strings, so an earlier PATH entry that is another spelling of ~/bin (a symlinked HOME) warns about a copy that does not exist (claude-code)
+  Suggested fix: Compare with `[[ "${FOUND_MARKER}" -ef "${BIN_DIR}/codereview-marker" ]]`.
+
+[NOTE] bin/review-external.sh:276-278 — (security) Without `bc`, the cost expression is pasted into the awk program text, where `system()` would run; `_count` and the price literals are the only guard, and the hostile-value test covers only OpenAI `input_tokens`. The awk branch runs only on hosts without bc, so on Linux only the lint pin covers it.
+  Suggested fix: Pass the operands with `-v` and keep the expression fixed, or add hostile-value tests for every token count; add a test that shadows `bc` so the awk branch runs everywhere.
+
+[NOTE] hooks/pre-push-codereview.sh:92 — (security) `git.exe push` is not gated on Windows: `Bash(git push*)` does not match it and the walker recognizes only a bare `git` token; /security pushed a scratch repo this way. The Windows form of the absolute-path case in the accepted "detection is heuristic" risk; BACKLOG push-gate-wrapped-push-detection does not name it (also claude-code)
+  Suggested fix: Requires a user decision: accept it under the existing risk, or treat `git.exe` as `git` in the walker and add `Bash(git.exe push*)` entries.
+
+[NOTE] claude/skills/codereview/SKILL.md:238, 471 — (security) A `.gitattributes` `-diff` or `binary` attribute on a text file shows it as "Binary files differ" to the inline and external reviewers; the marker hash still covers its content, so the gate holds
+  Suggested fix: Add `--text` (or `-a`) to the review diffs.
+
+[NOTE] bin/codereview-marker:131 — `in_surface` keeps agent-instruction markdown only by filename or a `.claude/` path, so a skill's `references/*.md` and `claude/references/*.md` (read through global-claude.md) count as plain docs; the new claude/references/windows.md was left out of this run's scan list (read anyway; benign) (claude-code, also security)
   Suggested fix: Also keep `*/references/*.md` and markdown under zat.env's `claude/` tree, or invert the rule and drop only known prose paths (README*, docs/, CHANGELOG*).
 
 [NOTE] claude/skills/codereview/SKILL.md:274 — The prose lists of agent-instruction markdown in Step 2 and Step 5 (line 395), and README, omit CLAUDE.local.md, which `in_surface` keeps (claude-code)
-  Evidence: The light-tier rule tells the model to apply the script's output, so the tier is still right; the lists describing one contract have drifted.
   Suggested fix: Add CLAUDE.local.md to both prose lists and README.
 
-[NOTE] claude/skills/codereview/SKILL.md:597 — `git stash create` and `codereview-marker surface <PRE_FIX>` ignore untracked files, so a codefix edit to a new untracked file gets no post-fix /security pass, despite "No codefix change reaches the push without a security pass" (claude-code)
-  Evidence: Untracked files are neither hashed nor pushed; adding the file changes the hash and forces a new review, so this is a coverage gap, not a gate bypass. Codefix has no Write tool but has Bash.
+[NOTE] claude/skills/codereview/SKILL.md:597 — `git stash create` and `codereview-marker surface <PRE_FIX>` ignore untracked files, so a codefix edit to a new untracked file gets no post-fix /security pass (claude-code)
   Suggested fix: Soften the sentence to tracked changes, or list untracked files changed since PRE_FIX as well.
 
-[NOTE] claude/skills/codereview/SKILL.md:339 — /security now starts before Step 3, so its at-max-effort verification runs (scratch repos, test runs) can overlap the project's test suite; the built-in review was deliberately launched after Step 3 to avoid test collisions on ports, databases, or temp files
-  Evidence: Speculative. This run's /security experiments used the scratchpad and did not collide. Confidence: low.
+[NOTE] claude/skills/codereview/SKILL.md:339 — /security starts before Step 3, so its verification runs can overlap the project's test suite. Confidence: low.
   Suggested fix: None now; revisit if a downstream test run collides with a /security reproduction.
 
-[NOTE] claude/skills/codereview/SKILL.md:460 — (security) The secret-in-diff guard depends on a step that reports secrets, and in a full-tier review no step looks in plain markdown (/security's surface omits it), so a key added to a README beside a code change still goes to OpenAI and Google
-  Suggested fix: Grep the exact Step 5.5 diff for key patterns (`sk-`, `sk-ant-`, `AIza`, `ghp_`, `github_pat_`, `AKIA`, `xox[bp]-`, `hf_`, private-key headers) before sending.
+[NOTE] claude/skills/codereview/SKILL.md:460 — (security) The secret-in-diff guard depends on a step that reports secrets, and in a full-tier review no step looks in plain markdown, so a key added to a README beside a code change still goes to OpenAI and Google
+  Suggested fix: Grep the exact Step 5.5 diff for key patterns before sending.
 
-[NOTE] claude/skills/codereview/SKILL.md:405 — (security) The model pastes SECURITY_META's commit value into `codereview-marker surface <meta-commit>`, so a planted `$(...)` would run before the script's leading-dash check; Step 2 already extracts `reviewed_up_to` with a hex-only `grep -oP` inside the command
-  Suggested fix: Extract the commit the same way, inside the command, and update the lint pin at tests/lint-skills.sh:401.
+[NOTE] claude/skills/codereview/SKILL.md:405 — (security) The model pastes SECURITY_META's commit value into `codereview-marker surface <meta-commit>`, so a planted `$(...)` would run before the script's leading-dash check
+  Suggested fix: Extract the commit inside the command with a hex-only `grep -oP`, and update the lint pin.
 
 [NOTE] claude/skills/pr/SKILL.md:152 — (security) The PR template passes commit-derived text in double-quoted `--title`/`--body` arguments, where backticks or `$(...)` run as commands
   Suggested fix: Write the body with a quoted heredoc and pass `--body-file`.
 
-[NOTE] claude/skills/spec/SKILL.md:8 — (security) Since 6f43afe made the frontmatter parse, /spec is inline and model-invocable, and its `allowed-tools` grants unprompted Bash(*), Write, and Edit for the rest of the invoking turn; before, the frontmatter was ignored and /spec ran under the session's rules. The commit message describes the change as matching how /spec already ran
-  Evidence: Documented grant semantics; added exposure small where the accepted `Bash(python3 *)`-class rules already apply. Auto-mode treatment undocumented. Confidence: medium.
-  Suggested fix: Narrow /spec's grant (git read commands, spec-backlog-apply.sh, Read, Grep, Glob) and let Write and Edit fall to the session's rules.
+[NOTE] claude/skills/spec/SKILL.md:8 — (security) /spec is inline and model-invocable, and its `allowed-tools` grants unprompted Bash(*), Write, and Edit for the rest of the invoking turn. Confidence: medium.
+  Suggested fix: Narrow /spec's grant and let Write and Edit fall to the session's rules.
 
-[NOTE] (carried forward, security) hooks/pre-push-codereview.sh — BACKLOG-deferred gate gaps, re-confirmed 2026-10-02: the skip marker never expires and is not tied to a diff (skip-marker-bound-to-diff); marker_dir ignores mkdir/chmod failure and checks no owner or symlink (marker-dir-ownership-check); without jq the hook exits 0 (push-gate-jq-fail-open); the hook evaluates the cwd repo, not the pushed one, now including a run from inside `.git` (push-gate-pushed-repo); a secret committed then deleted in the pushed range is never reviewed (push-gate-net-diff-secret)
+[NOTE] (carried forward, security) hooks/pre-push-codereview.sh — BACKLOG-deferred gate gaps, re-confirmed 2026-10-13: the skip marker never expires and is not tied to a diff (skip-marker-bound-to-diff); marker_dir ignores mkdir/chmod failure and checks no owner or symlink, and `chmod` does nothing on Windows (marker-dir-ownership-check); the hook evaluates the cwd repo, not the pushed one (push-gate-pushed-repo); a secret committed then deleted in the pushed range is never reviewed (push-gate-net-diff-secret). The jq fail-open gap is resolved by this diff.
   Suggested fix: As recorded in each BACKLOG.md entry.
 
-[NOTE] (carried forward, security) bin/review-external.sh:357 — The `-gt 272000` comparison is an arithmetic context that would run a command substitution in an array subscript; `_count` makes it safe, but no test covers this sink (Gemini comparison at 463 the same)
-  Suggested fix: Use a `PATH[$(: > ${TEST_DIR}/ran)]` payload in the hostile-token test, assert no file, add a Gemini case, and name the comparison in `_count`'s comment.
+[NOTE] (carried forward, security) bin/review-external.sh:365 — The `-gt 272000` comparison is an arithmetic context that would run a command substitution in an array subscript; `_count` makes it safe, but no test covers this sink (Gemini comparison at 471 the same)
+  Suggested fix: Use a `PATH[$(: > ${TEST_DIR}/ran)]` payload in the hostile-token test, assert no file, add a Gemini case.
 
-[NOTE] (carried forward, security) tests/test-review-external.sh:112 — The invalid-key tests call the real OpenAI and Google APIs from the repo root, sending unpushed commit subjects without opt-in (same at 287-294)
+[NOTE] (carried forward, security) tests/test-review-external.sh:112 — The invalid-key tests call the real OpenAI and Google APIs from the repo root, sending unpushed commit subjects without opt-in (same at 287-294); on Windows they now reach the providers, since the stdin key handoff works there
   Suggested fix: Run them against the suite's fake curl with FAKE_CODE=401.
 
-[NOTE] (carried forward) bin/review-external.sh:318 — `-H @<(...)` needs curl 7.55 or later; older curl misreports the failure (also claude-code)
+[NOTE] (carried forward) bin/review-external.sh:326, 430 — `-H @-` needs curl 7.55 or later; older curl misreports the failure (also claude-code)
   Suggested fix: Optionally note the curl 7.55 requirement in README's platform section.
 
 [NOTE] (carried forward) tests/lint-skills.sh — The negative pin on API keys in curl arguments matches only the old `-H "Authorization: Bearer ${` and `-H "x-goog-api-key: ${` forms (also claude-code)
-  Suggested fix: Optionally flag any curl argument line containing `api_key}` or `$api_key` outside a `printf` in `<(...)`.
+  Suggested fix: Optionally flag any curl argument line containing `api_key}` or `$api_key` outside the `printf` that feeds stdin.
 
-[NOTE] (carried forward) claude/skills/codereview/SKILL.md:467 — The 360000 ms timeout in Steps 5.5 and E.4 covers only the script's default REVIEW_TIMEOUT; a larger value in the reviewer .env brings the cut-off back, and the "300 seconds" prose is not lint-checked (also claude-code)
+[NOTE] (carried forward) claude/skills/codereview/SKILL.md:467 — The 360000 ms timeout in Steps 5.5 and E.4 covers only the script's default REVIEW_TIMEOUT; the "300 seconds" prose is not lint-checked (also claude-code)
   Suggested fix: Say to raise the Bash timeout for a larger REVIEW_TIMEOUT, up to 600000 ms; have lint match the prose's seconds value.
 
-[NOTE] (carried forward) tests/lint-skills.sh — The timeout pin sets a lower bound but no upper bound, so a script default past 570 s would demand a Bash timeout above the tool's 600000 ms maximum (claude-code)
+[NOTE] (carried forward) tests/lint-skills.sh — The timeout pin sets a lower bound but no upper bound (claude-code)
   Suggested fix: Also fail when the ms value exceeds 600000.
 
 [NOTE] (carried forward) tests/test-review-external.sh:838 — The price tests miss the 272000 and 200000 tier boundaries (claude-code)
-  Suggested fix: Optional: add 272000 (short) and 272001 (long) fixtures, and the Gemini equivalent.
+  Suggested fix: Optional: add boundary fixtures.
 
-[NOTE] (carried forward) bin/review-external.sh:359 — Each GPT-6 price row repeats an inline long-tier if/else (claude-code)
-  Suggested fix: None recommended; explicit rows match the provider pricing pages.
+[NOTE] (carried forward) bin/review-external.sh:367 — Each GPT-6 price row repeats an inline long-tier if/else (claude-code)
+  Suggested fix: None recommended.
 
 [NOTE] (carried forward) claude/skills/codereview/SKILL.md:520 — The Step 5.6 tree-change reading misses a re-edit of a fully staged file, an edit to an untracked file, and an edit committed during the run (openai). Deferred to BACKLOG.md (builtin-review-tree-fingerprint).
   Suggested fix: Add `git rev-parse HEAD`, `git diff HEAD`, and untracked file contents to both readings.
@@ -111,21 +147,21 @@ None configured.
   Suggested fix: Match case-insensitively, or accept that the guard pins only the removed text.
 
 [NOTE] (carried forward) tests/lint-skills.sh — The why-deferred check passes when "boilerplate" appears anywhere in D.5, and D.5 quotes the boilerplate phrase itself (claude-code)
-  Suggested fix: Drop the quoted phrase from claude/skills/tester/SKILL.md ("A reason that would fit every entry is boilerplate, not a reason.").
+  Suggested fix: Drop the quoted phrase from claude/skills/tester/SKILL.md.
 
 [NOTE] (carried forward) bin/review-external.sh:144 — gemini_thinking chooses thinkingLevel or thinkingBudget from the shape of GEMINI_EFFORT, not the model, and the 32768 default budget exceeds gemini-2.5-flash's cap (claude-code)
   Suggested fix: For gemini-2.5 models map a level to a budget, and cap the flash default at 24576.
 
-[NOTE] (carried forward) tests/test-review-external.sh:883 — The hostile-token test detects a regression by elapsed time with no bound on the run, so a regression would hang the suite (claude-code)
+[NOTE] (carried forward) tests/test-review-external.sh:883 — The hostile-token test detects a regression by elapsed time with no bound on the run (claude-code)
   Suggested fix: Bound the run with the script's TIMEOUT_CMD pattern.
 
 [NOTE] (carried forward) bin/review-external.sh:168 — `--check` prints an invalid GEMINI_EFFORT but still counts Google as configured and exits 0 (claude-code)
   Suggested fix: Do not count Google as configured when its thinking setting is invalid.
 
-[NOTE] (carried forward) bin/review-external.sh:285 — `_redact` has no word boundary, so "task-" or "risk-" in error text is partly redacted (also claude-code)
+[NOTE] (carried forward) bin/review-external.sh:291 — `_redact` has no word boundary, so "task-" or "risk-" in error text is partly redacted (also claude-code)
   Suggested fix: Anchor the match on a non-alphanumeric character or line start.
 
-[NOTE] (carried forward) bin/review-external.sh:465 — The Gemini price table has no gemini-2.5-flash rate and no fallback, so those models log cost "?" (claude-code)
+[NOTE] (carried forward) bin/review-external.sh:472 — The Gemini price table has no gemini-2.5-flash rate and no fallback, so those models log cost "?" (claude-code)
   Suggested fix: None, or add verified rates for models in actual use.
 
 [NOTE] (carried forward) tests/lint-skills.sh — 28 failure branches update FAILS and TOTAL inline, duplicating fail() (claude-code)
@@ -134,7 +170,7 @@ None configured.
 [NOTE] (carried forward) bin/review-external.sh:151 — gemini_thinking accepts `minimal`, which the header, install template, and validation message do not list (claude-code)
   Suggested fix: Document `minimal`, or drop it.
 
-[NOTE] (carried forward, security) zat.env-install.sh:170 — Each settings.json rewrite moves a new .tmp file into place, so a 0600 settings.json returns at the default umask (same at 224, 233, 249, 271, 288, 306)
+[NOTE] (carried forward, security) zat.env-install.sh:208 — Each settings.json rewrite moves a new .tmp file into place, so a 0600 settings.json returns at the default umask (same at every later rewrite)
   Suggested fix: `umask 077` at the top of the script.
 
 [NOTE] (carried forward) bin/review-external.sh — The default Gemini model is a preview that can be withdrawn on short notice. Deferred to BACKLOG.md (gemini-stable-model-default).
@@ -152,29 +188,28 @@ None configured.
 [NOTE] (carried forward) claude/skills/codereview/SKILL.md:511 — The built-in resolves its own scope; on a first push it reviews only the last commit while the gate covers the whole tree (claude-code)
   Suggested fix: Have the Step 9 "Built-in review" line note the range the built-in reported when it differs from the gate's base.
 
-[NOTE] (carried forward) claude/skills/codereview/SKILL.md — The skill is 742 lines against the CLAUDE.md guideline of about 500 (683 at the prior review). Deferred to BACKLOG.md (skill-size-references-split) (claude-code)
-  Suggested fix: Move Step 5.6's mechanics or other long sections to claude/skills/codereview/references/ (and add references/*.md to the security surface first; see the in_surface NOTE).
+[NOTE] (carried forward) claude/skills/codereview/SKILL.md — The skill is 742 lines against the CLAUDE.md guideline of about 500. Deferred to BACKLOG.md (skill-size-references-split) (claude-code)
+  Suggested fix: Move Step 5.6's mechanics or other long sections to claude/skills/codereview/references/ (and add references/*.md to the security surface first).
 
 [NOTE] (carried forward, security) hooks/allow-venv-source.sh:12 — The auto-mode guard matches only the exact string "auto"; a missing, null, or differently spelled `permission_mode` falls through to `allow`
   Suggested fix: Approve only for an explicit list of modes and make no decision otherwise.
 
-[NOTE] (carried forward) zat.env-install.sh:114 — The reviewer .env exists at the process umask for an instant on first creation; it holds only template text then.
+[NOTE] (carried forward) zat.env-install.sh:151 — The reviewer .env exists at the process umask for an instant on first creation; it holds only template text then.
   Suggested fix: None needed.
 
-[NOTE] (carried forward) zat.env-install.sh:184 — Deny entries accumulate across installs; deliberate, since deny entries only narrow.
+[NOTE] (carried forward) zat.env-install.sh:221 — Deny entries accumulate across installs; deliberate, since deny entries only narrow.
   Suggested fix: None needed.
 
 [NOTE] (carried forward, security) hw-bootstrap.sh:197 — Docker group membership lets anything running as the user obtain root without a password.
   Suggested fix: Accept as a risk, or move to rootless Docker.
 
-Resolved since the prior review: control characters in provider output (97ab0f0), and the open question of whether a forked /codereview can wait on background children without polling (6f43afe's probes; this run waited on /security, the built-in, and /codefix by ending its turn).
+Resolved since the prior review: the jq fail-open gate gap (BACKLOG push-gate-jq-fail-open, closed by 6c9741a).
 
 ### Fixes Applied
 
-- [WARN] hooks/pre-push-codereview.sh:297 — The uncommitted-file list prints with `sed -n '1,20s/^/  /p'` instead of `head -20 | sed`, so more than 64 KB of names no longer kills the hook with SIGPIPE (exit 141, which Claude Code treats as non-blocking). New test: 2,500 uncommitted names still block with exit 2.
-- [WARN] hooks/pre-push-codereview.sh:250 — The "nothing to review" branch runs `codereview-marker uncommitted` (fails closed) and blocks when the commits differ from the working tree, so commits reverted only in the working tree are no longer pushed unreviewed. New test covers the revert case. (also claude-code)
-- [WARN] bin/codereview-marker:91 — `require_git` changes to the top level, so the review-file excludes apply from any subdirectory; `uncommitted` no longer lists a root CODEREVIEW.md and `hash` matches the root value. Root hashes are unchanged. /security noted this also closes a fail-open with `diff.relative=true` from a clean subdirectory. New tests cover both subcommands from a subdirectory. (claude-code)
-- [WARN] claude/skills/codereview/SKILL.md:618 — Step 7 uses `/security post-fix` whenever this review has already written a SECURITY.md entry (Step 5 or an earlier cycle's re-check), not only when Step 5 scanned; CLAUDE.md:55 updated to match. (claude-code)
+- [WARN] zat.env-install.sh:320, 341, 359 — The three hook commands quote the script path (`bash "${REPO_DIR}/hooks/<script>.sh"`), so a repo path with a space (a Windows profile such as `C:\Users\John Smith`) no longer makes `bash` exit 127, which Claude Code treated as non-blocking and which let every push through. The stale-hook prune at 290 reads whole lines and strips `bash ` and the quotes before its `-f` test, so it handles both old and new entries; the lint pin follows the new loop. /security verified with an installer run from a path with spaces. (claude-code)
+- [WARN] claude/skills/codereview/SKILL.md:511 — Step 5.6 runs `MSYS_NO_PATHCONV=1 claude -p "/code-review high" ...`, so Git Bash no longer rewrites the prompt into `C:/Program Files/Git/code-review high` on its way into the native `claude.exe`; this run's built-in received the mangled prompt. New lint pin for the prefix. (claude-code)
+- [WARN] hooks/pre-push-codereview.sh:89, 142 — (security) Both token arrays read through process substitution with `|| true` instead of a here-string, which hung on Git Bash for a command of 65,536 to about 65,663 normalized bytes until the timeout let the push through. /security confirmed the fixed hook blocks in about 5 s across that band. The `onFailure` part of this finding remains open above.
 
 ### Accepted Risks
 
@@ -185,6 +220,6 @@ Resolved since the prior review: control characters in provider output (97ab0f0)
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-10-01, commit 2f556b0): Refresh review of passing API keys to curl through a file descriptor and the v1.5 documentation fold-in; 0 BLOCK / 0 WARN / 36 NOTE.*
+*Prior review (2026-10-02, commit c03a14c): Refresh review of 11 commits (control-character stripping, the security surface script, the uncommitted-changes push check, the secret-in-diff skip, and related changes); 0 BLOCK / 7 WARN / 41 NOTE, with four WARNs auto-fixed and seven pre-existing gate and policy WARNs left for a user decision.*
 
-<!-- REVIEW_META: {"date":"2026-10-02","commit":"c03a14c","reviewed_up_to":"c03a14c50ce9a163d891e47a30dd0c170126a694","base":"origin/main","tier":"refresh","block":0,"warn":7,"note":41} -->
+<!-- REVIEW_META: {"date":"2026-10-13","commit":"6c9741a","reviewed_up_to":"6c9741a108253962cd237c71d0bb035eeafbeb4b","base":"origin/main","tier":"refresh","block":0,"warn":8,"note":55} -->
