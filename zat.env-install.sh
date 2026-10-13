@@ -287,9 +287,12 @@ fi
 # makes a live hook look missing.
 STALE_HOOKS=""
 for event in PreToolUse PostToolUse; do
-  for cmd in $(jq -r ".hooks.${event} // [] | .[].hooks[]? | .command // empty" "${SETTINGS_FILE}" 2>/dev/null | tr -d '\r'); do
-    # Extract the script path from "bash /path/to/script.sh"
+  while IFS= read -r cmd; do
+    # Extract the script path from "bash /path/to/script.sh" or
+    # "bash \"/path/to/script.sh\"" (quoted so a path with a space survives).
     script="${cmd#bash }"
+    script="${script#\"}"
+    script="${script%\"}"
     if [[ "${script}" == "${REPO_DIR}/hooks/"* ]] && [[ ! -f "${script}" ]]; then
       STALE_HOOKS="${STALE_HOOKS} ${script}"
       basename_script="$(basename "${script}")"
@@ -299,7 +302,7 @@ for event in PreToolUse PostToolUse; do
       " "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
       echo "    Removed stale hook: ${basename_script}"
     fi
-  done
+  done < <(jq -r ".hooks.${event} // [] | .[].hooks[]? | .command // empty" "${SETTINGS_FILE}" 2>/dev/null | tr -d '\r')
 done
 
 # Remove any existing pre-push-codereview entry (may be old format without "if" field),
@@ -314,7 +317,7 @@ done
 # The timeout leaves headroom for Windows, where the hook's git and bash
 # processes are slow to start (about 2.5 s on a small repo, against well
 # under a second on Linux).
-HOOK_COMMAND="bash ${REPO_DIR}/hooks/pre-push-codereview.sh"
+HOOK_COMMAND="bash \"${REPO_DIR}/hooks/pre-push-codereview.sh\""
 jq --arg cmd "${HOOK_COMMAND}" '
   .hooks //= {} |
   .hooks.PreToolUse //= [] |
@@ -335,7 +338,7 @@ jq --arg cmd "${HOOK_COMMAND}" '
 echo "    Added pre-push hook (Bash and PowerShell)"
 
 # Remove any existing allow-venv-source entry, then add the current version.
-VENV_HOOK_COMMAND="bash ${REPO_DIR}/hooks/allow-venv-source.sh"
+VENV_HOOK_COMMAND="bash \"${REPO_DIR}/hooks/allow-venv-source.sh\""
 jq --arg cmd "${VENV_HOOK_COMMAND}" '
   .hooks //= {} |
   .hooks.PreToolUse //= [] |
@@ -353,7 +356,7 @@ echo "    Added venv-source auto-approve hook"
 
 # Remove any existing post-tool-exit-plan-mode entry, then add the current version.
 # This is the /plan -> /spec plan handoff reminder. See hooks/README.md.
-PLAN_EXIT_HOOK_COMMAND="bash ${REPO_DIR}/hooks/post-tool-exit-plan-mode.sh"
+PLAN_EXIT_HOOK_COMMAND="bash \"${REPO_DIR}/hooks/post-tool-exit-plan-mode.sh\""
 jq --arg cmd "${PLAN_EXIT_HOOK_COMMAND}" '
   .hooks //= {} |
   .hooks.PostToolUse //= [] |

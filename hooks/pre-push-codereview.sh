@@ -86,7 +86,7 @@ _normalize_ops() {
 _push_subcommand_indices() {
   local -a t
   # shellcheck disable=SC2206
-  read -ra t <<< "$(_normalize_ops "$1")"
+  read -ra t < <(_normalize_ops "$1") || true
   local n=${#t[@]} i=0
   while (( i < n )); do
     if [[ "${t[i]}" != "git" ]]; then i=$((i + 1)); continue; fi
@@ -139,7 +139,7 @@ is_tag_only_push() {
   local cmd="$1"
   local -a toks
   # shellcheck disable=SC2206
-  read -ra toks <<< "$(_normalize_ops "${cmd}")"
+  read -ra toks < <(_normalize_ops "${cmd}") || true
   local n=${#toks[@]}
   local -a pushidx
   # shellcheck disable=SC2207

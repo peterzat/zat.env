@@ -508,7 +508,7 @@ Then start the review in a second Bash call with `run_in_background` and a
 15-minute timeout, substituting the path the first call printed:
 
 ```bash
-claude -p "/code-review high" --output-format json --disallowedTools "Edit,Write,NotebookEdit" > <output-file> 2>/dev/null
+MSYS_NO_PATHCONV=1 claude -p "/code-review high" --output-format json --disallowedTools "Edit,Write,NotebookEdit" > <output-file> 2>/dev/null
 ```
 
 Keep the tool restriction and the redirect exactly as shown. /codereview is

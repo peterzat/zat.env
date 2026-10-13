@@ -1006,6 +1006,8 @@ has "${CR}" "launch the Step 5.6 built-in review in the background before starti
   "codereview: Step 3 launches the built-in review before Step 4"
 has "${CR}" 'claude -p "/code-review high" --output-format json --disallowedTools "Edit,Write,NotebookEdit" > <output-file>' \
   "codereview: built-in review runs without edit tools and is redirected to a file"
+has "${CR}" 'MSYS_NO_PATHCONV=1 claude -p "/code-review high"' \
+  "codereview: built-in review disables Git Bash path conversion of the /code-review prompt"
 has "${CR}" "mktemp /tmp/.claude-builtin-review-XXXXXX" \
   "codereview: built-in review output file uses mktemp"
 if grep -qF -- "jq -r 'select(.is_error | not) | .result // empty' <output-file>; rm -f <output-file>" "${CR}"; then
@@ -1896,7 +1898,7 @@ has "${REPO_DIR}/zat.env-install.sh" 'export MSYS=winsymlinks:nativestrict' \
   "install: Windows makes native symlinks, not silent copies"
 has "${REPO_DIR}/zat.env-install.sh" 'ALIASES_INCLUDE="\$\(winpath ' \
   "install: include.path guard compares the form git stores"
-has "${REPO_DIR}/zat.env-install.sh" '2>/dev/null \| tr -d .\\r.\); do' \
+has "${REPO_DIR}/zat.env-install.sh" 'done < <\(jq -r .*2>/dev/null \| tr -d .\\r.\)$' \
   "install: stale-hook scan strips CR from jq output"
 has "${REPO_DIR}/zat.env-install.sh" 'FOUND_MARKER="\$\(command -v codereview-marker' \
   "install: warns when another codereview-marker shadows ~/bin"
