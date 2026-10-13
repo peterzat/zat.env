@@ -269,7 +269,13 @@ _calc() {
     # bc prints values below 1 without a leading zero (.0034).
     echo "$1" | bc -l | sed 's/^\./0./'
   else
-    echo "?"
+    # No bc (Git Bash on Windows ships none): evaluate the same "scale=N; expr"
+    # in awk and print it the way the bc branch does, truncated to the scale,
+    # with a leading zero, and a bare 0 for zero. Every operand is a _count
+    # integer or a price from the tables below.
+    local scale="${1%%;*}" expr="${1#*;}"
+    awk -v s="${scale#scale=}" "BEGIN { f = 10 ^ s; t = int((${expr}) * f + 1e-6) / f
+      if (t == 0) print 0; else printf(\"%.\" s \"f\\n\", t) }"
   fi
 }
 
@@ -309,13 +315,15 @@ call_openai() {
       ]
     }' > "${body_file}"
 
-  # The key reaches curl through a file descriptor (-H @file), not its argument
-  # list: /proc/<pid>/cmdline is readable by every local account. Same in
+  # The key reaches curl on stdin (-H @-), not its argument list:
+  # /proc/<pid>/cmdline is readable by every local account. Not through a
+  # process substitution either: a native Windows curl cannot open the
+  # /proc/<pid>/fd path that hands it, so every call failed there. Same in
   # call_google.
   local response
-  response=$(curl -s -w "\n%{http_code}" \
+  response=$(printf 'Authorization: Bearer %s\n' "${api_key}" | curl -s -w "\n%{http_code}" \
     --max-time "${TIMEOUT}" \
-    -H @<(printf 'Authorization: Bearer %s\n' "${api_key}") \
+    -H @- \
     -H "Content-Type: application/json" \
     -d "@${body_file}" \
     "https://api.openai.com/v1/responses" 2>/dev/null) || {
@@ -416,10 +424,10 @@ call_google() {
   local url="https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent"
 
   local response
-  response=$(curl -s -w "\n%{http_code}" \
+  response=$(printf 'x-goog-api-key: %s\n' "${api_key}" | curl -s -w "\n%{http_code}" \
     --max-time "${TIMEOUT}" \
     -H "Content-Type: application/json" \
-    -H @<(printf 'x-goog-api-key: %s\n' "${api_key}") \
+    -H @- \
     -d "@${body_file}" \
     "${url}" 2>/dev/null) || {
     rm -f "${body_file}"

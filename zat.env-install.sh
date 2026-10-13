@@ -6,17 +6,54 @@ if [[ "${EUID}" -eq 0 ]]; then
   exit 1
 fi
 
+# Windows means Git Bash (MSYS), the shell Claude Code itself uses there.
+case "$(uname -s)" in
+  Darwin)               PLATFORM=macos ;;
+  MINGW*|MSYS*|CYGWIN*) PLATFORM=windows ;;
+  *)                    PLATFORM=linux ;;
+esac
+
 if ! command -v jq &>/dev/null; then
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    echo "ERROR: jq is required. Install with: brew install jq"
-  else
-    echo "ERROR: jq is required. Install with: sudo apt install jq"
-  fi
+  case "${PLATFORM}" in
+    macos)   echo "ERROR: jq is required. Install with: brew install jq" ;;
+    windows) echo "ERROR: jq is required. Install with: winget install jqlang.jq" ;;
+    *)       echo "ERROR: jq is required. Install with: sudo apt install jq" ;;
+  esac
   exit 1
 fi
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${HOME}/.claude"
+
+# git.exe is a native Windows program, and MSYS rewrites a POSIX path argument
+# into drive-letter form on its way in, so git stores C:/... for a /c/... it
+# was handed. Paths that are written to git config and read back go through
+# winpath so the comparison sees the stored form. Identity elsewhere.
+winpath() {
+  if [[ "${PLATFORM}" == "windows" ]]; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+# Windows: MSYS turns `ln -s` into a silent COPY unless asked for native
+# symlinks. A copy goes stale on the next pull, and every later run skips it
+# as "not a symlink". Native symlinks need Developer Mode (or an elevated
+# shell), so probe once and stop rather than install copies.
+if [[ "${PLATFORM}" == "windows" ]]; then
+  export MSYS=winsymlinks:nativestrict
+  PROBE_DIR="$(mktemp -d)"
+  : > "${PROBE_DIR}/target"
+  if ! ln -s "${PROBE_DIR}/target" "${PROBE_DIR}/link" 2>/dev/null || [[ ! -L "${PROBE_DIR}/link" ]]; then
+    rm -rf "${PROBE_DIR}"
+    echo "ERROR: this account cannot create symbolic links, and zat.env links"
+    echo "its skills, hooks, and CLAUDE.md into ~/.claude. Turn on Developer Mode"
+    echo "(Settings > System > For developers), open a new terminal, and re-run."
+    exit 1
+  fi
+  rm -rf "${PROBE_DIR}"
+fi
 
 echo "==> zat.env-install: wiring repo config into the live system"
 echo "    Repo: ${REPO_DIR}"
@@ -36,11 +73,12 @@ while [[ -z "${GIT_EMAIL}" ]]; do
   read -rp "Git user.email: " GIT_EMAIL
 done
 git config --global user.email "${GIT_EMAIL}"
-git config --global core.excludesfile "${REPO_DIR}/gitconfig/ignore-global"
+git config --global core.excludesfile "$(winpath "${REPO_DIR}/gitconfig/ignore-global")"
 
 # include.path supports multiple values; only add if not already present
-if ! git config --global --get-all include.path | grep -qF "${REPO_DIR}/gitconfig/aliases.gitconfig"; then
-  git config --global --add include.path "${REPO_DIR}/gitconfig/aliases.gitconfig"
+ALIASES_INCLUDE="$(winpath "${REPO_DIR}/gitconfig/aliases.gitconfig")"
+if ! git config --global --get-all include.path | grep -qF "${ALIASES_INCLUDE}"; then
+  git config --global --add include.path "${ALIASES_INCLUDE}"
 fi
 
 # --- ~/.claude/CLAUDE.md symlink ---
@@ -233,11 +271,23 @@ echo "    Set permissions (defaultMode, allow list reset, deny list merged)"
 jq '.autoMode.classifyAllShell = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
 echo "    Set autoMode.classifyAllShell (auto mode classifies every shell command)"
 
+# Windows: Bash (Git Bash) is the only shell tool. Claude Code there also has a
+# PowerShell tool and treats it as the primary shell, but every skill, helper,
+# and hook in zat.env is bash. Any Bash deny rule already turns PowerShell off
+# for the session; this keeps that true if the deny list ever empties, and
+# makes it a decision rather than a side effect. Linux and macOS are untouched.
+if [[ "${PLATFORM}" == "windows" ]]; then
+  jq '.env.CLAUDE_CODE_USE_POWERSHELL_TOOL = "0"' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+  echo "    Set env.CLAUDE_CODE_USE_POWERSHELL_TOOL=0 (Bash is the only shell tool)"
+fi
+
 # Prune hooks that point at zat.env scripts that no longer exist on disk.
 # This cleans up after hooks are removed from the repo (e.g., external reviewer hooks).
+# tr: the native Windows jq ends each line with CRLF, and a CR left on a path
+# makes a live hook look missing.
 STALE_HOOKS=""
 for event in PreToolUse PostToolUse; do
-  for cmd in $(jq -r ".hooks.${event} // [] | .[].hooks[]? | .command // empty" "${SETTINGS_FILE}" 2>/dev/null); do
+  for cmd in $(jq -r ".hooks.${event} // [] | .[].hooks[]? | .command // empty" "${SETTINGS_FILE}" 2>/dev/null | tr -d '\r'); do
     # Extract the script path from "bash /path/to/script.sh"
     script="${cmd#bash }"
     if [[ "${script}" == "${REPO_DIR}/hooks/"* ]] && [[ ! -f "${script}" ]]; then
@@ -254,22 +304,35 @@ done
 
 # Remove any existing pre-push-codereview entry (may be old format without "if" field),
 # then add the current version. This keeps the hook config up to date on re-runs.
+#
+# One entry per shell tool, because an "if" holds a single rule. Claude Code
+# on Windows also has a PowerShell tool, which a Bash matcher never sees; it
+# is turned off above, and the PowerShell entry gates `git push` if it is
+# ever turned back on. Linux and macOS have no PowerShell tool unless pwsh is
+# installed and opted into, so there the entry never fires.
+#
+# The timeout leaves headroom for Windows, where the hook's git and bash
+# processes are slow to start (about 2.5 s on a small repo, against well
+# under a second on Linux).
 HOOK_COMMAND="bash ${REPO_DIR}/hooks/pre-push-codereview.sh"
 jq --arg cmd "${HOOK_COMMAND}" '
   .hooks //= {} |
   .hooks.PreToolUse //= [] |
   .hooks.PreToolUse = [.hooks.PreToolUse[] | select(.hooks | map(.command // "" | test("pre-push-codereview")) | any | not)] |
-  .hooks.PreToolUse += [{
-    "matcher": "Bash",
-    "if": "Bash(git push*)",
-    "hooks": [{
-      "type": "command",
-      "command": $cmd,
-      "timeout": 10
-    }]
-  }]
+  .hooks.PreToolUse += [
+    {
+      "matcher": "Bash",
+      "if": "Bash(git push*)",
+      "hooks": [{ "type": "command", "command": $cmd, "timeout": 30 }]
+    },
+    {
+      "matcher": "PowerShell",
+      "if": "PowerShell(git push*)",
+      "hooks": [{ "type": "command", "command": $cmd, "timeout": 30 }]
+    }
+  ]
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    Added pre-push hook"
+echo "    Added pre-push hook (Bash and PowerShell)"
 
 # Remove any existing allow-venv-source entry, then add the current version.
 VENV_HOOK_COMMAND="bash ${REPO_DIR}/hooks/allow-venv-source.sh"
@@ -313,7 +376,19 @@ echo "    Added post-ExitPlanMode /spec plan reminder hook"
 # ~/.profile only adds ~/bin when the directory already exists at login). Warn
 # rather than edit the user's shell rc.
 case ":${PATH}:" in
-  *":${BIN_DIR}:"*) ;;
+  *":${BIN_DIR}:"*)
+    # Another codereview-marker earlier on PATH (another harness, a stale copy)
+    # would serve the skills, and on Windows Git's bash.exe hands the hook this
+    # repo's copy instead, so the review and the gate would disagree on the
+    # marker and every push would be refused.
+    FOUND_MARKER="$(command -v codereview-marker 2>/dev/null || true)"
+    if [[ "${FOUND_MARKER}" != "${BIN_DIR}/codereview-marker" ]]; then
+      echo
+      echo "==> WARNING: codereview-marker resolves to ${FOUND_MARKER:-nothing},"
+      echo "    not ${BIN_DIR}/codereview-marker. Remove the other copy or put"
+      echo "    ${BIN_DIR} first on PATH, then open a new shell."
+    fi
+    ;;
   *)
     echo
     echo "==> WARNING: ${BIN_DIR} is not on your PATH"

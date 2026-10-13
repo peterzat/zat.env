@@ -12,7 +12,7 @@ Blocks `git push` commands unless `/codereview` has been run and passed on the
 current diff.
 
 **How it works:**
-1. When Claude attempts a `git push`, the `PreToolUse` hook fires (filtered by `"if": "Bash(git push*)"` in the hook config, so it only runs for push commands)
+1. When Claude attempts a `git push`, the `PreToolUse` hook fires (filtered by `"if": "Bash(git push*)"` in the hook config, so it only runs for push commands). A second entry with `"if": "PowerShell(git push*)"` covers Claude Code's PowerShell tool, because an `if` holds a single rule. zat.env turns that tool off on Windows, so the entry is a backstop for when it comes back on; Linux and macOS have no PowerShell tool unless one is opted into
 2. The hook resolves the marker path via `codereview-marker path` (single source of truth). Markers live under `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/marker-<project-hash>` (per-user, mode 0700)
 3. The marker contains the diff hash (SHA-256, 16 chars) from the passing review
 4. If the marker exists and the diff hash matches the current diff → push allowed
@@ -24,7 +24,11 @@ diff hash and persists across pushes (a failed network push or remote rejection
 does not force a re-review; the next push of the same diff still passes the
 gate). Only the one-shot bypass marker created by `codereview-skip` is consumed
 on use. If `codereview-marker` is missing from PATH or otherwise broken, the
-hook fails closed (exits 2) rather than silently allowing the push.
+hook fails closed (exits 2) rather than silently allowing the push. The same
+holds when `jq` cannot read the command from the payload. Carriage returns
+are stripped from the command before it is tokenized: the native Windows `jq`
+writes CRLF, and a CR glued to `push` on any line but the last used to hide
+the push from the walker.
 
 **Flow:**
 ```

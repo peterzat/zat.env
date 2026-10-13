@@ -1,0 +1,6 @@
+# Pin LF for every text file. Git for Windows installs with core.autocrlf=true,
+# which checks the working tree out as CRLF. Git Bash tolerates CRLF scripts,
+# but files the install links into ~/.claude would carry it too, and every
+# edit made on Windows would round-trip through a line-ending conversion. On
+# Linux and macOS checkouts are already LF, so this changes nothing there.
+* text=auto eol=lf

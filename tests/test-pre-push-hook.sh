@@ -12,6 +12,8 @@ set -uo pipefail
 #   - Marker file hash match / mismatch
 #   - Skip marker consumption
 #   - Non-push commands pass through
+#   - Fail closed when codereview-marker or jq is unavailable
+#   - CRLF jq output (native Windows jq) and PowerShell tool payloads
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 HOOK="${REPO_DIR}/hooks/pre-push-codereview.sh"
@@ -101,7 +103,7 @@ invoke_in_test_repo() {
 
 # A scratch directory that is NOT a git repo, used for detection-only tests.
 SCRATCH_NOGIT=$(mktemp -d)
-trap 'rm -rf "${SCRATCH_NOGIT}"; rm -rf "${TEST_REPO:-}"; rm -f "${TEST_MARKER:-}" "${TEST_SKIP_MARKER:-}"' EXIT
+trap 'rm -rf "${SCRATCH_NOGIT}" "${JQ_SHIM_DIR:-}"; rm -rf "${TEST_REPO:-}"; rm -f "${TEST_MARKER:-}" "${TEST_SKIP_MARKER:-}"' EXIT
 
 # ============================================================
 echo "==> Detection: positive cases (should be classified as git push)"
@@ -567,10 +569,12 @@ echo "==> Fail-closed: codereview-marker missing from PATH blocks the push"
 setup_test_repo
 echo "modified" > "${TEST_REPO}/file.txt"
 # Strip codereview-marker from PATH for this single invocation. The hook
-# must still find git (needed for the in-a-repo check), so we keep the
-# system bin dirs only.
+# must still find git (the in-a-repo check) and jq (reading the payload), so
+# keep only their directories and the system bin dirs. On Linux both live in
+# /usr/bin; on Windows they are native programs in Git's and WinGet's own
+# directories, which /usr/bin:/bin alone would drop.
 ec=0
-PATH_SANITIZED="/usr/bin:/bin"
+PATH_SANITIZED="$(dirname "$(command -v git)"):$(dirname "$(command -v jq)"):/usr/bin:/bin"
 payload=$(jq -n --arg c "git push" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
 stderr_out=$(cd "${TEST_REPO}" && export PATH="${PATH_SANITIZED}" && printf '%s' "${payload}" | bash "${HOOK}" 2>&1 >/dev/null) || ec=$?
 if [[ "${ec}" -eq 2 ]] && printf '%s' "${stderr_out}" | grep -q "codereview-marker is unavailable"; then
@@ -583,13 +587,72 @@ teardown_test_repo
 # Pushes from outside any git repo still pass through (not our concern).
 ec=0
 payload=$(jq -n --arg c "git push" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
-PATH_SANITIZED="/usr/bin:/bin"
 (cd "${SCRATCH_NOGIT}" && export PATH="${PATH_SANITIZED}" && printf '%s' "${payload}" | bash "${HOOK}" >/dev/null 2>&1) || ec=$?
 if [[ "${ec}" -eq 0 ]]; then
   pass "outside any repo + missing codereview-marker: still exit 0"
 else
   fail "outside any repo: expected exit 0, got ${ec}"
 fi
+
+# ============================================================
+echo ""
+echo "==> Windows: CRLF from jq, the PowerShell tool, and jq failing"
+# ============================================================
+#
+# The native Windows jq writes CRLF, and Git Bash strips only the final CR
+# from a command substitution, so a push on any line but the last read as
+# "push\r" and passed the gate. A shim that ends each line of the real jq's
+# output with CR reproduces that on every platform.
+
+JQ_SHIM_DIR=$(mktemp -d)
+REAL_JQ=$(command -v jq)
+mkdir -p "${JQ_SHIM_DIR}/crlf" "${JQ_SHIM_DIR}/broken"
+cat > "${JQ_SHIM_DIR}/crlf/jq" <<'EOF'
+#!/usr/bin/env bash
+set -o pipefail
+"${REAL_JQ}" "$@" | awk '{ printf "%s\r\n", $0 }'
+EOF
+cat > "${JQ_SHIM_DIR}/broken/jq" <<'EOF'
+#!/usr/bin/env bash
+exit 127
+EOF
+chmod +x "${JQ_SHIM_DIR}/crlf/jq" "${JQ_SHIM_DIR}/broken/jq"
+
+setup_test_repo
+echo "modified" > "${TEST_REPO}/file.txt"
+
+ec=0
+payload=$(jq -n --arg c $'git push\necho done' '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+stderr_out=$(cd "${TEST_REPO}" && printf '%s' "${payload}" | PATH="${JQ_SHIM_DIR}/crlf:${PATH}" REAL_JQ="${REAL_JQ}" bash "${HOOK}" 2>&1 >/dev/null) || ec=$?
+if [[ "${ec}" -eq 2 ]] && printf '%s' "${stderr_out}" | grep -q "has not passed /codereview"; then
+  pass "CRLF jq output: a push on a non-final line is still gated"
+else
+  fail "CRLF jq output: expected exit 2 (gated), got ec=${ec} stderr=${stderr_out}"
+fi
+
+# The install registers the hook for the PowerShell tool too; the payload
+# differs only in tool_name, which the hook does not consult.
+ec=0
+payload=$(jq -n --arg c "git push" '{tool_name:"PowerShell", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+(cd "${TEST_REPO}" && printf '%s' "${payload}" | bash "${HOOK}" >/dev/null 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "PowerShell tool payload: git push is gated"
+else
+  fail "PowerShell tool payload: expected exit 2, got ${ec}"
+fi
+
+# jq failing used to leave the command empty, which read as "not a push".
+ec=0
+payload=$(jq -n --arg c "git push" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+stderr_out=$(cd "${TEST_REPO}" && printf '%s' "${payload}" | PATH="${JQ_SHIM_DIR}/broken:${PATH}" bash "${HOOK}" 2>&1 >/dev/null) || ec=$?
+if [[ "${ec}" -eq 2 ]] && printf '%s' "${stderr_out}" | grep -q "cannot read the command"; then
+  pass "jq unavailable: hook exits 2 (fail closed)"
+else
+  fail "jq unavailable: expected exit 2 with 'cannot read the command' stderr, got ec=${ec} stderr=${stderr_out}"
+fi
+
+teardown_test_repo
+rm -rf "${JQ_SHIM_DIR}"
 
 # ============================================================
 echo ""

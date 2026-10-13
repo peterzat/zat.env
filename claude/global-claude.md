@@ -91,6 +91,10 @@ persistent files like SPEC.md/CODEREVIEW.md/SECURITY.md/TESTING.md, README conte
 - Run venv tools directly (`.venv/bin/python`, `.venv/bin/pytest`) rather than `source .venv/bin/activate && ...`. Activation does not persist between shell commands, and the direct form needs no `source`, which Claude Code treats as an eval-like builtin and prompts on.
 - System Python (3.10) is for tooling only.
 
+## Windows
+
+On native Windows the shell is Git Bash, the only shell tool zat.env enables there, and Python, paths, and line endings work differently. Read `~/src/zat.env/claude/references/windows.md` before setting up Python or calling native Windows tools.
+
 ## ML / GPU
 
 Large datasets and model files go in `~/data/`, not in project directories or git. For machine-specific GPU/CUDA conventions see `~/src/zat.env/claude/references/ml-gpu.md`.

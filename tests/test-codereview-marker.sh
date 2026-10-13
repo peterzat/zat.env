@@ -313,12 +313,22 @@ else
 fi
 # Portable file mode in octal: GNU stat (Linux) uses -c, BSD stat (macOS)
 # uses -f. GNU wins the first branch on Linux, so -f is never reached there.
-mode=$(stat -c '%a' "${EXPECTED_DIR}" 2>/dev/null || stat -f '%Lp' "${EXPECTED_DIR}" 2>/dev/null)
-if [[ "${mode}" == "700" ]]; then
-  pass "path: marker directory mode 0700"
-else
-  fail "path: marker directory mode ${mode:-?} (expected 700)"
-fi
+# Git Bash on Windows keeps mode bits only nominally (NTFS ACLs decide access,
+# and the user profile is private by default), so chmod 700 reads back as 755
+# and there is nothing to measure; the check is skipped, not counted.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    printf '  skip %s\n' "path: marker directory mode (NTFS ignores chmod)"
+    ;;
+  *)
+    mode=$(stat -c '%a' "${EXPECTED_DIR}" 2>/dev/null || stat -f '%Lp' "${EXPECTED_DIR}" 2>/dev/null)
+    if [[ "${mode}" == "700" ]]; then
+      pass "path: marker directory mode 0700"
+    else
+      fail "path: marker directory mode ${mode:-?} (expected 700)"
+    fi
+    ;;
+esac
 
 # --- skip-path subcommand ---
 

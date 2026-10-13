@@ -1091,15 +1091,21 @@ for ext_step in "5.5:^## Step 5.5:,^## Step 5.6:" "E.4:^### Step E.4:,^### Step 
   fi
 done
 
-# API keys reach curl through a file descriptor, never as an argument:
+# API keys reach curl on stdin (-H @-), never as an argument:
 # /proc/<pid>/cmdline is readable by every local account on a host without
 # hidepid, and a review call holds the key there for up to REVIEW_TIMEOUT.
+# Not through process substitution either: a native Windows curl cannot open
+# the /proc/<pid>/fd path that -H @<(...) hands it, so every call failed.
 hasnt "${REPO_DIR}/bin/review-external.sh" '-H "(Authorization: Bearer|x-goog-api-key: )\$\{' \
   "script: no API key passed to curl as an argument"
-has "${REPO_DIR}/bin/review-external.sh" "-H @<\(printf 'Authorization: Bearer %s" \
-  "script: OpenAI key reaches curl through a file descriptor"
-has "${REPO_DIR}/bin/review-external.sh" "-H @<\(printf 'x-goog-api-key: %s" \
-  "script: Google key reaches curl through a file descriptor"
+has "${REPO_DIR}/bin/review-external.sh" "Authorization: Bearer %s.*\\| curl " \
+  "script: OpenAI key reaches curl on stdin"
+has "${REPO_DIR}/bin/review-external.sh" "x-goog-api-key: %s.*\\| curl " \
+  "script: Google key reaches curl on stdin"
+has "${REPO_DIR}/bin/review-external.sh" '-H @- \\$' \
+  "script: curl reads the key header from stdin (-H @-)"
+hasnt "${REPO_DIR}/bin/review-external.sh" '-H @<\(' \
+  "script: no curl header through process substitution (native Windows curl cannot open it)"
 
 # demux strips terminal control characters from both provider streams before
 # anything reaches the terminal, so a steered model cannot hide a finding's text.
@@ -1865,6 +1871,37 @@ has "${HOOK}" "wait for its final" \
   "hook: block message says to wait for /codereview's final result"
 has "${SKILLS}/codereview/SKILL.md" "ending your turn is how you" \
   "codereview: ending the turn while children run is how the fork waits"
+
+# --- Windows (Git Bash) ---
+# Each of these failed silently on Windows rather than loudly: an open gate,
+# copies instead of links, a duplicate include, external reviewers skipped as
+# "network error". See the Windows contract point in CLAUDE.md.
+
+echo ""
+echo "==> Windows (Git Bash)"
+
+has "${REPO_DIR}/.gitattributes" '^\* text=auto eol=lf$' \
+  "gitattributes: every text file is checked out with LF"
+has "${HOOK}" 'INVOKED_CMD="\$\{INVOKED_CMD//\$.\\r./\}"' \
+  "hook: strips CR from the command before tokenizing (native Windows jq writes CRLF)"
+has "${HOOK}" 'if ! INVOKED_CMD=\$\(printf' \
+  "hook: refuses the push when jq cannot read the command"
+has "${REPO_DIR}/zat.env-install.sh" '"if": "Bash\(git push\*\)"' \
+  "install: gates git push from the Bash tool"
+has "${REPO_DIR}/zat.env-install.sh" '"if": "PowerShell\(git push\*\)"' \
+  "install: gates git push from the PowerShell tool too"
+has "${REPO_DIR}/zat.env-install.sh" '\.env\.CLAUDE_CODE_USE_POWERSHELL_TOOL = "0"' \
+  "install: Windows runs Bash as the only shell tool"
+has "${REPO_DIR}/zat.env-install.sh" 'export MSYS=winsymlinks:nativestrict' \
+  "install: Windows makes native symlinks, not silent copies"
+has "${REPO_DIR}/zat.env-install.sh" 'ALIASES_INCLUDE="\$\(winpath ' \
+  "install: include.path guard compares the form git stores"
+has "${REPO_DIR}/zat.env-install.sh" '2>/dev/null \| tr -d .\\r.\); do' \
+  "install: stale-hook scan strips CR from jq output"
+has "${REPO_DIR}/zat.env-install.sh" 'FOUND_MARKER="\$\(command -v codereview-marker' \
+  "install: warns when another codereview-marker shadows ~/bin"
+has "${REPO_DIR}/bin/review-external.sh" 'awk -v s="\$\{scale#scale=\}"' \
+  "script: cost falls back to awk when bc is missing (Git Bash has no bc)"
 
 # --- Summary ---
 

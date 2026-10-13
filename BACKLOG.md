@@ -64,14 +64,14 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Revisit criteria:** A secret is found in pushed history that a review passed over, OR the gate starts reviewing per-commit diffs for another reason.
 - **Origin:** ad-hoc (security-review measurement 2026-10-02)
 
-### push-gate-jq-fail-open
-- **One-line description:** `hooks/pre-push-codereview.sh` reads the command with `jq ... || true`, so when `jq` is missing or the payload does not parse, the command reads as empty, is not detected as a push, and the hook exits 0. Fail closed when the payload cannot be parsed but contains `git` and `push`.
-- **Why deferred:** `jq` is a documented install prerequisite and Claude Code always sends a well-formed payload, so reachability is low. Reported by a /security run during the 2026-10-02 /security-review measurement.
-- **Revisit criteria:** A machine without `jq` runs the hook, OR the payload format changes, OR the hook's input handling is reworked anyway.
-- **Origin:** ad-hoc (security-review measurement 2026-10-02)
-
 ### marker-dir-ownership-check
 - **One-line description:** `bin/codereview-marker` `marker_dir` ignores `mkdir`/`chmod` failure and checks neither the directory's owner nor whether it is a symlink. Verify it is a real directory owned by the current user with mode 0700, and fail otherwise.
 - **Why deferred:** The directory is under `${XDG_CACHE_HOME:-${HOME}/.cache}`, which other users cannot write with default permissions, so it is not exploitable on this host. Reported by a /security run during the 2026-10-02 /security-review measurement.
 - **Revisit criteria:** The marker directory moves somewhere shared, OR a multi-user host with a writable cache path adopts zat.env, OR `codereview-marker` is reworked anyway.
 - **Origin:** ad-hoc (security-review measurement 2026-10-02)
+
+### push-gate-wrapped-push-detection
+- **One-line description:** The pre-push gate misses a push wrapped in an interpreter or quotes, such as `bash -c "git push"` or `sh -lc 'git push'`. The hook's tokenizer splits inside quotes and reads `"git` and `push"`, and the registration's `"if": "Bash(git push*)"` filter likely keeps such commands from reaching the hook at all. zatpilot.env (the Copilot CLI fork) closed this by stripping quotes during normalization and treating interpreter and wrapper names as transparent prefixes, with regression cases for both the wrapped forms and the false positives quote stripping could invent; port that, and decide how wrapped commands reach the hook past the `if` filter.
+- **Why deferred:** Not Windows-specific, and it changes Linux gate behavior (more commands detected, and possibly a hook that runs on every Bash call), so it was kept out of the Windows-support change by decision on 2026-10-13. With Bash as the only shell tool the model has no reason to wrap a push.
+- **Revisit criteria:** A wrapped push is seen skipping review, OR the hook's tokenizer is reworked anyway, OR the PowerShell tool is enabled under zat.env, where `bash -lc "git push"` is the natural form.
+- **Origin:** ad-hoc (Windows support 2026-10-13)

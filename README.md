@@ -12,7 +12,7 @@ Minimal harness for verification-first autonomous coding with Claude Code. Verif
 
 Clone this repo and run `zat.env-install.sh` to get spec-driven development, adversarial code review with builder/verifier separation, security auditing, architecture review, test strategy review, and a GitHub PR workflow as Claude Code skills, with a pre-push hook that gates `git push` on passing review. Optional multi-model reviewers (OpenAI, Google, local GPU) provide independent second opinions.
 
-`zat.env-install.sh` is the only requirement: it wires skills, hooks, and conventions into any machine with git, jq, and Claude Code. `hw-bootstrap.sh` is optional and specific to [my always-on dev box](#current-hardware-hetzner-gex44) (a hosted dedicated bare-metal Linux server for GPU workloads with secure remote access). Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Nothing is invasive: skills are opt-in (invoke them when you want them), and the pre-push gate has a bypass. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
+`zat.env-install.sh` is the only requirement: it wires skills, hooks, and conventions into any machine with git, jq, and Claude Code, on Linux (the primary target), macOS, or Windows 11 under Git Bash (see [Platform support](#platform-support)). `hw-bootstrap.sh` is optional and specific to [my always-on dev box](#current-hardware-hetzner-gex44) (a hosted dedicated bare-metal Linux server for GPU workloads with secure remote access). Skills are Markdown prompt files, hooks are bash scripts, conventions are plain text. Nothing is invasive: skills are opt-in (invoke them when you want them), and the pre-push gate has a bypass. Companion writing at [agent-hypervisor.ai](https://agent-hypervisor.ai).
 
 If you're coming from [The Bitter Lesson of Agentic Coding](https://agent-hypervisor.ai/posts/bitter-lesson-of-agentic-coding/), this is the repo. The harness is deliberately minimal because the bitter lesson says it should be.
 
@@ -82,7 +82,7 @@ git clone git@github.com:peterzat/zat.env.git ~/src/zat.env
 # Restart Claude Code to pick up skills and hooks
 ```
 
-This installs on any machine with git, jq, and Claude Code. It symlinks skills into `~/.claude/skills/`, registers hooks in `~/.claude/settings.json`, prunes stale hook entries, sets up git config, and symlinks helper scripts into `~/bin/`. Safe to re-run at any time.
+This installs on any machine with git, jq, and Claude Code, on Linux, macOS, or Windows 11 (run it from Git Bash there); [Platform support](#platform-support) lists the extra setup for macOS and Windows. It symlinks skills into `~/.claude/skills/`, registers hooks in `~/.claude/settings.json`, prunes stale hook entries, sets up git config, and symlinks helper scripts into `~/bin/`. Safe to re-run at any time.
 
 **No hardcoded identity.** Git `user.name` and `user.email` are not stored in this repo. The install script prompts on first run and reuses the existing git config on subsequent runs. Override with `GIT_NAME=x GIT_EMAIL=y@z ./zat.env-install.sh`.
 
@@ -90,12 +90,34 @@ This installs on any machine with git, jq, and Claude Code. It symlinks skills i
 
 ### Platform support
 
+zat.env runs on Linux, macOS, and Windows. Linux is where it is developed and
+used daily; macOS and Windows are supported through fallbacks and platform
+branches that Linux never reaches.
+
+| Platform | Status | Setup beyond the Quick Start |
+|----------|--------|------------------------------|
+| Linux (Ubuntu 22.04) | Primary target | None. `hw-bootstrap.sh` can optionally provision a full dev box |
+| macOS | Supported | `jq` from Homebrew, `~/bin` on PATH, GNU coreutils before macOS 26 |
+| Windows 11 | Supported, under Git Bash | Git for Windows and `jq` from winget, Developer Mode, installer run from Git Bash |
+
+Every platform needs git, jq, Claude Code, and bash (Git Bash on Windows).
+`hw-bootstrap.sh` and the machine references (`claude/references/ml-gpu.md`,
+`networking.md`) describe the Linux GPU box and do not apply elsewhere.
+
+#### Linux
+
 **Linux (Ubuntu 22.04) is the primary target.** Everything is developed and run
-there first, and `hw-bootstrap.sh` provisions that environment end to end.
+there first, and `hw-bootstrap.sh` provisions that environment end to end. The
+install script creates `~/bin`, but Ubuntu's `~/.profile` adds it to PATH only if
+the directory already existed at login, so a first install can need one more
+login before the pre-push gate finds `codereview-marker`. The install script
+warns when `~/bin` is missing from PATH.
+
+#### macOS
 
 **macOS is supported** with the setup below. The scripts avoid GNU-only syntax
 and fall back to BSD equivalents where the two differ; on Linux those fallbacks
-are never reached. The only platform branch is the `jq` install hint in
+are never reached. On macOS the only platform branch is the `jq` install hint in
 `zat.env-install.sh`, and it selects wording rather than behavior.
 
 macOS setup, beyond the Quick Start:
@@ -113,9 +135,7 @@ macOS setup, beyond the Quick Start:
    export PATH="$HOME/bin:$PATH"
    ```
 
-   The install script warns when `~/bin` is missing from PATH. This applies to
-   Linux too: Ubuntu's `~/.profile` only adds `~/bin` if the directory already
-   existed at login, so a first install can need one more login to take effect.
+   The install script warns when `~/bin` is missing from PATH.
 
 3. **Restart Claude Code after changing PATH.** Hooks run in Claude Code's
    process environment, which is captured at launch. A running instance keeps
@@ -141,6 +161,46 @@ and `networking.md` describe the Linux GPU box.
 **Optional.** `bin/zatmux` needs `tmux` (`brew install tmux`). `shellcheck`
 (`brew install shellcheck`) is only needed to run the full test suite; without
 it `tests/run-all.sh` skips the lint check rather than failing.
+
+#### Windows 11
+
+**Windows 11 is supported** under Git Bash, which Claude Code on Windows
+requires anyway. Everything runs as bash; the installer's Windows branches and
+the fallbacks below are never reached on Linux or macOS.
+
+Windows setup, beyond the Quick Start:
+
+1. **Install Git for Windows and `jq`:** `winget install Git.Git jqlang.jq`.
+2. **Turn on Developer Mode** (Settings > System > For developers). Without it
+   Git Bash's `ln -s` silently copies instead of linking, so skills would stop
+   tracking the repo after the next pull. The installer requests native
+   symlinks and stops with instructions if the account cannot create them.
+3. **Run the installer from Git Bash** (`./zat.env-install.sh`), then restart
+   Claude Code. No PATH edit is needed: Git Bash's login profile puts `~/bin`
+   on PATH for the Bash tool, and Git's `bash.exe` launcher does the same for
+   hooks.
+
+What differs on Windows:
+
+- **Bash is the only shell tool.** Claude Code on Windows also has a PowerShell
+  tool and treats it as the primary shell, but every skill, helper, and hook
+  here is bash. The installer sets `env.CLAUDE_CODE_USE_POWERSHELL_TOOL` to
+  `"0"`. The pre-push gate is registered for the PowerShell tool as well, so
+  turning that tool back on does not open the gate.
+- **Line endings.** Git for Windows checks out CRLF by default; this repo's
+  `.gitattributes` pins LF. The native `jq` writes CRLF, and the gate and
+  installer strip it before parsing.
+- **Native tools.** Git Bash's `curl` cannot read bash's process substitution,
+  so `review-external.sh` hands API keys to it on stdin, and Git Bash has no
+  `bc`, so cost estimates use `awk`. `chmod` is advisory on NTFS; the marker
+  directory and the reviewer `.env` rely on the user profile's default ACL.
+- **Not applicable:** `hw-bootstrap.sh`, `bin/zatmux` (no `tmux`), the local
+  Qwen reviewer, and `claude/references/ml-gpu.md` and `networking.md`.
+  `claude/references/windows.md` tells Claude about Python, paths, and native
+  tools on Windows.
+
+Verified on Windows 11 ARM64 under Parallels, Git for Windows 2.55, and Claude
+Code 2.1.296.
 
 ### What the install script does
 
@@ -515,7 +575,7 @@ These practices are deliberately minimal. Shorter, more specific instructions ou
 
 **Autonomy spectrum.** Start supervised (Claude proposes, human reviews). Grow toward autonomous operation with guardrails: adversarial review skills, pre-push hook gates, structured constraints.
 
-**Portable by design.** This setup is coupled to Claude Code and Ubuntu Linux, both first-rate for agentic workloads. Beyond those two choices, everything is portable: skills are Markdown, hooks are bash, conventions are plain text. If Claude Code gains a serious competitor or a different model pulls ahead, the work to port is swapping skill invocation syntax and hook registration, not rethinking the architecture.
+**Portable by design.** This setup is coupled to Claude Code and to bash. It is developed on Ubuntu Linux, which is first-rate for agentic workloads, and also runs on macOS and on Windows under Git Bash ([Platform support](#platform-support)). Beyond those choices, everything is portable: skills are Markdown, hooks are bash, conventions are plain text. If Claude Code gains a serious competitor or a different model pulls ahead, the work to port is swapping skill invocation syntax and hook registration, not rethinking the architecture.
 
 **Grow incrementally.** Start simple. Add complexity only when earned by real use cases.
 
@@ -638,13 +698,15 @@ Post-install layout (annotated):
 │       ├── README.md                 # This file
 │       ├── CLAUDE.md                 # How to work on the zat.env repo itself
 │       ├── .gitignore
+│       ├── .gitattributes            # Pins LF checkouts (Git for Windows defaults to CRLF)
 │       ├── hw-bootstrap.sh           # Bare machine -> usable dev box
 │       ├── zat.env-install.sh        # Wire this repo's config into the live system
 │       ├── claude/
 │       │   ├── global-claude.md      # Machine-wide Claude conventions (symlinked below)
 │       │   ├── references/           # Detailed reference docs (read on demand, not always-on)
 │       │   │   ├── networking.md     # Tailscale, DNS, bind addresses, firewall
-│       │   │   └── ml-gpu.md         # VRAM, TDP, Docker GPU, CUDA
+│       │   │   ├── ml-gpu.md         # VRAM, TDP, Docker GPU, CUDA
+│       │   │   └── windows.md        # Git Bash paths, line endings, Python on Windows
 │       │   └── skills/               # Global Claude Code skills (symlinked below)
 │       │       ├── spec/             # /spec: specification and acceptance criteria
 │       │       │   └── SKILL.md
@@ -737,7 +799,7 @@ Papers and posts that inform the design of this setup, particularly around long-
 
 Releases are tagged as snapshots when a useful checkpoint has accumulated, not as a planning unit. v1.5 is the most recent tag. Day-to-day development happens on `main`; new features land continuously.
 
-**Direction.** v1.4 closes out the solo harness: spec-driven turns, adversarial review, and a content-addressed push gate, stable across daily downstream use. The next arc extends the same mechanisms from one dev pushing to main to multiple contributors coordinating through PRs. The bet is that team PRs and agent fleets are the same mechanism: a task queue, isolated branches, a machine-verifiable gate, and a PR as the merge point. A human teammate and a fleet agent differ only in who authors the diff, so getting PR mechanics right for people is the same work as preparing for a Carlini-style fleet, and it pays off even with zero autonomy. This reorders the autonomy spectrum: multi-agent coordination mechanics land before fully autonomous loops, because the direct route to autonomy (loop orchestrator, `/verify`) was drafted and shelved twice, while every PR-side increment is useful in ordinary multi-dev work immediately. Nothing below is scheduled; each increment starts when a downstream project actually pulls for it. v1.5 does not advance this arc: it re-baselines the existing harness on Anthropic's guidance for Claude Opus 5.5 and adds a second review finder, macOS support, and security fixes.
+**Direction.** v1.4 closes out the solo harness: spec-driven turns, adversarial review, and a content-addressed push gate, stable across daily downstream use. The next arc extends the same mechanisms from one dev pushing to main to multiple contributors coordinating through PRs. The bet is that team PRs and agent fleets are the same mechanism: a task queue, isolated branches, a machine-verifiable gate, and a PR as the merge point. A human teammate and a fleet agent differ only in who authors the diff, so getting PR mechanics right for people is the same work as preparing for a Carlini-style fleet, and it pays off even with zero autonomy. This reorders the autonomy spectrum: multi-agent coordination mechanics land before fully autonomous loops, because the direct route to autonomy (loop orchestrator, `/verify`) was drafted and shelved twice, while every PR-side increment is useful in ordinary multi-dev work immediately. Nothing below is scheduled; each increment starts when a downstream project actually pulls for it. v1.5 does not advance this arc: it re-baselines the existing harness on Anthropic's guidance for Claude Opus 5.5 and adds a second review finder, macOS and Windows support, and security fixes.
 
 ### Next up: multi-dev and team PRs
 
@@ -755,7 +817,7 @@ Candidate increments for the multi-dev arc. None are scheduled: each starts when
 
 ### Done (v1.5)
 
-A re-baseline on Anthropic's guidance for Claude Opus 5.5, the daily default, with Claude Fable 5.1 for hard design work, closed out by a prompt audit with human review. Also a second review finder, macOS support, and security fixes.
+A re-baseline on Anthropic's guidance for Claude Opus 5.5, the daily default, with Claude Fable 5.1 for hard design work, closed out by a prompt audit with human review. Also a second review finder, macOS and Windows support, and security fixes.
 
 - **Skill effort set only where difficulty is fixed.** `/security` runs at `max`, `/codereview` at `xhigh`, `/codefix` at `high`, and `/pr` at `medium`; `/spec`, `/architect`, and `/tester` set no level and inherit the session's. Every skill used to pin `max`, a mitigation for the Feb-Mar 2026 adaptive-thinking regression on Opus 4.6. On Opus 5.5 thinking is always on, effort names were recalibrated (Anthropic reports `medium` matches or beats Opus 5 at `high` on coding), and Anthropic's guidance is to reserve `xhigh` and `max` for work where a quality gain has been measured. Skill frontmatter overrides the session level in both directions, so the old pins also overrode manual choices: a Fable 5.1 session at `high` ran `/spec` at `max`.
 - **Install seeds effort instead of forcing it.** `effortLevel` is set to `xhigh` only when unset, so a level chosen with `/effort` survives re-runs. `bin/claude-fixed-reasoning` is removed: `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` does not apply to Opus 4.7 and later, Fable, or Sonnet 5 and later. The installer now removes `~/bin` links to scripts deleted from the repo.
@@ -772,11 +834,12 @@ A re-baseline on Anthropic's guidance for Claude Opus 5.5, the daily default, wi
 Also in this release:
 
 - **macOS support.** Scripts run under stock macOS bash 3.2 (guarded empty array expansions), fall back to BSD `stat` and Homebrew's `gtimeout`, and the installer warns when `~/bin` is not on `PATH`.
+- **Windows 11 support.** Runs under Git Bash with Bash as the only shell tool (`CLAUDE_CODE_USE_POWERSHELL_TOOL=0`), and the pre-push gate also covers the PowerShell tool should it be turned back on. Four Windows behaviors failed silently and are fixed: the native `jq` writes CRLF, which hid a `git push` on any line but the last of a multi-line command from the gate; Git Bash's `ln -s` copies instead of linking (the installer now requires native symlinks); git stores `C:/...` for a `/c/...` path, so every re-run added another `include.path`; and native `curl` cannot read bash's process substitution, so both external reviewers were skipped as network errors. The gate now also refuses a push when `jq` cannot read the command, `.gitattributes` pins LF, cost estimates fall back to `awk` without `bc`, and the installer warns when another `codereview-marker` shadows `~/bin`.
 - **Tests that can fail.** `tests/run-all.sh` used to discard each suite's exit code, so a suite that aborted reported nothing and the run still passed. Lint now counts each check once, fails on an invalid pattern instead of passing it, and replaces two codefix boundary guards that could never fail. A sixth suite covers the venv hook's decision per permission mode.
 - **External reviewers refreshed.** Defaults move to `gpt-6.1-sol` and `gemini-3.1-pro-preview` (thinking level `high`). OpenAI cost no longer counts reasoning tokens twice, prices prompts over 272k input tokens at the long-context rate, and an unknown model logs its cost as `?` instead of borrowing another model's prices. `/codereview` gives the external reviewer call a 6-minute Bash timeout: a live `gpt-6.1-sol` review of a 3,000-line diff took 107 seconds, close to the tool's 2-minute default. The OpenAI path was verified end to end against the live API before the final tag; the Gemini path is covered by fake-curl tests.
 - **`review-external.sh --range` rejects a leading dash.** git parsed such a value as an option, and `--output=<path>` made it an arbitrary-file-write primitive.
 - **External reviewer output hardened.** A finding must arrive on the provider's own stdout with that provider's own `(provider)` tag, so neither a status line nor a line claiming another provider's tag can pose as a finding. Token counts are checked as integers before they reach `bc`, and key-shaped text is redacted from provider errors before the cost log.
-- **Reviewer credentials locked down.** Every install sets the reviewer config directory to 0700 and its `.env` to 0600, and `review-external.sh` hands API keys to curl through a file descriptor instead of its command line, which any local account can read while a review runs.
+- **Reviewer credentials locked down.** Every install sets the reviewer config directory to 0700 and its `.env` to 0600, and `review-external.sh` hands API keys to curl on stdin instead of its command line, which any local account can read while a review runs.
 - **Deny list preserved.** Install unions the managed deny list with hand-added entries instead of replacing it.
 - **Private test paths.** The external-reviewer tests no longer point at predictable `/tmp` paths another local account could plant.
 

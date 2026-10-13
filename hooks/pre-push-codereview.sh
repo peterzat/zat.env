@@ -190,7 +190,22 @@ is_tag_only_push() {
 # --- main ---
 
 HOOK_INPUT=$(cat)
-INVOKED_CMD=$(printf '%s' "${HOOK_INPUT}" | jq -r '.tool_input.command // ""' 2>/dev/null || true)
+
+# If jq cannot run (missing from the hook's PATH, or a payload it cannot
+# parse), the command used to read as empty, which is "not a push", and the
+# push went through. zat.env-install.sh registers this hook only for commands
+# Claude Code has already matched as `git push*`, so refuse instead.
+if ! INVOKED_CMD=$(printf '%s' "${HOOK_INPUT}" | jq -r '.tool_input.command // ""' 2>/dev/null); then
+  echo "Pre-push gate: cannot read the command from the hook payload (is jq on PATH?)." >&2
+  echo "Refusing to push. Investigate, then retry." >&2
+  exit 2
+fi
+
+# The native Windows jq writes CRLF, and Git Bash strips only the final CR
+# from a command substitution. A CR left inside a multi-line command glues to
+# its token ("push\r"), the walker never sees a bare "push", and a push that
+# is not on the last line skips the gate. jq on Linux and macOS emits none.
+INVOKED_CMD="${INVOKED_CMD//$'\r'/}"
 
 # Pass through anything that is not a git push invocation.
 if ! is_git_push "${INVOKED_CMD}"; then
