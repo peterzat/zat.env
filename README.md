@@ -165,8 +165,10 @@ it `tests/run-all.sh` skips the lint check rather than failing.
 #### Windows 11
 
 **Windows 11 is supported** under Git Bash, which Claude Code on Windows
-requires anyway. Everything runs as bash; the installer's Windows branches and
-the fallbacks below are never reached on Linux or macOS.
+requires anyway. Everything runs as bash; the installer's Windows branches are
+never reached on Linux or macOS. Two of the native-tool changes below apply
+everywhere: API keys reach `curl` on stdin on every platform, and the `awk`
+cost fallback runs on any machine without `bc`.
 
 Windows setup, beyond the Quick Start:
 
