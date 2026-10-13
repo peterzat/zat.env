@@ -1,18 +1,18 @@
-## Review — 2026-10-13 (commit: 6c9741a)
+## Review — 2026-10-13 (commit: 35a2fbf)
 
-**Review scope:** Refresh review. Focus: 16 file(s) changed since prior review (commit c03a14c), which covers every file in the unpushed range origin/main..6c9741a (1 commit, 14 files). 0 already-reviewed file(s).
-
-**Summary:** Reviewed 6c9741a, the Windows 11 (Git Bash) port: CR stripping and jq fail-closed in the pre-push hook, the gate registered for the PowerShell tool, the installer's Windows branches (native symlink probe, winpath for git config, CLAUDE_CODE_USE_POWERSHELL_TOOL=0, CR-safe stale-hook scan, codereview-marker shadow warning), API keys to curl on stdin, the awk cost fallback, .gitattributes, windows.md, and README/CLAUDE.md/BACKLOG updates. The port's own changes hold up: the CRLF test fails without the fix, the PowerShell tool's input field is `command` (checked in the 2.1.296 binary), and the awk fallback matches exact truncation on nine edge values. Three WARNs in adjacent code were auto-fixed: unquoted hook paths that open the gate under a profile path with a space, MSYS mangling of the Step 5.6 prompt (seen in this run), and a Git Bash here-string hang near 64 KiB. Adding `onFailure: "block"` to the gate needs a user decision. tests/run-all.sh 780/780 before fixes, 781/781 after (shellcheck and PyYAML checks skipped, not installed). /security (paths, 11 files) found 0 BLOCK / 8 WARN / 14 NOTE; its post-fix re-check of the 4 files codefix changed confirmed both fixes and added 1 NOTE (0 BLOCK / 8 WARN / 15 NOTE). The fixes are uncommitted: the push gate will refuse the push until they are committed. The live ~/.claude/settings.json keeps the unquoted hook commands until zat.env-install.sh is re-run.
+**Summary:** Light review (docs only) of 35a2fbf, the one unpushed commit, which rewrites the opening of README's Windows 11 section to resolve the prior review's README.md:167-169 NOTE. The old text said the installer's Windows branches "and the fallbacks below" are never reached on Linux or macOS; the new text keeps the installer claim and says the stdin key handoff and the awk cost fallback apply on every platform. Verified against the code: every installer Windows branch is gated on `PLATFORM=windows`, which `uname -s` sets only for MINGW, MSYS, or CYGWIN (zat.env-install.sh:10-14, 33, 44, 279); both provider calls pipe the key to `curl -H @-` with no platform test (bin/review-external.sh:324-326, 427-430), and the local reviewer sends no key; `_calc` chooses awk on `command -v bc` alone (bin/review-external.sh:267-280). The hook's CR strip (hooks/pre-push-codereview.sh:208) also runs everywhere but changes nothing where jq writes LF, so naming two changes is accurate. No links added, no secrets in prose. tests/lint-skills.sh 478/478, including the README pins; the other suites were not run for a docs-only change.
 
 **External reviewers:**
-None configured.
+Skipped (light review).
 
 **Built-in review:**
-`/code-review high`: 9 findings, 9 kept after Step 6 (2 WARN, both auto-fixed; 7 NOTE, 3 of them also found inline or by /security; the stale-hook prune finding folded into a WARN).
+Skipped (light review).
 
 ### Findings
 
-[WARN] zat.env-install.sh:320-337 — (security) A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`, so the hook's exit-2 refusals hold only when it runs to completion. A 125 MB first push took 29.8 s on Windows against the 30 s timeout, and a moved checkout or a `$` or backtick in the repo path keeps the hook from starting. The Git Bash here-string hang that also led here is fixed (see Fixes Applied).
+No issues found in this diff. The open findings from the 2026-10-13 review of 6c9741a are carried forward below at their original severity. The code they cite has not changed since b065794 (only CODEREVIEW.md, SECURITY.md, and README.md differ), so they were not re-checked.
+
+[WARN] zat.env-install.sh:320-337 — (security) A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`, so the hook's exit-2 refusals hold only when it runs to completion. A 125 MB first push took 29.8 s on Windows against the 30 s timeout, and a moved checkout or a `$` or backtick in the repo path keeps the hook from starting. The Git Bash here-string hang that also led here was fixed in b065794.
   Evidence: SECURITY.md 2026-10-13; Claude Code 2.1.296 implements the field ("blocking because onFailure is \"block\"").
   Suggested fix: Requires a user decision (changes the gate for every project). Add `"onFailure": "block"` to both gate entries (needs Claude Code 2.1.295 or later; how an older client treats the field is unverified) and raise the timeout so a large first push is not refused once failure blocks.
 
@@ -43,9 +43,6 @@ None configured.
 
 [NOTE] (regression risk) — The full suite has run only on Windows ("not yet run on Linux", per the commit message), and Linux is the primary target. Changes that execute there: both providers' curl calls read the key header from stdin (`-H @-`), the hook refuses on jq failure, strips CR, and reads through process substitution, the quoted hook commands and line-reading prune loop, and test-pre-push-hook.sh's sanitized PATH and CRLF jq shim. Traced each and expect them to pass. Confidence: medium.
   Suggested fix: Run tests/run-all.sh on the Linux box before or right after pushing, and re-run zat.env-install.sh there.
-
-[NOTE] README.md:167-169 — "the installer's Windows branches and the fallbacks below are never reached on Linux or macOS", but the stdin key handoff is the only path on every platform, and the awk cost fallback runs on any host without `bc` (hw-bootstrap.sh does not install it). CLAUDE.md's wording ("plus fixes that behave identically there") is accurate.
-  Suggested fix: Say the curl change applies everywhere and the awk fallback runs wherever `bc` is missing.
 
 [NOTE] hooks/pre-push-codereview.sh:4-7 — The header still says the hook is installed "as a PreToolUse hook on Bash ... with an "if" filter on Bash(git push*)"; it is now also registered for the PowerShell tool.
   Suggested fix: Mention the PowerShell entry.
@@ -203,13 +200,11 @@ None configured.
 [NOTE] (carried forward, security) hw-bootstrap.sh:197 — Docker group membership lets anything running as the user obtain root without a password.
   Suggested fix: Accept as a risk, or move to rootless Docker.
 
-Resolved since the prior review: the jq fail-open gate gap (BACKLOG push-gate-jq-fail-open, closed by 6c9741a).
+Resolved since the prior review: README.md:167-169, the Windows section's claim that the fallbacks are never reached on Linux or macOS (fixed by 35a2fbf).
 
 ### Fixes Applied
 
-- [WARN] zat.env-install.sh:320, 341, 359 — The three hook commands quote the script path (`bash "${REPO_DIR}/hooks/<script>.sh"`), so a repo path with a space (a Windows profile such as `C:\Users\John Smith`) no longer makes `bash` exit 127, which Claude Code treated as non-blocking and which let every push through. The stale-hook prune at 290 reads whole lines and strips `bash ` and the quotes before its `-f` test, so it handles both old and new entries; the lint pin follows the new loop. /security verified with an installer run from a path with spaces. (claude-code)
-- [WARN] claude/skills/codereview/SKILL.md:511 — Step 5.6 runs `MSYS_NO_PATHCONV=1 claude -p "/code-review high" ...`, so Git Bash no longer rewrites the prompt into `C:/Program Files/Git/code-review high` on its way into the native `claude.exe`; this run's built-in received the mangled prompt. New lint pin for the prefix. (claude-code)
-- [WARN] hooks/pre-push-codereview.sh:89, 142 — (security) Both token arrays read through process substitution with `|| true` instead of a here-string, which hung on Git Bash for a command of 65,536 to about 65,663 normalized bytes until the timeout let the push through. /security confirmed the fixed hook blocks in about 5 s across that band. The `onFailure` part of this finding remains open above.
+None.
 
 ### Accepted Risks
 
@@ -220,6 +215,6 @@ Resolved since the prior review: the jq fail-open gate gap (BACKLOG push-gate-jq
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-10-02, commit c03a14c): Refresh review of 11 commits (control-character stripping, the security surface script, the uncommitted-changes push check, the secret-in-diff skip, and related changes); 0 BLOCK / 7 WARN / 41 NOTE, with four WARNs auto-fixed and seven pre-existing gate and policy WARNs left for a user decision.*
+*Prior review (2026-10-13, commit 6c9741a): Refresh review of the Windows 11 (Git Bash) port; 0 BLOCK / 8 WARN / 55 NOTE, with three WARNs auto-fixed (quoted hook paths, MSYS mangling of the Step 5.6 prompt, the Git Bash here-string hang) and committed in b065794, and eight gate and policy WARNs left for a user decision.*
 
-<!-- REVIEW_META: {"date":"2026-10-13","commit":"6c9741a","reviewed_up_to":"6c9741a108253962cd237c71d0bb035eeafbeb4b","base":"origin/main","tier":"refresh","block":0,"warn":8,"note":55} -->
+<!-- REVIEW_META: {"date":"2026-10-13","commit":"35a2fbf","reviewed_up_to":"35a2fbf34df1250e90d94a28b28875eb5f095d2c","base":"origin/main","tier":"light","block":0,"warn":8,"note":54} -->
