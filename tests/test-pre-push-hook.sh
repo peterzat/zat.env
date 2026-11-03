@@ -96,7 +96,9 @@ teardown_test_repo() {
 invoke_in_test_repo() {
   local cmd="$1"
   local payload
-  payload=$(jq -n --arg c "${cmd}" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+  # The command goes to jq on stdin: a long one passed with --arg exceeds
+  # Windows' 32,767-character command-line limit.
+  payload=$(printf '%s' "${cmd}" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}, hook_event_name:"PreToolUse"}')
   (cd "${TEST_REPO}" && printf '%s' "${payload}" | bash "${HOOK}" 2>&1)
 }
 
@@ -1263,6 +1265,90 @@ git -C "${TEST_REPO}" checkout -q main
 expect_in_repo 'git push origin main > "log #1" feature' 2 "split redirection target does not hide the ref" "the review cannot cover"
 expect_in_repo "git push origin v1.0 --push-option='\"'\"a;b\" feature" 2 "mixed-quote option value does not make a branch push tag-only" "the review cannot cover"
 expect_in_repo 'git push origin main > log' 0 "plain redirection after a push: allowed on a clean tree"
+expect_in_repo 'git push origin &>/dev/null feature:main' 2 "&> does not end the arguments before a ref" "the review cannot cover"
+expect_in_repo 'git push -o -d origin feature:main' 2 "-d as the value of -o is not a delete" "the review cannot cover"
+expect_in_repo 'git push -fo -d origin feature:main' 2 "-d as the value of a clustered -fo is not a delete" "the review cannot cover"
+expect_in_repo 'git push origin feature:main & >/dev/null git branch -d old' 2 "-d after & > belongs to the next statement" "the review cannot cover"
+expect_in_repo 'git push origin -d feature' 0 "a plain -d is still a delete"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: escaped dollars, escaped operators, heredoc backslashes, &>"
+# ============================================================
+# The scanner opened \$'...' quoting after an escaped \$ or a $$ pair, which
+# bash reads as a plain single quote, and stepped over the rest of the command.
+
+setup_test_repo
+git -C "${TEST_REPO}" tag v1.0
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+for cmd in \
+  "git -c x.y=\\\$'a\\' push" \
+  "git -c x.y=\$\$'a\\' push" \
+  "git -c 'x.y=a' -c x.z=\\\$'b\\' push" \
+  "git --no-pager -c x.y=\\\$'a\\' push origin main" \
+  "git --namespace=\\\$'x\\' push" \
+  "git -c x.y=\$\$\$'it\\'s' push" \
+  'git push origin v1.0 &>/dev/null main'; do
+  expect_in_repo "${cmd}" 2 "push detected and gated: ${cmd}" "has not passed /codereview"
+done
+expect_in_repo "gh repo create x --description \\\$'a\\' --push" 2 "gh --push after an escaped dollar refused" "Create the repo without --push"
+for cmd in \
+  'A=x\;#y git commit --allow-empty -qm z && git push' \
+  'A="x\"; #y" git commit --allow-empty -qm z && git push' \
+  $'cat <<\'X\\\'\nX\\\ngit push' \
+  $'cat <<X\'\\\'\nX\\\ngit push' \
+  $'cat <<\\X\\\\\nX\\\ngit push' \
+  $'cat <<\'A\' <<\'X\\\'\nA\nX\\\ngit push' \
+  $'cat <<-\'X\\\'\n\tX\\\ngit push' \
+  $'echo "<<\'X\'"\ngit \\\npush' \
+  $'git commit -qm "use <<\'EOF\' here"\ngit \\\npush' \
+  $'read -r x <<<\'y\'\ngit \\\npush origin feature'; do
+  expect_in_repo "${cmd}" 2 "statement before the push refused: $(printf '%q' "${cmd}")" "run this push as its own command"
+done
+expect_in_repo $'# see <<\'EOF\'\ngit -C . \\\npush origin main' 2 "heredoc-like text in a comment does not stop the join" "has not passed /codereview"
+# A word over the long-word limit used to stop the fallback reading for the
+# rest of the command.
+LONGQ='"'$(printf 'a%.0s' {1..2000})'"'
+for cmd in \
+  "cat > f <<'EOF'"$'\n'"${LONGQ}"$'\nEOF\n>/dev/null git push origin main' \
+  "cat > f <<'EOF'"$'\n'"${LONGQ}"$'\nEOF\nA="x it\'s y" git push'; do
+  expect_in_repo "${cmd}" 2 "push after a ${#LONGQ}-byte quoted word refused" "run this push as its own command"
+done
+# A long word used to hold the quadratic scanner past the 30 s hook timeout.
+JSON='['
+for (( i = 0; i < 2200; i++ )); do JSON+="{\"id\":${i},\"name\":\"it's-item-${i}\"},"; done
+JSON+='{}]'
+LONG_START=${SECONDS}
+expect_in_repo "git push origin main && echo uses git && cat > data.json <<'EOF'"$'\n'"${JSON}"$'\n'"EOF" 2 "push with a ${#JSON}-byte heredoc word is gated" "has not passed /codereview"
+if (( SECONDS - LONG_START < 10 )); then
+  pass "push with a ${#JSON}-byte heredoc word finishes well inside the timeout"
+else
+  fail "push with a ${#JSON}-byte heredoc word took $((SECONDS - LONG_START)) s"
+fi
+# A quoted heredoc terminator that ends in a backslash kept it in the join, and
+# the next line read as part of the delimiter's word.
+expect_in_repo $'cat <<\'X\\\' >/dev/null\nX\\\nA="x it\'s y" git push origin main' 2 "push after a backslash-ending heredoc terminator refused" "run this push as its own command"
+# A long quoted delimiter word and many unclosed quoted heredocs used to hold
+# the continuation join past the 30 s hook timeout.
+LONGD="'$(printf 'a%.0s' {1..65536})'"
+LONG_START=${SECONDS}
+expect_in_repo "git push origin main && echo a \\"$'\n'"b"$'\n'"x <<${LONGD}" 2 "push before a ${#LONGD}-byte quoted heredoc delimiter refused" "has not passed /codereview"
+if (( SECONDS - LONG_START < 10 )); then
+  pass "push before a ${#LONGD}-byte quoted heredoc delimiter finishes well inside the timeout"
+else
+  fail "push before a ${#LONGD}-byte quoted heredoc delimiter took $((SECONDS - LONG_START)) s"
+fi
+MANYHD="git push origin main && echo a \\"$'\n'"b"
+for (( i = 0; i < 1200; i++ )); do MANYHD+=$'\n'"x <<'never-closed-${i}'"; done
+LONG_START=${SECONDS}
+expect_in_repo "${MANYHD}" 2 "push before ${#MANYHD} bytes of unclosed quoted heredocs refused" "has not passed /codereview"
+if (( SECONDS - LONG_START < 10 )); then
+  pass "push before 1,200 unclosed quoted heredocs finishes well inside the timeout"
+else
+  fail "push before 1,200 unclosed quoted heredocs took $((SECONDS - LONG_START)) s"
+fi
 teardown_test_repo
 
 # ============================================================

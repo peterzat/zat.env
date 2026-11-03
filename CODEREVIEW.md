@@ -1,90 +1,123 @@
-## Review — 2026-11-03 (commit: 8e8dee7)
+## Review — 2026-11-03 (commit: f564cd4)
 
-**Summary:** Refresh review of the 7 unpushed commits (78c6fa1 through 8e8dee7): pre-push gate hardening (push first and alone, `-C` targets, refs outside HEAD, tag pushes, `gh repo create --push`, prefixes before git), removal of the gate's `if` filter, opt-in docker group, the stable update channel seed, and docs. The focus set equalled the full set, so every changed file got full depth. Three /codefix cycles then changed hooks/pre-push-codereview.sh, its tests, hooks/README.md, tests/lint-skills.sh, and CLAUDE.md; those changes are uncommitted and are covered by this review and the marker. tests/run-all.sh went from 933/933 to 1041/1041 across 6 suites, and shellcheck is clean on the hook. No BLOCK. The fixes close many more bypasses than they open, but seven unusual spellings the committed hook refused now pass (first WARN). Seeding the stable channel rolled this host's CLI back past a hook fix (second WARN).
+**Summary:** Refresh review of f564cd4, which commits the prior run's three uncommitted fix cycles plus a fourth round no review had seen: `_quote_scan`, `_word_end`, `_word_is_open`, a fallback command-position reading, and `-C` values taken from the walk.
+- **Scope.** Focus set: BACKLOG.md, CLAUDE.md, hooks/README.md, hooks/pre-push-codereview.sh, tests/lint-skills.sh, tests/test-pre-push-hook.sh. README.md, docs/hardware-setup.md, hw-bootstrap.sh, and zat.env-install.sh were checked for interactions only. To isolate the new round, this run rebuilt the prior run's cycle-3 hook (its postfix3 copy minus the candidate patch, which reproduced the prior WARN's results) and compared it with HEAD, 8e8dee7, and origin/main.
+- **What f564cd4 did.** It closes the prior run's first WARN: all seven spellings are gated again. It also added three WARNs:
+  - a rare detection regression (`\$'`, `$$'`);
+  - a quadratic scanner that held a 60 KB push past the hook's 30 s timeout;
+  - argument walks that end at `&>`, and a `-d` that is `-o`'s value.
+- **Fix loop.** Three /codefix cycles fixed all three. Cycles 1 and 2 each added regressions, which the next cycle fixed. The cycle 3 tree gates every probe this run and /security wrote, and each reported timing shape now finishes in under 1.5 s.
+- **What is left.** The nine WARNs that need a user decision, and the "Fix-loop limits" NOTE.
+- **Tests.** tests/run-all.sh went from 1063/1063 to 1096/1096 across 6 suites. Shellcheck is clean on the hook.
+- **Commit before pushing.** The fixes are uncommitted, so the push gate refuses a push until hooks/pre-push-codereview.sh and tests/test-pre-push-hook.sh are committed. CODEREVIEW.md and SECURITY.md are uncommitted too.
+- **Delete before staging.** Cycle 3 left two untracked copies of the hook in the repo root, head-hook.sh and new-hook.sh. Delete them before any `git add -A`.
+- **Line numbers.** Hook line numbers in the carried findings are at f564cd4. The uncommitted fixes shift them by up to about 75 lines.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 16 findings (10, plus 6 named below its cap), all kept after Step 6: 8 merged with inline or /security findings, 1 WARN of its own (a comment before a push read as a statement, fixed in cycle 1), 7 NOTEs. One claim was refuted: that large heredocs used to skip the hook (1a85d54 records that live settings had no `if` filter). Its execution was denied, so it traced by hand; this run reproduced each kept claim by running the hook.
+`/code-review high`: 9 findings, all kept after Step 6. Two formed a new WARN, the `&>` and `-o` argument walks, which was also in /security's refspec WARN; this run confirmed the tag-only form with a real push, and cycles 1 and 2 fixed it. Six merged into existing WARNs and NOTEs, and one became a new NOTE.
 
 ### Findings
 
 No BLOCK findings.
 
-[WARN] hooks/pre-push-codereview.sh:77-106, 138-153, 177-212, 353-397 — (also security) Requires manual intervention: the fix loop reached its 3-cycle limit. Seven spellings that the committed hook sends to review now pass with an unreviewed commit (head=2, now=0, each re-run on the final tree). From cycle 1's `<`/`>` padding: `A=x>y git push`, `git -c a.b=c>d push`, and `git -C .>log push`, where a glued, unquoted redirection splits the word so git reads as an argument. From cycle 1's redirection arm with cycle 2's `#` break: `git push origin main > "log #1" feature`, where the walk steps over the redirection target and then reads `#1"` as a comment, so `feature` is never checked. From cycle 3's span skip, which counts quotes per word rather than by kind: `git -c "user.name=O'Brien -x" push`, `git -c "x.y=it's -c z.w=1" push`, and `A="x -y'z -w" git push`. /security sent commits to scratch remotes with these spellings. Confidence: high on the mechanism, low on how often an agent writes them.
-  Evidence: three-way runs against the committed hook, each cycle's stash, and the working tree.
-  Suggested fix: Before committing, either fix these or accept them under the "detection is heuristic" risk. The cycle 3 /security re-check left an unreviewed five-hunk patch at `/tmp/claude-1000/-home-peter-src-zat-env/d4b2404e-6c86-42de-80b2-9933212c5bb1/scratchpad/postfix3/candidate.diff` (scratchpad, session-scoped). It covers the glued redirections and the redirection-target `#`, and its suite run passed 296/296. Review it the way this run reviewed the cycle 2 candidate, whose argument-walk hunks added a bypass. The mixed-quote spans need quote tracking character by character, which is the quote-aware tokenizer of BACKLOG push-gate-quoted-text-false-positive.
+All five WARNs this run sent to /codefix are resolved: its three original WARNs, and the two regressions cycle 2 added. The same holds for each regression cycle 1 added. This run re-ran each of its probes against the cycle 3 tree and /security re-ran its own; each is gated.
+- **The `$'` misread** (`git -c x.y=\$'a\' push`, `$$'`, and the `--namespace` and gh forms), with a test.
+- **A `#` after an escaped operator in a prefix word** (`A=x\;#y ...`, `A="x\"; #y" ...`).
+- **A heredoc delimiter ending in a backslash.** Covered in its fully quoted, part-quoted, and backslash-quoted forms, and when a second heredoc shares the line.
+- **The quadratic scanner.**
+  - A push-first 60 KB minified-JSON heredoc: 0.44 s, was 30.35 s.
+  - /security's 64 KB commit-and-push: 3.5 s, was 26.1 s.
+- **The `&>` and `-o` argument walks**, including `& >` before a `-d` and `-fo -d`.
+- **Cycle 1's heredoc tracking**, which had turned joining off.
+- **Cycle 1's 1,024-character cutoff**, for words with one quote kind.
+- **Cycle 2's slow heredoc parsing.**
+  - A 64 KB quoted delimiter after a push: 0.47 s.
+  - /security's 1,200 unclosed markers: 1.5 s, was 32.1 s.
+- **Cycle 2's delimiter line that kept its backslash.**
 
-[WARN] zat.env-install.sh:213, 336-345 — (security) Requires a user decision. Seeding `autoUpdatesChannel` to stable rolled this host's CLI back from 2.1.317 to 2.1.311, which predates a hook fix, and the installer registers no Monitor entry. New with 4132078. The 2.1.314 changelog reads "Fixed hooks matching Bash not running on shell commands started by the Monitor tool", so a new session on 2.1.311 likely runs a push through Monitor ungated, with no unusual spelling.
-  Evidence: verified this run: `~/.local/bin/claude` links to versions/2.1.311 with mtime 06:18 on 2026-11-03, settings.json (mtime 05:38) has `autoUpdatesChannel: "stable"` and no `minimumVersion`, and the changelog line sits under 2.1.314. NOT reproduced on 2.1.311: /security's three probes stopped at the spend limit before any model call. On this session's 2.1.317 the gate refused a Monitor probe. This answers the question 4132078's message left open. Confidence: high on the rollback, medium on the bypass.
-  Suggested fix: Choose one or both: seed `minimumVersion` to 2.1.314 or later beside the channel, which also stops the rollback; or add a `"matcher": "Monitor"` gate entry and pin it in lint, after checking that two matching entries do not run the hook twice and burn a skip marker. Say in README's settings bullet that the setting can downgrade an install. To finish the probe: `bash /tmp/claude-1000/-home-peter-src-zat-env/d4b2404e-6c86-42de-80b2-9933212c5bb1/scratchpad/t15-monitor-probe.sh 2.1.311 v311`.
+/security's last fuzz found no other regression against f564cd4 except past the cycle 3 bounds; see the "Fix-loop limits" NOTE.
 
-[WARN] hooks/pre-push-codereview.sh:297-333, 577, 674 — (also security) Requires a user decision. Following `git -C <path>` makes the hook run `git diff` in a directory named by the command before the command is approved, and that repo's config names what `git diff` executes. New with 49ecf37. Cycle 1's no-working-tree refusal stops a bare layout before `git diff` runs, but a layout with `core.worktree = .` still runs the payload.
-  Evidence: a scratch repo's `diff.external` and `core.fsmonitor` each created a sentinel while the hook exited 2. /security reproduced it through a plain `git clone` of a bare-repo layout tracked as ordinary files, and with `filter.<x>.clean` and `diff.<x>.textconv`. An approved `git -C <dir> diff` runs the same payload, so what is lost is the approval step for this one command in auto mode; that the hook runs before the classifier comes from the docs and was not observed. Confidence: high on the mechanism, low on how often an agent is steered there.
-  Suggested fix: Refuse a `-C` target whose toplevel is not the session's, so a person decides to work there, which gives up part of 49ecf37. To also close the cwd route, pass `--no-ext-diff --no-textconv` and config overrides in bin/codereview-marker and refuse a repo whose local config defines `filter.*`.
+[WARN] zat.env-install.sh:213, 336-345 — (security) Requires a user decision; not for /codefix. Seeding `autoUpdatesChannel` to stable rolled this host's CLI back from 2.1.317 to 2.1.311, which predates a hook fix, and the installer registers no Monitor entry. New with 4132078. The 2.1.314 changelog reads "Fixed hooks matching Bash not running on shell commands started by the Monitor tool", so a new session on 2.1.311 likely runs a push through Monitor ungated, with no unusual spelling.
+  Evidence: re-checked this run: `~/.local/bin/claude` still resolves to versions/2.1.311, and settings.json has `autoUpdatesChannel: "stable"` and `minimumVersion: null`. Not reproduced on 2.1.311 (the prior run's probes stopped at the spend limit). Confidence: high on the rollback, medium on the bypass.
+  Suggested fix: Seed `minimumVersion` to 2.1.314 or later beside the channel, or add a `"matcher": "Monitor"` gate entry and pin it in lint after checking that two matching entries do not run the hook twice and burn a skip marker. Say in README's settings bullet that the setting can downgrade an install.
 
-[WARN] hooks/pre-push-codereview.sh:338-344, 353-425 — (also claude-code, security) Requires a user decision. The gate judges only refs spelled on the command line and counts any remote-tracking ref as already gated, so these still send unreviewed commits: fetched refs (`git push origin origin/contrib:main`, `fork/evil:refs/heads/main`), a branch tracking a local upstream, config-chosen refs (`remote.origin.push` or `push.default=matching`, in config or through `-c`), `git push origin HEAD~1:main` under a valid marker, and git's abbreviated options and `--repo=` (`git push --al`, `--mir`, `--repo=origin feature`). Narrowed by 49ecf37 and the fix cycles, which close `git push origin <other>`, `<other>:main`, `:`, shell-expanded names, braces and globs, quoted values, continuations, and tags on trees or blobs.
-  Evidence: real pushes by /security to scratch remotes; `remote.origin.push`, `--al`, and `--repo=` confirmed this run (exit 0). Confidence: high on the mechanism, medium on frequency for fetched branches.
-  Suggested fix: Count a commit as gated only when the pushed remote's tracking ref for the destination has it, or move to a git-native pre-push hook (core.hooksPath). That hook receives the exact refs and would close most gate findings together, but it also fires on terminal pushes and overrides per-repo hooks.
+[WARN] hooks/pre-push-codereview.sh:408-446, 692, 706, 789 — (also security) Requires a user decision; not for /codefix. Following `git -C <path>` makes the hook run `git diff` in a directory named by the command before the command is approved, and that repo's config names what `git diff` executes. New with 49ecf37. f564cd4 narrows it only in that a `-C` inside a quoted or substituted `-c` value no longer moves the hook.
+  Evidence: /security at f564cd4: a target whose .git/config sets `core.fsmonitor` and `diff.external` ran the payload 3 times while the hook exited 2, and a clone-delivered bare-repo layout with `core.worktree = .` ran it twice. An approved `git -C <dir> diff` runs the same payload, so what is lost is the approval step for this one command in auto mode. Confidence: high on the mechanism, low on how often an agent is steered there.
+  Suggested fix: Refuse a `-C` target whose toplevel is not the session's. To also close the cwd route, pass `--no-ext-diff --no-textconv` and config overrides in bin/codereview-marker and refuse a repo whose local config defines `filter.*`.
 
-[WARN] zat.env-install.sh:331-346 — (security) Requires a user decision. A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`. On Linux at the final tree: a moved checkout exits 127, an unreadable marker makes `cat` at hooks/pre-push-codereview.sh:707 exit 1, and a long command outlasts the 30 s timeout. Since 1a85d54 the hook runs on every shell command, so `block` would refuse every shell command while the script is missing, including the ones needed to fix it.
-  Evidence: SECURITY.md 2026-11-03; the hooks docs say a timed-out PreToolUse hook does not block.
+[WARN] hooks/pre-push-codereview.sh:451-457, 466-540 — (also claude-code, security) Requires a user decision; not for /codefix. The gate judges only refs spelled on the command line and counts any remote-tracking ref as already gated, so these still send unreviewed commits: fetched refs (`git push origin origin/contrib:main`, `fork/evil:refs/heads/main`, and a tag on such a commit), a branch tracking a local upstream, config-chosen refs (`remote.origin.push`, `push.default=matching`, through config, `-c`, or `GIT_CONFIG_COUNT`), `git push origin HEAD~1:main` under a valid marker, git's abbreviated options (`--al`, `--mir`, `--ta`, which /security's real run used to send a tag on an unreviewed commit) and `--repo=`, `git push --repo -d origin feature:main` and `--rep -d`, where git takes `-d` as `--repo`'s value but the hook reads a delete (security, real run; open in every version), `--mirror` with a non-tag ref on a tree, and `--recurse-submodules=on-demand`. The `&>` and `-o` cases are in the WARN above.
+  Evidence: real pushes by /security to scratch remotes; the built-in reproduced `git -c remote.origin.push=refs/heads/feature:refs/heads/main push`, `git -c push.default=matching push`, and `git push origin fork/pr1:main`. Confidence: high on the mechanism, medium on frequency for fetched branches.
+  Suggested fix: Count a commit as gated only when the pushed remote's tracking ref for the destination has it, and refuse a push with no refspec when config chooses the refs; or move to a git-native pre-push hook (core.hooksPath), which receives the exact refs and would close most gate findings together, but also fires on terminal pushes and overrides per-repo hooks.
+
+[WARN] zat.env-install.sh:331-346 — (security) Requires a user decision; not for /codefix. A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`. An unreadable marker makes `cat` at hooks/pre-push-codereview.sh:822 exit 1, and a long command outlasts the 30 s timeout (the scanner WARN above makes that far easier). Since 1a85d54 the hook runs on every shell command, so `block` would refuse every shell command while the script is missing, including the ones needed to fix it.
   Suggested fix: An EXIT trap, set once a push is recognized, can turn a crash into a refusal without that cost. Add `"onFailure": "block"` only if the every-command cost is acceptable.
 
-[WARN] bin/codereview-marker:156, 167, 173, 177 — (security) Requires a user decision. A submodule with `ignore = all` hides its pointer changes from `git diff`, so the marker hash, the uncommitted check, the security surface, and the review diff all miss them (carried, not re-checked).
+[WARN] bin/codereview-marker:156, 167, 173, 177 — (security) Requires a user decision; not for /codefix. A submodule with `ignore = all` hides its pointer changes from `git diff`, so the marker hash, the uncommitted check, the security surface, and the review diff all miss them (carried, not re-checked).
   Suggested fix: Add `--ignore-submodules=dirty` to the script's diffs and the codereview skill's review diffs.
 
-[WARN] claude/skills/pr/SKILL.md:184-191, 217 — (security) Requires a user decision. /pr merge accepts a review of any ancestor of local HEAD and never compares the remote PR head with local HEAD (carried, not re-checked).
+[WARN] claude/skills/pr/SKILL.md:184-191, 217 — (security) Requires a user decision; not for /codefix. /pr merge accepts a review of any ancestor of local HEAD and never compares the remote PR head with local HEAD (carried, not re-checked).
   Suggested fix: Require no non-review-file change since `reviewed_up_to` and a remote head equal to local HEAD.
 
-[WARN] claude/skills/codereview/SKILL.md:269-277 — (security) Requires a user decision. The light tier still treats `.txt` and `.gitconfig` as plain documentation, so a diff limited to `gitconfig/aliases.gitconfig` or a downstream `requirements*.txt` or `CMakeLists.txt` skips /security, tests, and external reviewers (carried, not re-checked).
+[WARN] claude/skills/codereview/SKILL.md:269-277 — (security) Requires a user decision; not for /codefix. The light tier still treats `.txt` and `.gitconfig` as plain documentation, so a diff limited to `gitconfig/aliases.gitconfig` or a downstream `requirements*.txt` or `CMakeLists.txt` skips /security, tests, and external reviewers (carried, not re-checked).
   Suggested fix: Drop `.txt` and `.gitconfig` from the light tier, and update README and the lint pin.
 
-[WARN] claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425, 555-561 — (security) Requires a user decision. CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files (carried, not re-checked).
+[WARN] claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425, 555-561 — (security) Requires a user decision; not for /codefix. CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files (carried, not re-checked).
   Suggested fix: Take the full tier and read prior META from the base when a commit not authored by the operator touched the review files.
 
-[WARN] claude/global-claude.md:108 — (security) Requires a user decision. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
+[WARN] claude/global-claude.md:108 — (security) Requires a user decision; not for /codefix. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
   Suggested fix: Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
-[NOTE] hooks/pre-push-codereview.sh:353-425, 235-266 — Over-refusals the fix cycles added, all in the safe direction: `git push "$REMOTE" main`, `--force-with-lease=main:$SHA`, the unquoted `git push -u origin $(git rev-parse --abbrev-ref HEAD)`, `"$(git branch --show-current)"`, `-o "ci skip"`, a remote path with a space, a remote URL with `?` or `[` (`ssh://[::1]/repo`), and `echo $(date) git push`, which now reads as a push. `NAME="O'Brien" git push` and `GIT_SSH_COMMAND="ssh -i key" git push` are refused with "run this push as its own command", which is misleading for them; `git -c core.sshCommand="ssh -i k" push` is gated normally.
+[NOTE] hooks/pre-push-codereview.sh (working tree) 78-130, 233-260 — (also security) Fix-loop limits: trade-offs the fix cycles made, which the cycle limit leaves for a later change. Hook line numbers here are in the working tree.
+  (a) A word over 1,024 characters that holds both quote kinds or a backslash still stops the fallback reading for the rest of the command. Spellings only that reading catches (`>/dev/null git push`, `A="x it's y" git push`) are missed after it, as they were at origin/main and 8e8dee7. /security's real run sent a commit this way.
+  (b) The heredoc tracking stops at its bounds: 16 open quoted heredocs, 16 markers on a line, and a delimiter word over 256 characters. Past them it reads the command as f564cd4 did, so a quoted terminator ending in a backslash again glues to a plain `git push` on the next line. Cycle 2 refused these; f564cd4 and origin/main did not.
+  (c) `_hd_unquote` reads `<<"X'\\"`, `<<$'X\\'`, and `<<$"X\\"` differently from bash, so the push after their terminator stays hidden. /security's real run sent the commit.
+  (d) Heredoc-like text such as `<<'git \'` can hide a push only when a later continued line equals it exactly, so it is reachable only on purpose.
+  (e) A comment line ending in a backslash hides a prefixed push, in every version (security).
+  Evidence: /security's cycle 3 fuzz, two seeds, 5,804 unique commands: of the pushes cycle 3 allows, the 143 that cycle 2 refused are all past a bound, and the 57 that f564cd4 refused are all the long-word cutoff. Confidence: high on each mechanism, low on frequency.
+  Suggested fix: Read a long word's quote state in one awk pass, and model double quotes and `$'` in `_hd_unquote`. Or record these in the "Remaining limitation" comment.
+
+[NOTE] hooks/pre-push-codereview.sh:466-540, 235-266 — Over-refusals in the safe direction: `git push "$REMOTE" main`, `--force-with-lease=main:$SHA`, the unquoted `git push -u origin $(git rev-parse --abbrev-ref HEAD)`, `"$(git branch --show-current)"`, `-o "ci skip"`, a remote path with a space, a remote URL with `?` or `[` (`ssh://[::1]/repo`), and `echo $(date) git push`, which reads as a push. `NAME="O'Brien" git push` and `GIT_SSH_COMMAND="ssh -i key" git push` are refused with "run this push as its own command", which is misleading for them (re-checked this run for `"$REMOTE"` and `O'Brien`).
   Suggested fix: Name the deploy-key workaround in the push-first refusal. A quote-aware tokenizer would remove most of these.
 
-[NOTE] hooks/pre-push-codereview.sh:58-61 — (also claude-code, also security) The quoted-text false positive recurred three times in this run: this review's read-only grep with a quoted alternation, the built-in's heredoc probe script, and a /security setup heredoc whose body held a push line. BACKLOG push-gate-quoted-text-false-positive records "one occurrence so far", and its revisit criterion ("more than occasionally") looks met. The recovery ("move that text to a file") also assumes a Write tool, which a read-only agent may not have.
-  Suggested fix: Requires a user decision: pick up the BACKLOG item. It would also fix the mixed-quote regressions in the first WARN and the over-refusals above.
+[NOTE] hooks/pre-push-codereview.sh:58-62 — (also claude-code, also security) The quoted-text false positive. f564cd4 updates BACKLOG push-gate-quoted-text-false-positive to four occurrences and narrows its revisit criterion to sessions that do not work on the gate. This run hit it once more, also in gate work (a probe setup whose heredoc held a push line). The recovery ("move that text to a file") assumes a Write tool, which a read-only agent may not have.
+  Suggested fix: None beyond the BACKLOG entry.
 
-[NOTE] hooks/pre-push-codereview.sh:51-56, 125-136 — (also claude-code, also security) Detection misses that predate this run, in the accepted "detection is heuristic" class (head=0, now=0): `timeout 1.5m git push` (the numeric regex rejects decimals), `>/dev/null git push`, `` `git push` ``, `coproc git push`, `git -c alias.p=push p`, `git submodule foreach git push`, `"git" push`, `git {push,origin,main}`, a span holding the other kind of quote (`A="x it's y" git push`), and `` A=`git commit ...` git push ``, which pushes the commit its own substitution makes. `git -C "$(pwd)x" push` is missed too, and `git -C "$(pwd)-wt" push`, which cycles 1 and 2 caught by accident, is missed again since cycle 3. A heredoc delimiter that ends in a backslash also hides a push (security). The "Remaining limitation" comment names few of these.
-  Suggested fix: Allow `^[0-9]+(\.[0-9]+)?[smhd]?$` at line 135 and list the rest in the comment.
+[NOTE] hooks/pre-push-codereview.sh:51-56, 179-233, 253-321 — (also claude-code, also security) Detection misses that predate this run, in the accepted "detection is heuristic" class (8e8dee7, cycle 3, and HEAD all miss them): `timeout 1.5m git push` (the numeric regex rejects decimals), `` `git push` ``, `coproc git push`, `env "FOO=1" git push`, the quoted and escaped spellings `"git" push`, `'git' push`, `\git push`, `git "push"`, `git pu\sh`, and `git $'push'` (claude-code, security), `git -c alias.p=push p`, `git submodule foreach git push`, `git {push,origin,main}`, a -C value with text after its substitution (`git -C "$(pwd)x" push`, `git -C "$(pwd)-wt" push`), a substitution in the middle of a `-c` value (`git -c "x=a$(echo hi)b" push`), escaped operators inside a word (`A=x\;y git push`, sent by /security), nested quotes in a substitution (`A="$(echo "a b")" git push`), a continued line whose quoted value holds ` #` (`git -c 'a #b' \` then `push`, claude-code; the join regex at line 82 does not know quotes, and 8e8dee7 joined no continuations), and `git --attr-source <tree> push` on git 2.40 and later, where `--attr-source` takes a separate value the walk does not list (unverified here, git 2.34.1). A statement can also run before the push inside a value the hook steps past: `` A=`./commit.sh` git push `` (claude-code), `git -c a.b=$(git commit ...) push`, and `git >"$(git commit ...; echo /dev/null)" push`. f564cd4 closed `>/dev/null git push`, `git 2>&1 push`, and `A="x it's y" git push`, which this run re-checked.
+  Suggested fix: Allow a decimal at line 211, add `--attr-source` to the option list, refuse a backtick or `$(` in a prefix assignment or between git and push, keep `\;`, `\|`, `\&` inside their word with a placeholder as lines 98-102 do for `\<` and `\>`, and list the rest in the "Remaining limitation" comment.
 
-[NOTE] hooks/pre-push-codereview.sh:297-333, 612, 674 — (security) What remains of the target-repo gap: `git -C "p q" push` is now detected but judged against `p`; a target whose `core.worktree` points outside it is judged against the enclosing repo; `git -C - push` judges the wrong directory; a `-C` inside a quoted `-c` value is followed.
-  Suggested fix: Refuse a `-C` value with an unmatched quote, and compare the target's `--absolute-git-dir` with its toplevel's.
+[NOTE] hooks/pre-push-codereview.sh:408-446 — (security) What remains of the target-repo gap: a target whose `core.worktree` points outside it is judged against the enclosing repo, and `git -C - push` makes `cd -P -- -` go to $OLDPWD while git enters `./-` (this run: the hook exits 0 there; git fails unless `./-` exists). f564cd4 closed `git -C "p q" push` (now refused) and stopped following a `-C` inside a quoted `-c` value. It also dropped BACKLOG push-gate-pushed-repo as closed, so these two items and the `-C` pre-approval WARN have no deferral entry.
+  Suggested fix: Compare the target's `--absolute-git-dir` with the same call run from its toplevel, use `./-` for a `-` value, and record what remains in BACKLOG.md.
 
-[NOTE] hooks/pre-push-codereview.sh:77-106, 166-232, 353-425, 472-520 — (also claude-code, security) The hook's tokenizing time grows with the square of the command length, and it tokenizes about ten times per recognized push and twice for any other command, up from three at 0ccfae7. A long push passes the 30 s timeout near 400 KB, or 220 KB when operator-dense. The cycles add costs: padding `<` and `>` slowed a 500 KB HTML heredoc from 0.8 s to 26.5 s (cycle 1), a push with many words that do not resolve costs two `rev-parse` calls each (about 50 s at 48 KB, per /security; wide run-to-run variance), and quote-heavy commands run 30 to 50% slower since cycle 3. A non-push only waits: 20 ms for `ls -la`, 134 ms at 89 KB. The built-in's claim that heredocs "used to skip the hook" is refuted by 1a85d54.
-  Suggested fix: Normalize once in main and pass the tokens to every function, padding operators in one linear pass. Add 65,600-byte and 500 KB test cases.
+[NOTE] hooks/pre-push-codereview.sh:78-107, 253, 341-344, 408-412, 466-471, 587-595 — (also claude-code, security) Apart from the scanner WARN above, tokenizing time grows with the square of the command length, and each check re-runs `_normalize_ops` and `_push_invocations` (about eight passes per push). /security's thresholds for short words still hold (near 400 KB, or 220 KB when operator-dense). The built-in notes that the separate copies are also why the `&>` handling in `_push_invocations` never reached the argument walks.
+  /security's cycle 3 re-check adds two shapes. A line ending in a long run of backslashes costs the run's length times the line's in `slashes="${line##*[!\\]}"`, which has been there since the prior run's cycle 1: 32 KB of trailing backslashes took 26.9 s, and the shape passes 30 s near 34 KB. And the bounded heredoc tracking adds linear cost: 240 KB of quoted-marker lines with a continuation took 28.0 s, against 20.6 s at f564cd4.
+  Suggested fix: Normalize once in main and pass the tokens to every function, with one shared argument walker. Count trailing backslashes with `[[ "${line}" =~ (\\+)$ ]]`, which took under 0.01 s on the same input. Add 65,600-byte and 500 KB test cases.
 
-[NOTE] hooks/pre-push-codereview.sh:605, 637 — (claude-code, also security) The skip marker is resolved after the `cd` into the `-C` target, so `codereview-skip` in repo A followed by `git -C B push` is blocked and leaves A's marker armed; the next unreviewed push in A was then allowed and consumed it. A leftover skip marker also passes a push of another ref, because the skip check runs before `push_sends_commits_outside_head`.
+[NOTE] hooks/pre-push-codereview.sh:751-755 — (claude-code, also security) The skip marker is resolved after the `cd` into the `-C` target, so `codereview-skip` in repo A followed by `git -C B push` is blocked and leaves A's marker armed; the next unreviewed push in A was then allowed and consumed it. A leftover skip marker at any age also passes a push of another ref, because the skip check runs before `push_sends_commits_outside_head`.
   Suggested fix: Deferred with BACKLOG skip-marker-bound-to-diff; tell the agent in the refusal that a bypass applies per repo.
 
-[NOTE] hooks/pre-push-codereview.sh:47-49, 462 — (claude-code) Two comments still say a false positive only costs a needless review; since the push-first rule, it is a refusal (lines 58-61 say so).
-  Suggested fix: Update both comments.
+[NOTE] hooks/pre-push-codereview.sh:47-49, 59, 576 — (claude-code) Comments still say a false positive only costs a needless review; since the push-first rule it is a refusal. Line 59 still says the tokenizer ignores quoting, which `_word_end` now partly reads.
+  Suggested fix: Update the comments.
 
-[NOTE] hooks/pre-push-codereview.sh:504 — (claude-code) The multi-push loop in `is_tag_only_push` can no longer run more than once, because `push_is_alone_and_first` runs first. Its comment still describes compounds.
+[NOTE] hooks/pre-push-codereview.sh:601 — (claude-code) The multi-push loop in `is_tag_only_push` can no longer run more than once, because `push_is_alone_and_first` runs first. Its comment still describes compounds.
   Suggested fix: Optional. Remove the loop in a later cleanup.
 
-[NOTE] hooks/pre-push-codereview.sh:140, 245, 279, 380, 498 — (claude-code) The operator list appears in five places, and its `&&` and `||` arms cannot match after `_normalize_ops`, which pads each character.
+[NOTE] hooks/pre-push-codereview.sh:185, 222, 354, 386, 488, 613 — (also claude-code) The operator list appears in six places and the copies diverge (`)` and `}` differ, and only `_push_invocations` reads `&>`); the `&&` and `||` arms cannot match after `_normalize_ops`, which pads each character.
   Suggested fix: Optional. Single-source it in a helper.
 
-[NOTE] hooks/pre-push-codereview.sh:445, 527 — (claude-code) A failing `rev-list` reads as tag-only, while `_has_commits_outside_head` fails closed on the same call.
+[NOTE] hooks/pre-push-codereview.sh:562, 638 — (claude-code) A failing `rev-list` reads as tag-only, while `_has_commits_outside_head` fails closed on the same call.
   Suggested fix: Treat a non-zero exit as "not tag-only".
 
-[NOTE] hooks/pre-push-codereview.sh:275 — (claude-code) `/usr/bin/gh repo create --push` is not detected, though the walker accepts `*/git`.
+[NOTE] hooks/pre-push-codereview.sh:382 — (claude-code, also security) `/usr/bin/gh repo create --push` is not detected, though the walker accepts `*/git`.
   Suggested fix: Also accept `*/gh`.
 
-[NOTE] hooks/pre-push-codereview.sh:643-656, 673-700 — (claude-code) The outside-ref and uncommitted refusals do not name the `-C` target repo, unlike the no-marker refusal at line 754.
+[NOTE] hooks/pre-push-codereview.sh:757-770, 794-844 — (claude-code) The outside-ref and uncommitted refusals do not name the `-C` target repo, unlike the no-marker refusal at line 871.
   Suggested fix: Add the same target note.
 
-[NOTE] BACKLOG.md:55 — (also security) push-gate-pushed-repo still describes `git -C <other> push` and `cd <other> && git push`, which 49ecf37 and 78c6fa1 closed. Its revisit criterion ("the tokenizer is reworked anyway") was met, as 1a85d54's message says of the sibling entry.
-  Suggested fix: Rewrite it around what remains.
+[NOTE] zat.env-install.sh:336-345 — (claude-code) With no `if` filter, the gate's bash and jq processes start on every Bash and PowerShell call, which costs most on Windows, where process start is slow. Not measured.
+  Suggested fix: Exit at once when the command has no `push` substring, before tokenizing. Every detection the hook makes needs a `push` or `--push` token, so nothing it catches today is lost, and the hook still decides for itself.
 
 [NOTE] gitconfig/ignore-global:24 — The fix covers one of two paths Claude Code 2.1.296 appends to `core.excludesfile`, and that setting points at this tracked file, so the next append again dirties the tree and the pre-push `uncommitted` check refuses every push from zat.env (also claude-code)
   Evidence: the binary's append routine has a second caller, which passes `.claude/.cc-writes/` once per session when a staging directory is set up in a repo that does not already ignore `.claude/.cc-writes/sample-file.txt`; it would append `**/.claude/.cc-writes/`. Whether that feature runs on this machine is unverified. The failure is fail-safe (the hook names the file). Confidence: high on the code path, low on when it fires.
@@ -94,13 +127,13 @@ No BLOCK findings.
   Evidence: gitconfig/ignore-global:23-24; .gitignore:18. Confidence: low that it matters.
   Suggested fix: Optional. A one-line comment naming Claude Code as the writer, or a sentence in CLAUDE.md's gitconfig bullet saying Claude Code appends to this file.
 
-[NOTE] hooks/pre-push-codereview.sh:4-7 — The header now describes the missing `if` filter but still says the hook is installed "on Bash"; it is also registered for the PowerShell tool.
+[NOTE] hooks/pre-push-codereview.sh:4-7 — The header describes the missing `if` filter but still says the hook is installed "on Bash"; it is also registered for the PowerShell tool.
   Suggested fix: Mention the PowerShell entry.
 
 [NOTE] hooks/README.md:121-127 — The manual test recipe says `echo '{}' | bash .../pre-push-codereview.sh` "should block (no marker)", but `{}` has no command, which reads as "not a push" and exits 0. Pre-existing.
   Suggested fix: Use a payload with `{"tool_input":{"command":"git push"}}`.
 
-[NOTE] tests/test-pre-push-hook.sh:1249 — PATH_SANITIZED keeps jq's directory, so where jq lives in ~/bin next to codereview-marker the "codereview-marker missing" test fails falsely (loud, not silent) (also claude-code)
+[NOTE] tests/test-pre-push-hook.sh:1304 — PATH_SANITIZED keeps jq's directory, so where jq lives in ~/bin next to codereview-marker the "codereview-marker missing" test fails falsely (loud, not silent) (also claude-code)
   Suggested fix: Build a temp directory that links only `git` and `jq`.
 
 [NOTE] zat.env-install.sh:12 — `CYGWIN*` maps to windows, but Cygwin reads `CYGWIN=winsymlinks:...`, not `MSYS`, and Cygwin's own symlinks pass the `[[ -L ]]` probe while native programs such as Claude Code may not follow them (also claude-code)
@@ -109,7 +142,7 @@ No BLOCK findings.
 [NOTE] zat.env-install.sh:105 — Skill directories copied by a pre-nativestrict Windows install are not symlinks, so every re-run prints "exists and is not a symlink — skipping" and leaves the frozen copies; ~/.claude/CLAUDE.md and ~/bin entries are replaced (claude-code)
   Suggested fix: On Windows, tell the user to delete the copies, or replace a directory whose contents match the repo skill.
 
-[NOTE] hooks/pre-push-codereview.sh:571 — The CR fix is repeated per consumer (hook, installer `tr -d '\r'`, windows.md advice); `jq -b` stops CRLF at the source (claude-code)
+[NOTE] hooks/pre-push-codereview.sh:666 — The CR fix is repeated per consumer (hook, installer `tr -d '\r'`, windows.md advice); `jq -b` stops CRLF at the source (claude-code)
   Suggested fix: Optional. Verify the oldest supported jq accepts `-b` first (Ubuntu 22.04 ships jq 1.6; `--binary` may be newer, confidence low).
 
 [NOTE] zat.env-install.sh:397 — The shadow warning compares path strings, so an earlier PATH entry that is another spelling of ~/bin (a symlinked HOME) warns about a copy that does not exist (claude-code)
@@ -118,8 +151,8 @@ No BLOCK findings.
 [NOTE] bin/review-external.sh:276-278 — (security) Without `bc`, the cost expression is pasted into the awk program text, where `system()` would run; `_count` and the price literals are the only guard, and the hostile-value test covers only OpenAI `input_tokens`. The awk branch runs only on hosts without bc, so on Linux only the lint pin covers it.
   Suggested fix: Pass the operands with `-v` and keep the expression fixed, or add hostile-value tests for every token count; add a test that shadows `bc` so the awk branch runs everywhere.
 
-[NOTE] hooks/pre-push-codereview.sh:172, 275 — (security) `git.exe push` is not gated on Windows: the walker recognizes only a bare `git` token or a path ending in /git; /security pushed a scratch repo this way. The Windows form of the absolute-path case in the accepted "detection is heuristic" risk (also claude-code)
-  Suggested fix: Requires a user decision: accept it under the existing risk, or treat `git.exe` as `git` in the walker.
+[NOTE] hooks/pre-push-codereview.sh:260 — (security) `git.exe push`, `"/c/Program Files/Git/cmd/git.exe" push`, and `GIT push` (case-insensitive filesystems) are not gated: the walker recognizes only a bare `git` token or a path ending in /git. The Windows form of the absolute-path case in the accepted "detection is heuristic" risk (also claude-code)
+  Suggested fix: Requires a user decision: accept it under the existing risk, or compare the token's basename with `git` or `git.exe`.
 
 [NOTE] claude/skills/codereview/SKILL.md:238, 471 — (security) A `.gitattributes` `-diff` or `binary` attribute on a text file shows it as "Binary files differ" to the inline and external reviewers; the marker hash still covers its content, so the gate holds
   Suggested fix: Add `--text` (or `-a`) to the review diffs.
@@ -244,31 +277,23 @@ No BLOCK findings.
 [NOTE] (carried forward) zat.env-install.sh:227 — Deny entries accumulate across installs; deliberate, since deny entries only narrow.
   Suggested fix: None needed.
 
-Resolved since the prior review: the WARN on a statement before a push (78c6fa1); the docker group NOTE (14ddf06 makes membership opt-in); the `git -C <other> push` and `cd <other> && git push` part of the pushed-repo gap (49ecf37, 78c6fa1); the WARN on refs other than the checked-out branch, narrowed to the user-decision WARN above (49ecf37); and the empty-payload NOTE, whose premise (the hook runs only on matched pushes) ended with 1a85d54. The "detection is heuristic" accepted risk is narrower: 600d074 detects `env`, `command`, absolute paths, `xargs`, and env-var prefixes, and 49ecf37 no longer treats a `v<digit>` branch as a tag. Interpreter wrappers and the spellings in the NOTEs above remain.
+Resolved since the prior review: the WARN on seven spellings that the fix cycles let through (f564cd4; this run gated all seven at HEAD); the NOTE that BACKLOG push-gate-pushed-repo was stale (f564cd4 dropped it; what remains is in the target-repo NOTE); and, within the NOTEs, `>/dev/null git push`, `A="x it's y" git push`, and `git -C "p q" push`.
 
 ### Fixes Applied
 
-All uncommitted, applied by /codefix to hooks/pre-push-codereview.sh with tests in tests/test-pre-push-hook.sh unless noted. Each fix was re-reviewed and re-checked by /security after its cycle.
+Cycle 1, applied by /codefix to hooks/pre-push-codereview.sh with tests in tests/test-pre-push-hook.sh, uncommitted:
+- [WARN] `_quote_scan` opens `$'...'` only after an odd run of unescaped `$`, so `\$'` and `$$'` read as plain single quotes. `_word_end` steps over only the first token when a quote is still open at the end of the command. push_is_alone_and_first also refuses a prefix word that `_quote_is_unclear` matches. The continuation join skips the body and terminator of a quoted heredoc. That join change added the cycle 2 WARN above.
+- [WARN] `_exact_command_positions` stops at the first token over 1,024 characters, and `_quote_scan` runs under a local C locale. The cutoff added the cycle 2 WARN above.
+- [WARN] Both argument walks read `&>` as a redirection, and push_sends_commits_outside_head steps over a `-d` or `--delete` that is the value of `-o` or `--push-option`. The `&>` arm added the cycle 2 WARN above.
 
-Cycle 1:
-- [WARN] `git -C .git push`, a bare repo through `-C`, and `core.bare=true` read as "not a repo" (the regression 49ecf37 introduced). A target with no working tree is now refused; hooks/README.md updated. (also security)
-- [WARN] `GIT_DIR=`, `GIT_WORK_TREE=`, `GIT_COMMON_DIR=`, `env --chdir`, and `sudo -D` before git were judged against the wrong repo; they are refused, and `cd` is now `CDPATH='' cd -P`. (also claude-code, also security)
-- [WARN] The tag-only exit passed `--tags` beside a refspec, `refs/tags/*`, and a tag on a tree or blob. (also claude-code, also security)
-- [WARN] Shell-expanded refspecs and `:` were skipped as unresolved; they are refused, and /pr's exact substitution reads as HEAD. (also claude-code, also security)
-- [WARN] Line continuations, `)`, and glued redirections hid a push. (also security)
-- [WARN] A substitution in a `-C` value was undetected.
-- [WARN] A comment line before a push counted as an earlier statement, which refused /pr's own block. (claude-code)
+Cycle 2, by /codefix, uncommitted:
+- [WARN] Heredoc tracking no longer suspends the join: every line joins as at f564cd4 except the exact delimiter line. `<<<` is not a heredoc, tabs are stripped only after `<<-`, part-quoted and backslash delimiters are recognized through a new `_hd_unquote`, and several heredocs on a line are tracked. This added the two cycle 3 WARNs above.
+- [WARN] A long word with no backslash, no `$'`, and one quote kind is read by quote parity (`_quote_parity`) instead of stopping the fallback; `_has_open_quote` runs under a local C locale; the long-word test passes its command to jq on stdin.
+- [WARN] A `-d` after an `&` and `>` pair ends the walk instead of reading as a delete, and a short-option cluster ending in `o` is treated like `-o`.
 
-Cycle 2:
-- [WARN] A `#` inside a quoted value read as a comment, which hid the statement before a push and the ref after one (cycle 1 regression). (security)
-- [WARN] Any line ending in a backslash was joined to the next, though an even run ends the statement (cycle 1 regression); comments after `;`, `&`, `|`, `(`, `)` are now recognized. (also security)
-- [WARN] `_normalize_ops` read through a here-string, the form b065794 removed after a Git Bash hang at 65,536 bytes (cycle 1 regression); now process substitution, pinned in tests/lint-skills.sh and recorded as CLAUDE.md Windows point (9).
-- [WARN] Brace expansion and globs (`{main,feature}`, `refs/tags/{v1.0,v2.0}`, `?`, `[`) passed the check for shell-expanded words. (also security)
-- [WARN] The no-working-tree refusal had no lint pin; pinned in tests/lint-skills.sh, and named in CLAUDE.md's "What the gate can vouch for".
-
-Cycle 3:
-- [WARN] A quoted value split by the tokenizer broke both argument walks: `-o "merge_request.title=Fix login (SSO)"`, `-o "a;b"`, `--push-option="Fix A & B"`, `-o "x -d y"`, and `v1.0 --push-option="a;b" feature` sent an unchecked branch. A split quoted value after the push is now refused, and cycle 2's never-cleared `open_quote` flag is gone. (also security) The cycle 2 re-check's candidate argument-walk hunks were rejected because they let `git push -o "x y" origin feature && ls -d .` through.
-- [WARN] Padding `<` and `>` split quoted and escaped values, so `A="x>y" git push`, `git -c "a.b=c>d" push`, and `A=x\>y git push` went undetected (cycle 1 regression), as did the pre-existing `A="x;y"`, `TOKEN="$(echo x)"`, and `GIT_SSH_COMMAND="ssh -i key"` forms.
+Cycle 3, by /codefix, uncommitted:
+- [WARN] The heredoc regex captures the rest of the line itself, removing a quadratic prefix strip that a trace showed was the main cost. A delimiter word over 256 characters is not tracked. At most 16 open heredocs, and 16 markers per line, are read. `_hd_unquote` runs under a local C locale. Tests time a 64 KB quoted delimiter and 1,200 unclosed heredocs after a push.
+- [WARN] A line that ends a quoted heredoc drops its trailing backslashes before it is added. The three-line case is a test.
 
 ### Accepted Risks
 
@@ -279,6 +304,6 @@ Cycle 3:
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-10-13, commit 0ccfae7): Refresh review of a one-line global gitignore rule for Claude Code's `.claude/settings.local.json`; two new NOTEs, and 0 BLOCK / 8 WARN / 55 NOTE in all, carried from the Windows port review.*
+*Prior review (2026-11-03, commit 8e8dee7): Refresh review of seven unpushed gate-hardening commits; three /codefix cycles left 0 BLOCK / 10 WARN / 65 NOTE, with uncommitted fixes that f564cd4 now commits.*
 
-<!-- REVIEW_META: {"date":"2026-11-03","commit":"8e8dee7","reviewed_up_to":"8e8dee737d8f19792795092d8df8c45ee66a874b","base":"origin/main","tier":"refresh","block":0,"warn":10,"note":65} -->
+<!-- REVIEW_META: {"date":"2026-11-03","commit":"f564cd4","reviewed_up_to":"f564cd4d401e48c6fa1df956840dc43f6a33b986","base":"origin/main","tier":"refresh","block":0,"warn":9,"note":66} -->

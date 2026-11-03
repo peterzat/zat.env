@@ -75,12 +75,57 @@ set -euo pipefail
 # "git push>/dev/null" still has a bare "push". The loop reads through process
 # substitution, not a here-string: a here-string hung on Git Bash for commands of
 # 65,536 bytes and up until the hook timed out, and a timed-out hook allows.
+# Set _HD to a heredoc delimiter word after quote removal: single-quoted text
+# stays as it is, and outside single quotes a backslash keeps the next character.
+_hd_unquote() {
+  # Every character tested is ASCII; the C locale makes indexing far cheaper.
+  local LC_ALL=C
+  local w="$1" c i n=${#1} sq=0
+  _HD=""
+  for (( i = 0; i < n; i++ )); do
+    c="${w:i:1}"
+    if (( sq == 1 )); then if [[ "${c}" == "'" ]]; then sq=0; else _HD+="${c}"; fi
+    elif [[ "${c}" == "'" ]]; then sq=1
+    elif [[ "${c}" == "\\" ]]; then i=$((i + 1)); _HD+="${w:i:1}"
+    elif [[ "${c}" != '"' ]]; then _HD+="${c}"; fi
+  done
+}
+
 _normalize_ops() {
   local norm="$1"
   local nl=$'\n'
   if [[ "${norm}" == *$'\\\n'* ]]; then
-    local joined="" line slashes comment_re='(^|[[:space:];&|()])#'
+    local joined="" line slashes comment_re='(^|[[:space:];&|()])#' q="'" h cmp rest
+    local hd_re="(^|[^<])<<(-?)[[:space:]]*((${q}[^${q}]*${q}|\"[^\"]*\"|\\\\.|[^[:space:];&|()<>${q}\"\\\\])+)(.*)$"
+    local -a hds=() hdt=()
+    local nm
     while IFS= read -r line || [[ -n "${line}" ]]; do
+      # The terminator of a quoted heredoc is literal: a trailing backslash there
+      # joins nothing (cat <<'X\' ends at the line X\). Every other line joins as
+      # usual, so a misread marker affects only a line equal to its delimiter.
+      # Its trailing backslashes are dropped, since the line is literal text and
+      # a kept one would read as escaping the separator the newline becomes.
+      for h in "${!hds[@]}"; do
+        cmp="${line}"
+        if [[ "${hdt[h]}" == "-" ]]; then cmp="${line#"${line%%[!$'\t']*}"}"; fi
+        if [[ "${cmp}" == "${hds[h]}" ]]; then
+          unset 'hds[h]' 'hdt[h]'
+          joined+="${line%"${line##*[!\\]}"}${nl}"
+          continue 2
+        fi
+      done
+      # A delimiter over 256 characters is not tracked, at most 16 open heredocs
+      # are, and at most 16 markers per line are read: these bound the time a
+      # long or crafted command can take. The regex captures the rest of the line
+      # (group 5), since stripping the match off the front is quadratic.
+      rest="${line}"; nm=0
+      while (( nm < 16 && ${#hds[@]} < 16 )) && [[ "${rest}" == *'<<'* && "${rest}" =~ ${hd_re} ]]; do
+        nm=$((nm + 1))
+        if (( ${#BASH_REMATCH[3]} <= 256 )) && [[ "${BASH_REMATCH[3]}" == *[\"\'\\]* ]]; then
+          _hd_unquote "${BASH_REMATCH[3]}"; hds+=("${_HD}"); hdt+=("${BASH_REMATCH[2]}")
+        fi
+        rest="${BASH_REMATCH[5]}"
+      done
       slashes="${line##*[!\\]}"
       if (( ${#slashes} % 2 == 1 )) && [[ ! "${line}" =~ ${comment_re} ]]; then
         joined+="${line%\\}"
@@ -109,8 +154,23 @@ _normalize_ops() {
 # True when a word holds an unmatched quote, so what follows is inside the quote
 # however the operators and # read.
 _has_open_quote() {
+  # The C locale makes the substitutions far cheaper on a long word.
+  local LC_ALL=C
   local d="${1//[^\"]/}" s="${1//[^\']/}"
   (( ${#d} % 2 == 1 || ${#s} % 2 == 1 ))
+}
+
+# _quote_scan for a long word that holds no backslash, no $', and only one kind
+# of quote: the parity of that kind gives the state after it, in linear time.
+_quote_parity() {
+  local LC_ALL=C
+  local d="${1//[^\"]/}" s="${1//[^\']/}"
+  _QESC=0
+  case "${_QS}" in
+    '"') if (( ${#d} % 2 == 1 )); then _QS=""; fi ;;
+    "'"|'$') if (( ${#s} % 2 == 1 )); then _QS=""; fi ;;
+    *) if (( ${#d} % 2 == 1 )); then _QS='"'; elif (( ${#s} % 2 == 1 )); then _QS="'"; fi ;;
+  esac
 }
 
 # True when a word holds an escape at its end, an escaped quote, or both kinds of
@@ -126,9 +186,11 @@ _quote_is_unclear() {
 # in a backslash that escapes the space after it. The parity count above misreads
 # mixed quotes such as "O'Brien -x", which hid the push after them.
 _quote_scan() {
-  local w="$1" c i n=${#1}
   _QESC=0
-  if [[ "${w}" != *[\"\'\\]* ]]; then return 0; fi
+  if [[ "$1" != *[\"\'\\]* ]]; then return 0; fi
+  # Every character tested is ASCII; the C locale makes indexing far cheaper.
+  local LC_ALL=C
+  local w="$1" c i n=${#1} dol=0
   for (( i = 0; i < n; i++ )); do
     c="${w:i:1}"
     if [[ "${_QS}" == "'" ]]; then
@@ -140,8 +202,11 @@ _quote_scan() {
     elif [[ "${c}" == '"' ]]; then
       if [[ -z "${_QS}" ]]; then _QS='"'; else _QS=""; fi
     elif [[ "${c}" == "'" && -z "${_QS}" ]]; then
-      if (( i > 0 )) && [[ "${w:i-1:1}" == '$' ]]; then _QS='$'; else _QS="'"; fi
+      # Only an odd run of unescaped $ opens $'...': $$ is a pair, and a \$ was
+      # consumed by the backslash branch.
+      if (( dol % 2 == 1 )); then _QS='$'; else _QS="'"; fi
     fi
+    if [[ "${c}" == '$' && -z "${_QS}" ]]; then dol=$((dol + 1)); else dol=0; fi
   done
   return 0
 }
@@ -158,6 +223,9 @@ _word_end() {
     _quote_scan "${t[j]}"
     j=$((j + 1))
   done
+  # A quote still open at the end is a misreading (the shell would reject the
+  # command), so step over only the first token rather than hide the rest.
+  if [[ -n "${_QS}" ]]; then j=$(($1 + 1)); fi
   _WORD_END=${j}
 }
 
@@ -180,6 +248,15 @@ _exact_command_positions() {
   _CMDPOS=()
   local n=${#t[@]} k=0 ok=1 redir=0 cont=0 _QS="" _QESC=0
   while (( k < n )); do
+    # The scan is quadratic in word length; a long word (minified JSON in a
+    # heredoc) would hold the hook past its timeout. _quote_parity reads the
+    # common long words; for the rest, stopping only drops detections this
+    # fallback adds.
+    local long=0
+    if (( ${#t[k]} > 1024 )); then
+      case "${t[k]}" in *\\*|*\"*\'*|*\'*\"*|*\$\'*) break ;; esac
+      long=1
+    fi
     if [[ -z "${_QS}" ]] && (( cont == 0 )); then
       case "${t[k]}" in
         "&&"|"||"|";"|"|"|"&"|"("|")"|"{"|"!") ok=1; redir=0; k=$((k + 1)); continue ;;
@@ -192,7 +269,7 @@ _exact_command_positions() {
         if ! _is_command_prefix "${t[k]}"; then ok=0; fi
       fi
     fi
-    _quote_scan "${t[k]}"
+    if (( long == 1 )); then _quote_parity "${t[k]}"; else _quote_scan "${t[k]}"; fi
     cont=${_QESC}
     k=$((k + 1))
   done
@@ -360,7 +437,9 @@ push_is_alone_and_first() {
         while (( k < first )) && [[ "${t[k]}" != ";" ]]; do k=$((k + 1)); done
         ;;
       *)
-        if ! _is_command_prefix "${t[k]}" || _has_open_quote "${t[k]}"; then return 1; fi
+        # An unclear quote or escape (A=x\;#y) can hide that a # or an operator
+        # after it is part of the word, so refuse it too.
+        if ! _is_command_prefix "${t[k]}" || _has_open_quote "${t[k]}" || _quote_is_unclear "${t[k]}"; then return 1; fi
         at_start=0
         ;;
     esac
@@ -469,7 +548,7 @@ push_sends_commits_outside_head() {
   read -ra t < <(_normalize_ops "$1") || true
   local n=${#t[@]} _git_idx push_idx _cvals r
   read -r _git_idx push_idx _cvals < <(_push_invocations "$1") || true
-  local k=$((push_idx + 1)) seen_remote=0
+  local k=$((push_idx + 1)) seen_remote=0 amp_redir=0
   local -a refs=() globs=()
   while (( k < n )); do
     if [[ "${t[*]:k:8}" == '"$ ( git rev-parse --abbrev-ref HEAD ) "' ]]; then
@@ -484,6 +563,10 @@ push_sends_commits_outside_head() {
     # and a remote path with a space. A # word can only be inside a quote that
     # an earlier word opened, and that word is refused here first.
     if _word_is_open "${t[k]}"; then printf '%s\n' "${t[k]}"; return 0; fi
+    # &> is a redirection, not the end of the arguments: the > arm takes it. The
+    # tokens cannot tell it from & followed by >, which ends the push, so a later
+    # -d may belong to the next statement.
+    if [[ "${t[k]}" == "&" && "${t[k+1]:-}" == ">" ]]; then amp_redir=1; k=$((k + 1)); continue; fi
     case "${t[k]}" in
       "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break ;;
       ">"|"<")
@@ -494,7 +577,14 @@ push_sends_commits_outside_head() {
         if _word_is_open "${t[k]:-}"; then printf '%s\n' "${t[k]}"; return 0; fi
         ;;
       *'$'*|*'`'*|*\\*|*\{*,*\}*|*\{*..*\}*|*'?'*|*'['*) printf '%s\n' "${t[k]}"; return 0 ;;
-      --delete|-d) return 1 ;;
+      -o|--push-option|-[!-]*o)
+        # git takes the next word as the value, so -o -d (or -fo -d) is not a
+        # delete.
+        if [[ "${t[k+1]:-}" == "-d" || "${t[k+1]:-}" == "--delete" ]]; then k=$((k + 1)); fi
+        ;;
+      --delete|-d)
+        if (( amp_redir == 1 )); then break; fi
+        return 1 ;;
       --all|--branches) globs+=(--branches) ;;
       --mirror) globs+=(--all) ;;
       --tags) globs+=(--tags) ;;
@@ -609,6 +699,9 @@ is_tag_only_push() {
     while (( k < n )); do
       # A quoted value the tokenizer split can hide an operator or a refspec.
       if _word_is_open "${toks[k]}"; then return 1; fi
+      # &> is a redirection: the > then counts as a positional, which makes the
+      # push not tag-only, the safe direction.
+      if [[ "${toks[k]}" == "&" && "${toks[k+1]:-}" == ">" ]]; then k=$((k + 1)); continue; fi
       case "${toks[k]}" in
         "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break;;
         --tags) has_tags=1;;
