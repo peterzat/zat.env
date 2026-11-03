@@ -51,6 +51,9 @@ set -euo pipefail
 # Remaining limitation (rare; the guard stays simple rather than embedding a
 # shell parser): quoted paths containing whitespace, e.g. `git -C "/a b"
 # push`, can be missed or misdetected (the tokenizer splits inside the quotes).
+# A push wrapped in an interpreter (`bash -c "git push"`, `eval "git push"`) is
+# missed for the same reason, as is a wrapper that takes a non-numeric argument
+# (`sudo -u bob git push`). See push-gate-wrapped-push-detection in BACKLOG.md.
 #
 # The tokenizer ignores quoting, so a push named in a commit message or heredoc
 # can read as a real one. That was only a needless review until the rule in
@@ -77,15 +80,32 @@ _normalize_ops() {
   printf '%s' "${norm}"
 }
 
+# True for a word that can come before a command in its statement without being
+# the command: a shell keyword, a wrapper that runs what follows, one of their
+# options or numeric arguments, or a VAR=value assignment.
+_is_command_prefix() {
+  case "$1" in
+    if|then|elif|else|do|while|until) return 0 ;;
+    env|command|builtin|exec|nohup|time|sudo|xargs|nice|ionice|setsid|stdbuf|timeout) return 0 ;;
+    -*) return 0 ;;
+  esac
+  [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || [[ "$1" =~ ^[0-9]+[smhd]?$ ]]
+}
+
 # True when token <index> of the caller's array t starts a command, so it is not
-# just an argument to something else.
+# just an argument to something else. Walks back over command prefixes to the
+# statement boundary; any other word means the token is an argument, so
+# "echo git push" and "echo -n 5 git push" are not pushes.
 _in_command_position() {
   local p=$(( $1 - 1 ))
-  if (( p < 0 )); then return 0; fi
-  case "${t[p]}" in
-    "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") return 0 ;;
-  esac
-  return 1
+  while (( p >= 0 )); do
+    case "${t[p]}" in
+      "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") return 0 ;;
+    esac
+    if ! _is_command_prefix "${t[p]}"; then return 1; fi
+    p=$((p - 1))
+  done
+  return 0
 }
 
 # Print, one per line, "<git-token-index> <push-token-index>" for each genuine
@@ -94,10 +114,10 @@ _in_command_position() {
 # the command-position rule and the git-level option handling live in exactly
 # one place and cannot drift apart.
 #
-# A "git" token counts as a command only if it is first or follows a shell
-# operator (so "echo git push" is not misread as a push). _normalize_ops has
-# already promoted those operators to standalone tokens even when the user
-# wrote them tight-packed ("cmd1;git push"), across newlines, or in a subshell
+# A "git" token, or a path ending in /git, counts as a command only if it is in
+# command position (see _in_command_position). _normalize_ops has already
+# promoted the shell operators to standalone tokens even when the user wrote
+# them tight-packed ("cmd1;git push"), across newlines, or in a subshell
 # "(git push)".
 _push_invocations() {
   local -a t
@@ -105,7 +125,7 @@ _push_invocations() {
   read -ra t < <(_normalize_ops "$1") || true
   local n=${#t[@]} i=0
   while (( i < n )); do
-    if [[ "${t[i]}" != "git" ]]; then i=$((i + 1)); continue; fi
+    if [[ "${t[i]}" != "git" && "${t[i]}" != */git ]]; then i=$((i + 1)); continue; fi
     if ! _in_command_position "$i"; then i=$((i + 1)); continue; fi
     # Skip git-level options to reach the subcommand. The listed options take
     # a separate-space argument (consume two tokens); any other -short/--long
@@ -160,7 +180,9 @@ push_is_alone_and_first() {
   while (( k < first )); do
     case "${t[k]}" in
       "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") ;;
-      *) return 1 ;;
+      *)
+        if ! _is_command_prefix "${t[k]}"; then return 1; fi
+        ;;
     esac
     k=$((k + 1))
   done

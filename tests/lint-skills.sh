@@ -472,6 +472,10 @@ has "${HOOK}" "_push_subcommand_indices" \
   "hook: push detection single-sourced via _push_subcommand_indices"
 has "${HOOK}" "_push_invocations" \
   "hook: every push check shares the _push_invocations walk"
+# A prefix before git used to hide the push, because only a shell operator
+# counted as the start of a command.
+has "${HOOK}" '_is_command_prefix "\$\{t\[p\]\}"' \
+  "hook: the command-position walk steps over keywords, wrappers, and assignments"
 
 # Hook: what the gate refuses because it cannot vouch for it. See "What the gate
 # can vouch for" in CLAUDE.md. Each check is one conditional in the main flow, so

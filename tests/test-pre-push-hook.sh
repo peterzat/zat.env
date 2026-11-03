@@ -687,6 +687,67 @@ expect_in_repo() {
 
 # ============================================================
 echo ""
+echo "==> Regression: a prefix before git does not hide the push"
+# ============================================================
+# Only a shell operator counted as the start of a command, so a push behind any
+# other word read as an argument to it, and the hook passed the command through.
+
+setup_test_repo
+echo "modified" > "${TEST_REPO}/file.txt"
+for cmd in \
+  'GIT_TERMINAL_PROMPT=0 git push' \
+  'A=1 B=2 git push origin main' \
+  'if git push; then echo ok; fi' \
+  'until git push; do sleep 1; done' \
+  'time git push' \
+  'env git push' \
+  'env -i FOO=1 git push' \
+  'command git push' \
+  'builtin git push' \
+  'exec git push' \
+  'nohup git push' \
+  'sudo git push' \
+  'xargs git push' \
+  'nice -n 10 git push' \
+  'ionice -c2 git push' \
+  'setsid git push' \
+  'stdbuf -o0 git push' \
+  'timeout 60 git push' \
+  'timeout 5m git push' \
+  '/usr/bin/git push' \
+  'env /usr/bin/git -C . push' \
+  '! git push' \
+  $'if git push\nthen echo ok\nfi'; do
+  expect_in_repo "${cmd}" 2 "prefixed push goes to review: $(printf '%q' "${cmd}")" "has not passed /codereview"
+done
+# With a statement in front, they are refused like any other push.
+for cmd in \
+  'for r in a; do git push; done' \
+  'if true; then git push; fi' \
+  'cd .. && env git push' \
+  'echo hi; GIT_TRACE=1 git push'; do
+  expect_in_repo "${cmd}" 2 "prefixed push after a statement refused: $(printf '%q' "${cmd}")" "run this push as its own command"
+done
+# Other words still mean the token is an argument, not a command.
+for cmd in \
+  'echo 5 git push' \
+  'echo -n git push' \
+  'echo env git push' \
+  'echo then git push' \
+  'grep -r git push' \
+  'ls /usr/bin/git push' \
+  'FOO=git push' \
+  'env FOO=1 ls' \
+  'time make' \
+  'if true; then echo git push; fi' \
+  'sudo -u bob ls' \
+  'timeout 60 make'; do
+  expect_in_repo "${cmd}" 0 "not a push, passes through: $(printf '%q' "${cmd}")"
+done
+teardown_test_repo
+
+# ============================================================
+echo ""
 echo "==> Regression: git -C judges the repo it targets, not the current one"
 # ============================================================
 # `git -C other push` from a clean checkout read as nothing to review.
