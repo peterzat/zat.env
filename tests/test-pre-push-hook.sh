@@ -744,6 +744,21 @@ for cmd in \
   'timeout 60 make'; do
   expect_in_repo "${cmd}" 0 "not a push, passes through: $(printf '%q' "${cmd}")"
 done
+# A quoted or escaped value that the tokenizer splits does not hide the push.
+for cmd in \
+  'A="x>y" git push' \
+  'git -c "a.b=c>d" push' \
+  'A=x\>y git push' \
+  'A="x;y" git push' \
+  'TOKEN="$(echo x)" git push' \
+  'GIT_SSH_COMMAND="ssh -i key" git push'; do
+  expect_in_repo "${cmd}" 2 "push behind a split value detected: ${cmd}"
+done
+for cmd in \
+  'echo "a git push b"' \
+  'echo "x" "a git push"'; do
+  expect_in_repo "${cmd}" 0 "quoted push text passes through: ${cmd}"
+done
 teardown_test_repo
 
 # ============================================================
@@ -891,6 +906,367 @@ teardown_test_repo
 
 # ============================================================
 echo ""
+echo "==> Regression: a repo with no working tree is refused, not read as no repo"
+# ============================================================
+# Following -C landed where --show-toplevel fails, which read as "not a repo",
+# though git pushes from there.
+
+setup_test_repo
+BARE_REPO=$(mktemp -d)
+git -C "${BARE_REPO}" init -q --bare
+expect_in_repo 'git -C .git push' 2 "git -C .git refused" "no working tree"
+expect_in_repo 'git -C .git/hooks push' 2 "git -C .git/hooks refused" "no working tree"
+expect_in_repo "git -C ${BARE_REPO} push" 2 "bare repo through -C refused" "no working tree"
+expect_in_repo "git -C ${SCRATCH_NOGIT} push" 0 "git -C to a directory that is no repo: still passes through"
+git -C "${TEST_REPO}" config core.bare true
+expect_in_repo 'git -C .git push' 2 "core.bare=true refused" "no working tree"
+teardown_test_repo
+rm -rf "${BARE_REPO}"
+
+# ============================================================
+echo ""
+echo "==> Regression: a prefix cannot redirect git to another repo"
+# ============================================================
+# enter_push_target read only the tokens after git, so these were judged against
+# the current repo, which reads as nothing to review from a clean checkout.
+
+setup_test_repo
+for cmd in \
+  'GIT_DIR=/tmp/other/.git git push' \
+  'env GIT_DIR=/tmp/other/.git git push' \
+  'GIT_WORK_TREE=/tmp/other git push' \
+  'GIT_COMMON_DIR=/tmp/other/.git git push' \
+  'env --chdir=/tmp/other git push' \
+  'sudo -D5 git push'; do
+  expect_in_repo "${cmd}" 2 "redirecting prefix refused: ${cmd}" "cannot tell which repo"
+done
+expect_in_repo 'GIT_TRACE=1 git push' 0 "other assignment prefix on a clean tree: allowed"
+
+# git resolves -C through the symlink; a logical cd would judge a different repo.
+LINK_PARENT=$(mktemp -d)
+LINK_REAL=$(mktemp -d)
+mkdir "${LINK_REAL}/inner"
+ln -s "${LINK_REAL}/inner" "${LINK_PARENT}/link"
+git -C "${LINK_REAL}" init -q -b main
+git -C "${LINK_REAL}" config user.email test@test.invalid
+git -C "${LINK_REAL}" config user.name "test"
+echo "x" > "${LINK_REAL}/f.txt"
+git -C "${LINK_REAL}" add f.txt
+git -C "${LINK_REAL}" commit -q -m "unreviewed"
+LINK_MARKER=$(cd "${LINK_REAL}" && codereview-marker path)
+rm -f "${LINK_MARKER}"
+expect_in_repo "git -C ${LINK_PARENT}/link/.. push" 2 "git -C link/..: judges the physical parent" "has not passed /codereview"
+# CDPATH must not send a relative -C somewhere else: that directory is no repo,
+# so the push would pass through instead of being judged here.
+mkdir -p "${LINK_PARENT}/cdpath/sub"
+mkdir "${TEST_REPO}/sub"
+echo "modified" > "${TEST_REPO}/file.txt"
+ec=0
+CDPATH="${LINK_PARENT}/cdpath" invoke_in_test_repo 'git -C sub push' >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "git -C: CDPATH does not redirect a relative path"
+else
+  fail "git -C: CDPATH redirected a relative path (exit ${ec})"
+fi
+rm -rf "${LINK_PARENT}" "${LINK_REAL}"
+rm -f "${LINK_MARKER}"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: the tag-only exit does not pass a push that sends commits"
+# ============================================================
+
+setup_test_repo
+git -C "${TEST_REPO}" tag v1.0
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+git -C "${TEST_REPO}" tag v2.0
+expect_in_repo 'git push origin v1.0 --tags' 2 "--tags beside a pushed tag: judged on every tag" "has not passed /codereview"
+expect_in_repo 'git push --tags origin v1.0' 2 "--tags first, beside a pushed tag: judged on every tag" "has not passed /codereview"
+expect_in_repo 'git push origin refs/tags/*' 2 "tag wildcard refused" "the review cannot cover"
+expect_in_repo 'git push origin v1*' 2 "version wildcard refused" "the review cannot cover"
+teardown_test_repo
+
+setup_test_repo
+TREE_SHA=$(git -C "${TEST_REPO}" rev-parse 'HEAD^{tree}')
+git -C "${TEST_REPO}" tag v5.0 "${TREE_SHA}"
+expect_in_repo 'git push origin v5.0' 2 "tag on a tree refused" "the review cannot cover"
+expect_in_repo 'git push origin refs/tags/v5.0' 2 "tag on a tree by full ref refused" "the review cannot cover"
+expect_in_repo 'git push --tags' 2 "--tags with a tag on a tree refused" "the review cannot cover"
+teardown_test_repo
+
+setup_test_repo
+BLOB_SHA=$(git -C "${TEST_REPO}" rev-parse HEAD:file.txt)
+git -C "${TEST_REPO}" tag -a -m x v6.0 "${BLOB_SHA}"
+expect_in_repo 'git push --tags' 2 "--tags with an annotated tag on a blob refused" "the review cannot cover"
+expect_in_repo 'git push origin v6.0' 2 "annotated tag on a blob refused" "the review cannot cover"
+teardown_test_repo
+
+# Annotated tags on commits still pass.
+setup_test_repo
+git -C "${TEST_REPO}" tag -a -m x v7.0
+expect_in_repo 'git push --tags' 0 "--tags with an annotated tag on a pushed commit: skips the gate"
+expect_in_repo 'git push origin v7.0' 0 "annotated tag on a pushed commit: skips the gate"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: a word the shell expands cannot name an unseen ref"
+# ============================================================
+# An unresolved name was skipped "because git fails on it too", which is false
+# for a word the shell expands first.
+
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" checkout -q main
+for cmd in \
+  'git push origin $B' \
+  'git push origin "$B"' \
+  'git push origin $(echo feature)' \
+  'git push origin "$(echo feature)"' \
+  'git push origin `echo feature`' \
+  'git push origin fea\ture' \
+  'git push origin fea"tu"re' \
+  'git push origin :' \
+  'git push origin +:'; do
+  expect_in_repo "${cmd}" 2 "expansion or matching refspec refused: ${cmd}" "the review cannot cover"
+done
+expect_in_repo 'B=feature; git push origin $B' 2 "assignment before the push, expanded in it: refused" "the review cannot cover"
+for cmd in \
+  'git push -u origin "$(git rev-parse --abbrev-ref HEAD)"' \
+  'git push origin main > "$LOG"' \
+  'git push origin main>"$LOG" 2>&1' \
+  'git push origin "main"' \
+  "git push origin 'main'" \
+  "git push origin main # don't" \
+  'git push origin :feature'; do
+  expect_in_repo "${cmd}" 0 "literal refs stay allowed: ${cmd}"
+done
+# /pr's spelling reads as HEAD, so it does not cover a ref named after it.
+expect_in_repo 'git push -u origin "$(git rev-parse --abbrev-ref HEAD)" feature' 2 "/pr's spelling beside another ref refused" "the review cannot cover"
+teardown_test_repo
+
+# A matching refspec with every branch on a remote sends nothing outside HEAD.
+setup_test_repo
+expect_in_repo 'git push origin :' 0 "matching refspec with nothing outside HEAD: allowed"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: continuations, ) and redirections do not hide a push"
+# ============================================================
+
+setup_test_repo
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+for cmd in \
+  $'git \\\n push' \
+  $'git -C . \\\n push' \
+  'git push>/dev/null' \
+  'git push</dev/null' \
+  'git push 2>/dev/null'; do
+  expect_in_repo "${cmd}" 2 "hidden push goes to review: $(printf '%q' "${cmd}")" "has not passed /codereview"
+done
+for cmd in \
+  'TOKEN=$(gh auth token) git push' \
+  'FOO=$(git commit --allow-empty -qm x) git push' \
+  'case x in x) git push ;; esac'; do
+  expect_in_repo "${cmd}" 2 "push after ) refused: ${cmd}" "run this push as its own command"
+done
+# A continuation ends with a comment, so the next line is its own command.
+expect_in_repo $'# note \\\ngit push' 2 "backslash at the end of a comment does not join the push to it" "has not passed /codereview"
+teardown_test_repo
+
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" checkout -q main
+expect_in_repo $'git push origin \\\n feature' 2 "continuation does not hide the ref" "the review cannot cover"
+expect_in_repo $'echo a \\\n git push' 0 "continuation that makes git an argument: not a push"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: a -C value that is a substitution is detected and refused"
+# ============================================================
+
+setup_test_repo
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+for cmd in \
+  'git -C $(pwd) push' \
+  'git -C "$(git rev-parse --show-toplevel)" push' \
+  'git -C `git rev-parse --show-toplevel` push' \
+  'git -C "`git rev-parse --show-toplevel`" push' \
+  'git -C $(pwd)/sub push' \
+  'git -C "$(dirname "$(pwd)")" push' \
+  'git -C $(pwd) -C sub push'; do
+  expect_in_repo "${cmd}" 2 "substitution in -C refused: ${cmd}" "cannot tell which repo"
+done
+# A substitution in another option's value does not hide the push either.
+expect_in_repo 'git -c user.name=$(whoami) push' 2 "substitution in -c: goes to review" "has not passed /codereview"
+# Not a push, whatever the value is.
+expect_in_repo 'git -C $(pwd) status' 0 "substitution in -C on another subcommand passes through"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: a comment line does not count as an earlier statement"
+# ============================================================
+
+setup_test_repo
+expect_in_repo $'# plain comment\ngit push' 0 "comment before a push: allowed on a clean tree"
+expect_in_repo $'#!/bin/bash\n# second\n\ngit push' 0 "several comment lines before a push: allowed on a clean tree"
+expect_in_repo $'# Push branch to remote (set upstream if needed)\ngit push -u origin "$(git rev-parse --abbrev-ref HEAD)"\n\n# Create the PR\ngh pr create --title "<title>" --body "<body>"' 0 "/pr's block as written: allowed on a clean tree"
+expect_in_repo $'# c\ngit commit -qm x\ngit push' 2 "statement after a comment still refused" "run this push as its own command"
+expect_in_repo $'# a; b\ngit push' 2 "semicolon in a comment over-refuses" "run this push as its own command"
+teardown_test_repo
+setup_test_repo
+echo "modified" > "${TEST_REPO}/file.txt"
+expect_in_repo $'# plain comment\ngit push' 2 "comment before a push: still gated" "has not passed /codereview"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: a # inside a quoted value is not a comment"
+# ============================================================
+# Reading it as one hid the statement before the push, and the ref after it.
+
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" checkout -q main
+expect_in_repo 'TITLE="fix #12" make release && git push' 2 "# in a quoted value does not hide the statement before the push" "run this push as its own command"
+expect_in_repo 'git push -o "ci.title=fix #12" origin feature' 2 "# in a quoted value does not hide the ref" "the review cannot cover"
+expect_in_repo 'git push --push-option="ci.title=fix #12" origin feature' 2 "# in a quoted option value does not hide the ref" "the review cannot cover"
+git -C "${TEST_REPO}" tag v1.0
+# An operator or -d inside a quoted value ended the argument walk before the ref.
+for cmd in \
+  'git push -o "merge_request.title=Fix login (SSO)" origin feature' \
+  'git push -o "a;b" origin feature' \
+  'git push --push-option="Fix A & B" origin feature' \
+  'git push -o "x -d y" origin feature' \
+  'git push origin v1.0 --push-option="a;b" feature'; do
+  expect_in_repo "${cmd}" 2 "split quoted value refused: ${cmd}" "the review cannot cover"
+done
+expect_in_repo "git push origin main # don't" 0 "real comment after a push: allowed on a clean tree"
+expect_in_repo 'git push origin main # feature' 0 "real comment naming a ref: allowed on a clean tree"
+expect_in_repo 'git push origin main # do not -d' 0 "real comment with -d after a push: allowed on a clean tree"
+expect_in_repo 'git push -o ci.skip origin main' 0 "push option without a space: allowed on a clean tree"
+expect_in_repo $'# Push branch to remote (set upstream if needed)\ngit push -u origin "$(git rev-parse --abbrev-ref HEAD)"\n\n# Create the PR\ngh pr create --title "<title>" --body "<body>"' 0 "/pr's block with an unpushed branch elsewhere: allowed on a clean tree"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: only an odd run of backslashes continues a line"
+# ============================================================
+# An even run ends the statement at the newline, and a comment needs no space
+# before its #, so these pushes are real statements of their own.
+
+setup_test_repo
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+for cmd in \
+  $'echo a\\\\\ngit push' \
+  $'echo \\\\\ngit push' \
+  $'true;# x \\\ngit push'; do
+  expect_in_repo "${cmd}" 2 "push on the next line refused: $(printf '%q' "${cmd}")" "run this push as its own command"
+done
+expect_in_repo $'git \\\n push' 2 "single backslash still joins the push" "has not passed /codereview"
+expect_in_repo $'git \\\\\\\n push' 0 "odd run of three still joins, so git's argument is a backslash: not a push"
+expect_in_repo $'echo a\\\\\\\ngit push' 0 "odd run of three makes git an argument: not a push"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: brace expansion and globs cannot name an unseen ref"
+# ============================================================
+
+setup_test_repo
+git -C "${TEST_REPO}" tag v1.0
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" tag v2.0
+git -C "${TEST_REPO}" checkout -q main
+for cmd in \
+  'git push origin {main,feature}' \
+  'git push origin fea{t..t}ure' \
+  'git push origin refs/tags/{v1.0,v2.0}' \
+  'git push origin v{1,2}.0' \
+  'git push origin featur?' \
+  'git push origin v?.0' \
+  'git push origin f[e]ature' \
+  'git push origin v[12].0'; do
+  expect_in_repo "${cmd}" 2 "shell-expanded ref refused: ${cmd}" "the review cannot cover"
+done
+expect_in_repo 'git push origin HEAD@{0}:refs/heads/copy' 0 "reflog syntax is not brace expansion: allowed on a clean tree"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: mixed quotes, redirections, and a -C inside a value"
+# ============================================================
+# Counting each quote kind separately misread "O'Brien -x" as an open quote,
+# padding < and > split A=x>y into words that are not prefixes, and the -C walk
+# followed a -C that only appeared inside a quoted or substituted -c value.
+
+setup_test_repo
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+for cmd in \
+  'A=x>y git push' \
+  'git -c a.b=c>d push' \
+  'git -C .>log push' \
+  'git 2>/dev/null push' \
+  'git &>log push' \
+  "git -c \"user.name=O'Brien -x\" push" \
+  "git -c \"x.y=it's -c z.w=1\" push" \
+  "A=\"x -y'z -w\" git push" \
+  "git -c x.y=\$'it\\'s' push" \
+  'git -c a.b=c\ d push'; do
+  expect_in_repo "${cmd}" 2 "push behind a mixed quote or redirection detected: ${cmd}"
+done
+SCRATCH_PLAIN=$(mktemp -d)
+for cmd in \
+  "git -c \"x.y=a -C ${SCRATCH_PLAIN}\" push" \
+  "git -c x.y=\$(echo -C ${SCRATCH_PLAIN}) push" \
+  "git -c x.y=\`echo -C ${SCRATCH_PLAIN}\` push"; do
+  expect_in_repo "${cmd}" 2 "-C inside a -c value is not followed: ${cmd}" "has not passed /codereview"
+done
+expect_in_repo 'git -C "a b" push' 2 "-C value with a space refused" "cannot tell which repo"
+rmdir "${SCRATCH_PLAIN}"
+for cmd in \
+  "git commit -m \"don't git push yet\"" \
+  "echo \"it's\" git push" \
+  'echo x>y git push'; do
+  expect_in_repo "${cmd}" 0 "not a push, passes through: ${cmd}"
+done
+teardown_test_repo
+
+setup_test_repo
+git -C "${TEST_REPO}" tag v1.0
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" checkout -q main
+expect_in_repo 'git push origin main > "log #1" feature' 2 "split redirection target does not hide the ref" "the review cannot cover"
+expect_in_repo "git push origin v1.0 --push-option='\"'\"a;b\" feature" 2 "mixed-quote option value does not make a branch push tag-only" "the review cannot cover"
+expect_in_repo 'git push origin main > log' 0 "plain redirection after a push: allowed on a clean tree"
+teardown_test_repo
+
+# ============================================================
+echo ""
 echo "==> Regression: gh repo create --push pushes with no git token to detect"
 # ============================================================
 
@@ -899,6 +1275,8 @@ echo "unreviewed" > "${TEST_REPO}/file.txt"
 git -C "${TEST_REPO}" commit -q -am "unreviewed"
 expect_in_repo 'gh repo create me/x --private --source . --push' 2 "gh repo create --push refused" "Create the repo without --push"
 expect_in_repo 'echo hi; gh repo create me/x --source . --push' 2 "gh repo create --push refused after a statement" "Create the repo without --push"
+expect_in_repo 'gh repo create me/x --description "a; b" --source . --push' 2 "gh repo create --push refused past a quoted operator" "Create the repo without --push"
+expect_in_repo 'gh repo create me/x --description "use --push later" --source .' 0 "--push inside a quoted value passes through"
 expect_in_repo 'gh repo create me/x --private --source . --remote origin' 0 "gh repo create without --push passes through"
 expect_in_repo 'echo gh repo create me/x --push' 0 "gh in an echo passes through"
 expect_in_repo 'gh repo view; echo --push' 0 "another gh command passes through"

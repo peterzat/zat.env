@@ -49,11 +49,12 @@ set -euo pipefail
 # security-gate bypass.
 #
 # Remaining limitation (rare; the guard stays simple rather than embedding a
-# shell parser): quoted paths containing whitespace, e.g. `git -C "/a b"
-# push`, can be missed or misdetected (the tokenizer splits inside the quotes).
-# A push wrapped in an interpreter (`bash -c "git push"`, `eval "git push"`) is
-# missed for the same reason, as is a wrapper that takes a non-numeric argument
-# (`sudo -u bob git push`). See push-gate-wrapped-push-detection in BACKLOG.md.
+# shell parser): the tokenizer splits inside quotes, and the walks rejoin a split
+# word with _word_end, so a quoted -C path with a space (`git -C "/a b" push`) is
+# refused rather than followed. A push wrapped in an interpreter (`bash -c "git
+# push"`, `eval "git push"`) is missed, as is a wrapper that takes a non-numeric
+# argument (`sudo -u bob git push`). See push-gate-wrapped-push-detection in
+# BACKLOG.md.
 #
 # The tokenizer ignores quoting, so a push named in a commit message or heredoc
 # can read as a real one. That was only a needless review until the rule in
@@ -67,17 +68,135 @@ set -euo pipefail
 # "||" becomes "| |"; that is harmless because the command-position checks
 # accept the single-character operators too. A newline is a statement
 # separator, so it is normalized to ";". The result is used only for
-# detection; the hook never re-executes the command.
+# detection; the hook never re-executes the command. A line continuation joins
+# its lines first, as the shell does: only an odd run of trailing backslashes
+# escapes the newline, and not at the end of a comment, where the shell ends the
+# comment at the newline anyway. Redirections are padded so that
+# "git push>/dev/null" still has a bare "push". The loop reads through process
+# substitution, not a here-string: a here-string hung on Git Bash for commands of
+# 65,536 bytes and up until the hook timed out, and a timed-out hook allows.
 _normalize_ops() {
   local norm="$1"
   local nl=$'\n'
+  if [[ "${norm}" == *$'\\\n'* ]]; then
+    local joined="" line slashes comment_re='(^|[[:space:];&|()])#'
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      slashes="${line##*[!\\]}"
+      if (( ${#slashes} % 2 == 1 )) && [[ ! "${line}" =~ ${comment_re} ]]; then
+        joined+="${line%\\}"
+      else
+        joined+="${line}${nl}"
+      fi
+    done < <(printf '%s\n' "${norm}")
+    norm="${joined}"
+  fi
   norm="${norm//;/ ; }"
   norm="${norm//|/ | }"
   norm="${norm//&/ & }"
   norm="${norm//(/ ( }"
   norm="${norm//)/ ) }"
+  # An escaped angle bracket is part of its word, not a redirection, so it must
+  # not be padded apart from it. The placeholder keeps the backslash.
+  local esc_lt='\<' esc_gt='\>' ph='\_'
+  norm="${norm//"${esc_lt}"/"${ph}"}"
+  norm="${norm//"${esc_gt}"/"${ph}"}"
+  norm="${norm//</ < }"
+  norm="${norm//>/ > }"
   norm="${norm//$nl/ ; }"
   printf '%s' "${norm}"
+}
+
+# True when a word holds an unmatched quote, so what follows is inside the quote
+# however the operators and # read.
+_has_open_quote() {
+  local d="${1//[^\"]/}" s="${1//[^\']/}"
+  (( ${#d} % 2 == 1 || ${#s} % 2 == 1 ))
+}
+
+# True when a word holds an escape at its end, an escaped quote, or both kinds of
+# quote, so the parity count above can misread whether a quote is open.
+_quote_is_unclear() {
+  case "$1" in *\\|*\\\"*|*\\\'*|*\"*\'*|*\'*\"*) return 0 ;; esac
+  return 1
+}
+
+# Read a word as the shell does, starting from the quote state in the caller's
+# _QS: empty outside quotes, or the quote that is open (" ' or $ for $'...').
+# Leaves the state after the word in _QS, and sets _QESC to 1 when the word ends
+# in a backslash that escapes the space after it. The parity count above misreads
+# mixed quotes such as "O'Brien -x", which hid the push after them.
+_quote_scan() {
+  local w="$1" c i n=${#1}
+  _QESC=0
+  if [[ "${w}" != *[\"\'\\]* ]]; then return 0; fi
+  for (( i = 0; i < n; i++ )); do
+    c="${w:i:1}"
+    if [[ "${_QS}" == "'" ]]; then
+      if [[ "${c}" == "'" ]]; then _QS=""; fi
+    elif [[ "${c}" == "\\" ]]; then
+      if (( i + 1 == n )); then _QESC=1; else i=$((i + 1)); fi
+    elif [[ "${_QS}" == '$' ]]; then
+      if [[ "${c}" == "'" ]]; then _QS=""; fi
+    elif [[ "${c}" == '"' ]]; then
+      if [[ -z "${_QS}" ]]; then _QS='"'; else _QS=""; fi
+    elif [[ "${c}" == "'" && -z "${_QS}" ]]; then
+      if (( i > 0 )) && [[ "${w:i-1:1}" == '$' ]]; then _QS='$'; else _QS="'"; fi
+    fi
+  done
+  return 0
+}
+
+# Set _WORD_END to the index just past the shell word that starts at token $1 of
+# the caller's array t. _normalize_ops splits a quoted or escaped value with a
+# space or an operator in it into several tokens, and the walks below step over
+# the whole word.
+_word_end() {
+  local j=$1 n=${#t[@]} _QS="" _QESC=0
+  _quote_scan "${t[j]:-}"
+  j=$((j + 1))
+  while (( j < n )) && [[ -n "${_QS}" || "${_QESC}" == 1 ]]; do
+    _quote_scan "${t[j]}"
+    j=$((j + 1))
+  done
+  _WORD_END=${j}
+}
+
+# True when a token leaves a quote open or ends in an escape, so the tokenizer
+# split a shell word there. The checks that refuse such a word use both
+# readings, since each one misses spellings the other catches.
+_word_is_open() {
+  if _has_open_quote "$1"; then return 0; fi
+  local _QS="" _QESC=0
+  _quote_scan "$1"
+  [[ -n "${_QS}" || "${_QESC}" == 1 ]]
+}
+
+# Set _CMDPOS[k] for each token k of the caller's array t that is in command
+# position when quotes, escapes, and redirections are read as the shell reads
+# them. _in_command_position uses it only to add detections: it does not model
+# heredoc bodies or a substitution inside double quotes, and the walk it backs
+# up treats every operator as real, which is the safe reading there.
+_exact_command_positions() {
+  _CMDPOS=()
+  local n=${#t[@]} k=0 ok=1 redir=0 cont=0 _QS="" _QESC=0
+  while (( k < n )); do
+    if [[ -z "${_QS}" ]] && (( cont == 0 )); then
+      case "${t[k]}" in
+        "&&"|"||"|";"|"|"|"&"|"("|")"|"{"|"!") ok=1; redir=0; k=$((k + 1)); continue ;;
+        ">"|"<") redir=1; k=$((k + 1)); continue ;;
+      esac
+      if (( redir == 1 )); then
+        redir=0
+      elif (( ok == 1 )); then
+        _CMDPOS[k]=1
+        if ! _is_command_prefix "${t[k]}"; then ok=0; fi
+      fi
+    fi
+    _quote_scan "${t[k]}"
+    cont=${_QESC}
+    k=$((k + 1))
+  done
+  _CMDPOS_DONE=1
 }
 
 # True for a word that can come before a command in its statement without being
@@ -100,12 +219,24 @@ _in_command_position() {
   local p=$(( $1 - 1 ))
   while (( p >= 0 )); do
     case "${t[p]}" in
-      "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") return 0 ;;
+      "&&"|"||"|";"|"|"|"&"|"("|")"|"{"|"!") return 0 ;;
     esac
-    if ! _is_command_prefix "${t[p]}"; then return 1; fi
+    if _has_open_quote "${t[p]}" && ! _quote_is_unclear "${t[p]}"; then
+      p=$((p - 1))
+      while (( p >= 0 )) && ! _has_open_quote "${t[p]}"; do p=$((p - 1)); done
+      if (( p < 0 )); then _exact_command_position "$1"; return; fi
+    fi
+    if ! _is_command_prefix "${t[p]}"; then _exact_command_position "$1"; return; fi
     p=$((p - 1))
   done
   return 0
+}
+
+# The second reading for _in_command_position, computed once per token array.
+# The caller declares _CMDPOS and _CMDPOS_DONE local so the cache is its own.
+_exact_command_position() {
+  if (( ${_CMDPOS_DONE:-0} == 0 )); then _exact_command_positions; fi
+  [[ -n "${_CMDPOS[$1]:-}" ]]
 }
 
 # Print, one per line, "<git-token-index> <push-token-index>" for each genuine
@@ -120,7 +251,8 @@ _in_command_position() {
 # them tight-packed ("cmd1;git push"), across newlines, or in a subshell
 # "(git push)".
 _push_invocations() {
-  local -a t
+  local -a t _CMDPOS=()
+  local _CMDPOS_DONE=0
   # shellcheck disable=SC2206
   read -ra t < <(_normalize_ops "$1") || true
   local n=${#t[@]} i=0
@@ -129,20 +261,60 @@ _push_invocations() {
     if ! _in_command_position "$i"; then i=$((i + 1)); continue; fi
     # Skip git-level options to reach the subcommand. The listed options take
     # a separate-space argument (consume two tokens); any other -short/--long
-    # is a boolean flag or inline --key=value (one token).
+    # is a boolean flag or inline --key=value (one token). Each -C value's
+    # index goes on the output line after the push index, so enter_push_target
+    # follows only the -C options git will see.
     local j=$((i + 1))
+    local -a cvals=()
     while (( j < n )); do
+      local v=""
       case "${t[j]}" in
-        -C|-c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env)
-          j=$((j + 2)) ;;
+        -C)
+          cvals+=("$((j + 1))"); v="${t[j+1]:-}"; j=$((j + 2)) ;;
+        -c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env)
+          v="${t[j+1]:-}"; j=$((j + 2)) ;;
         --*|-*)
-          j=$((j + 1)) ;;
+          v="${t[j]}"; j=$((j + 1)) ;;
         push)
-          printf '%s %s\n' "$i" "$j"; break ;;
+          printf '%s %s%s\n' "$i" "$j" "${cvals[*]:+ ${cvals[*]}}"; break ;;
+        ">"|"<")
+          # A redirection (git -C .>log push): step over it and its target.
+          while [[ "${t[j+1]:-}" == ">" || "${t[j+1]:-}" == "<" || "${t[j+1]:-}" == "&" ]]; do j=$((j + 1)); done
+          if (( j + 1 >= n )); then break; fi
+          _word_end $((j + 1)); j=${_WORD_END}; continue ;;
+        "&")
+          # &> is a redirection; a lone & ends the command.
+          if [[ "${t[j+1]:-}" == ">" ]]; then j=$((j + 1)); continue; fi
+          break ;;
+        [0-9]|[0-9][0-9])
+          # The file descriptor of a redirection (git 2>/dev/null push).
+          if [[ "${t[j+1]:-}" == ">" || "${t[j+1]:-}" == "<" ]]; then j=$((j + 1)); continue; fi
+          break ;;
         *)
           # Other subcommand (add, commit, status, ...): not a push.
           break ;;
       esac
+      # _normalize_ops split a substitution in the value, so step past the rest
+      # of it. enter_push_target then refuses a -C value by its $ or backtick.
+      local ticks="${v//[^\`]/}"
+      if [[ "${v}" == *'$' && "${t[j]:-}" == "(" ]]; then
+        local depth=0
+        while (( j < n )); do
+          case "${t[j]}" in
+            "(") depth=$((depth + 1)) ;;
+            ")") depth=$((depth - 1)) ;;
+          esac
+          j=$((j + 1))
+          if (( depth == 0 )); then break; fi
+        done
+        case "${t[j]:-}" in \"*|\'*|/*) j=$((j + 1)) ;; esac
+      elif (( ${#ticks} % 2 == 1 )); then
+        while (( j < n )) && [[ "${t[j]}" != *'`'* ]]; do j=$((j + 1)); done
+        j=$((j + 1))
+      elif [[ -n "${v}" ]]; then
+        # A quoted or escaped value the tokenizer split: step past the word.
+        _word_end $((j - 1)); j=${_WORD_END}
+      fi
     done
     i=$((i + 1))
   done
@@ -150,8 +322,8 @@ _push_invocations() {
 
 # The "push" token index of each invocation, for callers that only need that.
 _push_subcommand_indices() {
-  local _git_idx push_idx
-  while read -r _git_idx push_idx; do
+  local _git_idx push_idx _cvals
+  while read -r _git_idx push_idx _cvals; do
     printf '%s\n' "${push_idx}"
   done < <(_push_invocations "$1")
 }
@@ -170,18 +342,26 @@ push_is_alone_and_first() {
   local -a t
   # shellcheck disable=SC2206
   read -ra t < <(_normalize_ops "$1") || true
-  local count=0 first="" git_idx _push_idx
-  while read -r git_idx _push_idx; do
+  local count=0 first="" git_idx _push_idx _cvals
+  while read -r git_idx _push_idx _cvals; do
     count=$((count + 1))
     if [[ -z "${first}" ]]; then first="${git_idx}"; fi
   done < <(_push_invocations "$1")
   if (( count != 1 )); then return 1; fi
-  local k=0
+  local k=0 at_start=1
   while (( k < first )); do
     case "${t[k]}" in
-      "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") ;;
+      "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") at_start=1 ;;
+      '#'*)
+        # A comment runs to the newline, which is a ";" here. A ";" inside the
+        # comment ends the skip early, which only over-refuses. Past the start of
+        # a statement the # may be inside a quoted value, so refuse.
+        if (( at_start == 0 )); then return 1; fi
+        while (( k < first )) && [[ "${t[k]}" != ";" ]]; do k=$((k + 1)); done
+        ;;
       *)
-        if ! _is_command_prefix "${t[k]}"; then return 1; fi
+        if ! _is_command_prefix "${t[k]}" || _has_open_quote "${t[k]}"; then return 1; fi
+        at_start=0
         ;;
     esac
     k=$((k + 1))
@@ -193,7 +373,8 @@ push_is_alone_and_first() {
 # It can also point at another directory with --source. Refusing it is simpler
 # than judging it, and creating the repo first costs one extra command.
 is_gh_repo_create_push() {
-  local -a t
+  local -a t _CMDPOS=()
+  local _CMDPOS_DONE=0
   # shellcheck disable=SC2206
   read -ra t < <(_normalize_ops "$1") || true
   local n=${#t[@]} i=0 k
@@ -205,7 +386,9 @@ is_gh_repo_create_push() {
           "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break ;;
           --push|--push=*) return 0 ;;
         esac
-        k=$((k + 1))
+        # Step over a whole word, so an operator inside a quoted value
+        # (--description "a; b") does not end the walk.
+        _word_end "${k}"; k=${_WORD_END}
       done
     fi
     i=$((i + 1))
@@ -218,34 +401,46 @@ is_gh_repo_create_push() {
 # nothing to review. git applies each -C in order, so this does too. Returns
 # non-zero when the target cannot be established: --git-dir and --work-tree,
 # which a cd cannot model, a path that needs the shell to expand it, or a path
-# that does not exist.
+# that does not exist. The same redirection in a prefix (GIT_DIR=x git push, env
+# --chdir=x git push) is refused too, since the hook steps over prefixes. The -C
+# values come from _push_invocations, so a -C inside a quoted or substituted -c
+# value (git -c "x=a -C /tmp" push) is not followed; git never sees it either.
 enter_push_target() {
-  local -a t
+  local -a t inv=()
   # shellcheck disable=SC2206
   read -ra t < <(_normalize_ops "$1") || true
-  local git_idx push_idx d
-  read -r git_idx push_idx < <(_push_invocations "$1") || true
-  local k=$((git_idx + 1))
+  read -ra inv < <(_push_invocations "$1") || true
+  local git_idx=${inv[0]:-0} push_idx=${inv[1]:-0} d ci
+  local k=0
+  while (( k < git_idx )); do
+    case "${t[k]}" in
+      GIT_DIR=*|GIT_WORK_TREE=*|GIT_COMMON_DIR=*|--chdir|--chdir=*|-C*|-D*) return 1 ;;
+    esac
+    k=$((k + 1))
+  done
+  k=$((git_idx + 1))
   while (( k < push_idx )); do
     case "${t[k]}" in
-      -C)
-        d="${t[k+1]}"
-        d="${d#[\"\']}"
-        d="${d%[\"\']}"
-        # The tokens are unexpanded text, so a literal tilde is what is matched.
-        # shellcheck disable=SC2088
-        case "${d}" in
-          *'$'*|*'`'*) return 1 ;;
-          "~") d="${HOME}" ;;
-          "~/"*) d="${HOME}/${d#"~/"}" ;;
-        esac
-        cd -- "${d}" 2>/dev/null || return 1
-        k=$((k + 2))
-        ;;
       --git-dir|--git-dir=*|--work-tree|--work-tree=*) return 1 ;;
-      -c|--namespace|--exec-path|--super-prefix|--config-env) k=$((k + 2)) ;;
-      *) k=$((k + 1)) ;;
     esac
+    k=$((k + 1))
+  done
+  for ci in "${inv[@]:2}"; do
+    # A value split into several tokens holds a space or an operator, and the
+    # tokens alone do not say what path the shell builds from it.
+    _word_end "${ci}"
+    if (( _WORD_END != ci + 1 )); then return 1; fi
+    d="${t[ci]:-}"
+    d="${d#[\"\']}"
+    d="${d%[\"\']}"
+    # The tokens are unexpanded text, so a literal tilde is what is matched.
+    # shellcheck disable=SC2088
+    case "${d}" in
+      *'$'*|*'`'*) return 1 ;;
+      "~") d="${HOME}" ;;
+      "~/"*) d="${HOME}/${d#"~/"}" ;;
+    esac
+    CDPATH='' cd -P -- "${d}" 2>/dev/null || return 1
   done
   return 0
 }
@@ -263,36 +458,63 @@ _has_commits_outside_head() {
 
 # The hash describes HEAD and the working tree, but a push can name something
 # else: `git push origin feature` from a clean main read as nothing to review.
-# Prints the first ref carrying commits the review cannot have covered. A delete
-# sends no commits. A name that does not resolve is skipped, because git fails
-# on it too; that also covers redirection tokens and the quoted substitution in
-# `git push -u origin "$(git rev-parse --abbrev-ref HEAD)"`, which /pr uses.
+# Prints the first ref carrying commits the review cannot have covered, or the
+# first argument the shell would expand, which could name anything. A delete
+# sends no commits. A literal name that does not resolve is skipped, because git
+# fails on it too. /pr's `git push -u origin "$(git rev-parse --abbrev-ref HEAD)"`
+# names the checked-out branch, so that exact spelling reads as HEAD.
 push_sends_commits_outside_head() {
   local -a t
   # shellcheck disable=SC2206
   read -ra t < <(_normalize_ops "$1") || true
-  local n=${#t[@]} _git_idx push_idx
-  read -r _git_idx push_idx < <(_push_invocations "$1") || true
+  local n=${#t[@]} _git_idx push_idx _cvals r
+  read -r _git_idx push_idx _cvals < <(_push_invocations "$1") || true
   local k=$((push_idx + 1)) seen_remote=0
   local -a refs=() globs=()
   while (( k < n )); do
+    if [[ "${t[*]:k:8}" == '"$ ( git rev-parse --abbrev-ref HEAD ) "' ]]; then
+      seen_remote=1
+      k=$((k + 8))
+      continue
+    fi
+    if [[ "${t[k]}" == '#'* ]]; then break; fi
+    # The tokenizer split a quoted value, so an operator, # or -d inside it
+    # would end or misread the walk. A refspec or remote name holds no
+    # whitespace, so this refuses only option values with spaces (-o "ci skip")
+    # and a remote path with a space. A # word can only be inside a quote that
+    # an earlier word opened, and that word is refused here first.
+    if _word_is_open "${t[k]}"; then printf '%s\n' "${t[k]}"; return 0; fi
     case "${t[k]}" in
       "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break ;;
+      ">"|"<")
+        # A redirection target is not an argument to the push, but a split one
+        # (> "log #1" feature) would hide what follows it.
+        while [[ "${t[k+1]:-}" == ">" || "${t[k+1]:-}" == "<" ]]; do k=$((k + 1)); done
+        k=$((k + 1))
+        if _word_is_open "${t[k]:-}"; then printf '%s\n' "${t[k]}"; return 0; fi
+        ;;
+      *'$'*|*'`'*|*\\*|*\{*,*\}*|*\{*..*\}*|*'?'*|*'['*) printf '%s\n' "${t[k]}"; return 0 ;;
       --delete|-d) return 1 ;;
       --all|--branches) globs+=(--branches) ;;
       --mirror) globs+=(--all) ;;
       --tags) globs+=(--tags) ;;
       --*|-*) ;;
       *)
-        if (( seen_remote == 0 )); then seen_remote=1; else refs+=("${t[k]}"); fi
+        r="${t[k]#[\"\']}"
+        r="${r%[\"\']}"
+        if [[ "${r}" == *[\"\']* ]]; then printf '%s\n' "${t[k]}"; return 0; fi
+        if (( seen_remote == 0 )); then seen_remote=1
+        elif [[ "${r}" == ":" || "${r}" == "+:" ]]; then globs+=(--branches)
+        else refs+=("${t[k]}"); fi
         ;;
     esac
     k=$((k + 1))
   done
-  local g r src sha
+  local g src sha
   if (( ${#globs[@]} > 0 )); then
     for g in "${globs[@]}"; do
       if _has_commits_outside_head "${g}"; then printf '%s\n' "${g}"; return 0; fi
+      if [[ "${g}" != "--branches" ]] && _has_non_commit_tag; then printf '%s\n' "${g}"; return 0; fi
     done
   fi
   if (( ${#refs[@]} > 0 )); then
@@ -305,8 +527,10 @@ push_sends_commits_outside_head() {
       case "${src}" in
         *'*'*) printf '%s\n' "${src}"; return 0 ;;
       esac
-      if sha=$(git rev-parse --verify --quiet "${src}^{commit}" 2>/dev/null) \
-        && _has_commits_outside_head "${sha}"; then
+      if sha=$(git rev-parse --verify --quiet "${src}^{commit}" 2>/dev/null); then
+        if _has_commits_outside_head "${sha}"; then printf '%s\n' "${src}"; return 0; fi
+      elif git rev-parse --verify --quiet "${src}" >/dev/null 2>&1; then
+        # It resolves, but to a tree or blob: content no review of HEAD read.
         printf '%s\n' "${src}"
         return 0
       fi
@@ -324,14 +548,27 @@ _refspec_is_tag_only() {
   local r="$1" name sha
   if [[ ! "${r}" =~ ^v[0-9] ]] && [[ ! "${r}" =~ ^refs/tags/ ]]; then return 1; fi
   if [[ "${r}" == *:* ]]; then return 1; fi
+  # A wildcard or a word the shell expands names tags the check below cannot see.
+  case "${r}" in
+    *'*'*|*'$'*|*'`'*|*\\*|*'{'*|*'?'*|*'['*) return 1 ;;
+  esac
   name="${r#refs/tags/}"
   if [[ "${r}" != refs/tags/* ]] && git show-ref --verify --quiet "refs/heads/${name}" 2>/dev/null; then
     return 1
   fi
-  if sha=$(git rev-parse --verify --quiet "refs/tags/${name}^{commit}" 2>/dev/null); then
+  if git show-ref --verify --quiet "refs/tags/${name}" 2>/dev/null; then
+    # A tag on a tree or blob sends content, and has no commit to compare.
+    sha=$(git rev-parse --verify --quiet "refs/tags/${name}^{commit}" 2>/dev/null) || return 1
     [[ -z "$(git rev-list --max-count=1 "${sha}" --not --remotes 2>/dev/null)" ]] || return 1
   fi
   return 0
+}
+
+# True when a tag peels to a tree or blob. rev-list skips those, so nothing else
+# here sees the content such a tag sends.
+_has_non_commit_tag() {
+  git for-each-ref --format='%(objecttype) %(*objecttype)' refs/tags 2>/dev/null \
+    | grep -vE '^(commit |tag commit)$' >/dev/null
 }
 
 # Detect tag-only pushes. Tag pushes carry no code content to review, so we
@@ -370,6 +607,8 @@ is_tag_only_push() {
     local k=$((pj + 1)) has_tags=0
     local -a positionals=()
     while (( k < n )); do
+      # A quoted value the tokenizer split can hide an operator or a refspec.
+      if _word_is_open "${toks[k]}"; then return 1; fi
       case "${toks[k]}" in
         "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break;;
         --tags) has_tags=1;;
@@ -390,13 +629,14 @@ is_tag_only_push() {
       done
     else
       # No explicit refspec (`git push`, `git push origin`, `git push --tags`,
-      # `git push --tags origin`): tag-only only if --tags was given and every
-      # tag's commits are already on a remote-tracking ref; otherwise this
-      # sends code and must be reviewed.
+      # `git push --tags origin`): tag-only only if --tags was given; otherwise
+      # this sends code and must be reviewed.
       tag_only_here=${has_tags}
-      if (( has_tags == 1 )) && [[ -n "$(git rev-list --max-count=1 --tags --not --remotes 2>/dev/null)" ]]; then
-        tag_only_here=0
-      fi
+    fi
+    # --tags sends every tag, whatever else is named, so each tag's commits must
+    # already be on a remote-tracking ref.
+    if (( has_tags == 1 )) && { [[ -n "$(git rev-list --max-count=1 --tags --not --remotes 2>/dev/null)" ]] || _has_non_commit_tag; }; then
+      tag_only_here=0
     fi
     if (( tag_only_here == 0 )); then return 1; fi
   done
@@ -464,7 +704,8 @@ if ! enter_push_target "${INVOKED_CMD}"; then
 Pre-push gate: cannot tell which repo this push targets, so refusing it.
 
 Push from inside the repo, or use git -C with a literal path to one that exists.
-The gate does not follow --git-dir, --work-tree, or a path the shell expands.
+The gate does not follow --git-dir, --work-tree, GIT_DIR and its relatives,
+env --chdir, or a path the shell expands.
 EOF
   exit 2
 fi
@@ -480,7 +721,19 @@ fi
 #
 # Pass-through for pushes that aren't in a git repo at all. The hook is
 # registered globally; pushes outside any project are not our concern.
-git rev-parse --show-toplevel >/dev/null 2>&1 || exit 0
+#
+# A repo with no working tree (a bare repo, or inside .git) is not that case:
+# git pushes from there, and there is nothing for a review to read.
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  git rev-parse --git-dir >/dev/null 2>&1 || exit 0
+  cat >&2 <<EOF
+Pre-push gate: this push targets a repo with no working tree, so there is
+nothing to review and refusing it.
+
+Push from the repo's working tree instead.
+EOF
+  exit 2
+fi
 
 # Inside a repo, codereview-marker MUST work, otherwise the gate is
 # blind to the diff and any push would be a silent bypass. Fail closed.
@@ -508,6 +761,10 @@ Pre-push gate: this push sends commits the review cannot cover (${OUTSIDE_REF}).
 The gate reviews the checked-out branch, and those commits are in neither HEAD
 nor any remote-tracking ref. Check out that ref, then run /codereview and push
 from there. To push several branches, push each one from its own checkout.
+
+If that is a word the shell expands, the gate cannot tell what it names, so
+spell the ref out. A quoted value with a space or shell operator in it, such as
+-o "ci skip", is refused too, since the gate cannot tell where it ends.
 EOF
   exit 2
 fi

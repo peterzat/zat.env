@@ -52,12 +52,6 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Revisit criteria:** The built-in's prompt drops its exclusion list or confidence cutoff, OR it gains a diff target or file-list argument, OR a security defect escapes `/security` in a class the built-in is built for (server-side injection, authorization bypass, XSS), which this corpus did not contain.
 - **Origin:** ad-hoc (security pipeline review 2026-10-02)
 
-### push-gate-pushed-repo
-- **One-line description:** `hooks/pre-push-codereview.sh` checks the repo at the hook's working directory, not the repo being pushed. `git -C <other> push`, or `cd <other> && git push`, run from a clean repo or a non-git directory pushes `<other>` without review. Resolve the target repo from the command (`-C`, `--git-dir`, a leading `cd <dir> &&`) and evaluate the marker there, failing closed when it cannot be resolved.
-- **Why deferred:** The gate is advisory by Accepted Risk, and getting the target right needs more command parsing in a hook that deliberately avoids a shell parser (quoted paths with spaces are already a known limitation). Reproduced by a /security run during the 2026-10-02 /security-review measurement.
-- **Revisit criteria:** A push to a repo other than the session's cwd is seen skipping review, OR the gate moves server-side or becomes a hard boundary for other contributors, OR the hook's command tokenizer is reworked anyway.
-- **Origin:** ad-hoc (security-review measurement 2026-10-02)
-
 ### push-gate-net-diff-secret
 - **One-line description:** The push gate and `/codereview` see only the net diff against the base, so a secret committed and then deleted inside the pushed range is pushed in history but never reviewed. Have `/security` (or a deterministic check) scan the per-commit diffs of the pushed range for secret patterns.
 - **Why deferred:** It needs a commit and a later deleting commit in the same unpushed range, and `/security` full audits already check git history for credential-handling files. Reported by a /security run during the 2026-10-02 /security-review measurement.
@@ -76,8 +70,9 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Revisit criteria:** A wrapped push is seen skipping review, OR the PowerShell tool is enabled under zat.env, where `bash -lc "git push"` is the natural form.
 - **Origin:** ad-hoc (Windows support 2026-10-13)
 
+
 ### push-gate-quoted-text-false-positive
-- **One-line description:** The pre-push gate's tokenizer ignores quoting, so text that only mentions a push reads as a real one when an operator character comes before it: a commit message or heredoc line, or a quoted grep alternation. Since the push-first rule these are refused outright rather than sent to review. Making `_normalize_ops` skip quoted text would fix it, but it has to keep a quoted `-C` path working, and it loses the accidental detection of `bash -c "a; git push x"`.
-- **Why deferred:** Found after the 2026-11-03 gate fixes passed their tests, with one occurrence so far (a read-only grep in the session that made them), and the refusal says how to recover. A tokenizer change deserves its own review rather than joining that push.
-- **Revisit criteria:** The refusal shows up in transcripts on commands that are not pushes more than occasionally, OR a command that cannot reasonably move its text to a file is blocked, OR push-gate-wrapped-push-detection is picked up, since both change quote handling.
+- **One-line description:** The pre-push gate's tokenizer treats operator characters inside quotes as real, so text that only mentions a push reads as a real one when an operator character comes before it: a commit message or heredoc line, or a quoted grep alternation. Since the push-first rule these are refused outright rather than sent to review. `_quote_scan` reads quotes as the shell does, but not heredoc bodies, so skipping quoted text with it needs heredoc handling first. It would also lose the accidental detection of `bash -c "a; git push x"`.
+- **Why deferred:** Found after the 2026-11-03 gate fixes passed their tests. It occurred four times that day, all in the session that made the fixes (a read-only grep and three review probes), and the refusal says how to recover. A tokenizer that understands heredocs deserves its own change and review.
+- **Revisit criteria:** The refusal shows up on commands that are not pushes more than occasionally, outside sessions that work on the gate itself, OR a command that cannot reasonably move its text to a file is blocked, OR push-gate-wrapped-push-detection is picked up, since both change quote handling.
 - **Origin:** ad-hoc (push gate fixes 2026-11-03)

@@ -26,9 +26,11 @@ view cannot cover, and each refusal says what to run instead:
   made earlier in the command does not exist yet when the hook looks. Run the
   other statements first, then push in a separate call.
 - `gh repo create --push`, which runs git itself. Create the repo, then push.
-- A target repo it cannot establish: `--git-dir`, `--work-tree`, or a `-C` path
-  that the shell would expand or that does not exist. A literal `git -C <path>
-  push` works, and is judged against that repo and its own marker.
+- A target repo it cannot establish: `--git-dir`, `--work-tree`, `GIT_DIR` and
+  its relatives, `env --chdir`, or a `-C` path that the shell would expand, that
+  holds a space, or that does not exist. A literal `git -C <path> push` works, and is judged against
+  that repo and its own marker. A repo with no working tree (bare, or inside
+  `.git`) is refused too, since there is nothing to review.
 - A ref with commits in neither HEAD nor any remote-tracking ref, such as
   `git push origin feature` from `main`. Check out that ref and review it there.
 

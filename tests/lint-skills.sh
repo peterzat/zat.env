@@ -490,6 +490,8 @@ has "${HOOK}" 'OUTSIDE_REF=\$\(push_sends_commits_outside_head' \
   "hook: refuses a ref with commits outside HEAD and the remote-tracking refs"
 has "${HOOK}" '_refspec_is_tag_only "\$\{r\}"' \
   "hook: a refspec needs more than a tag-like name to skip the gate"
+has "${HOOK}" 'rev-parse --git-dir >/dev/null' \
+  "hook: refuses a repo with no working tree instead of reading it as not a repo"
 
 # Hook: the push-detection walk must handle git-level options that take
 # separate arguments. If any of these are missing from the case block,
@@ -1934,6 +1936,8 @@ has "${REPO_DIR}/zat.env-install.sh" '"matcher": "PowerShell"' \
   "install: gates git push from the PowerShell tool too"
 hasnt "${REPO_DIR}/zat.env-install.sh" '"if":' \
   "install: no if filter on the gate, so coverage does not depend on how Claude Code matches a command"
+hasnt "${HOOK}" '<<<' \
+  "hook: no here-strings (one hung on Git Bash at 65,536 bytes until the hook timed out, which allows the push)"
 has "${HOOK}" 'HOOK_INPUT\}" != \*push\*' \
   "hook: a broken jq refuses only a payload that mentions a push"
 has "${REPO_DIR}/zat.env-install.sh" '\.env\.CLAUDE_CODE_USE_POWERSHELL_TOOL = "0"' \
