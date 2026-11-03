@@ -305,14 +305,20 @@ for event in PreToolUse PostToolUse; do
   done < <(jq -r ".hooks.${event} // [] | .[].hooks[]? | .command // empty" "${SETTINGS_FILE}" 2>/dev/null | tr -d '\r')
 done
 
-# Remove any existing pre-push-codereview entry (may be old format without "if" field),
-# then add the current version. This keeps the hook config up to date on re-runs.
+# Remove any existing pre-push-codereview entry, then add the current version.
+# This keeps the hook config up to date on re-runs.
 #
-# One entry per shell tool, because an "if" holds a single rule. Claude Code
-# on Windows also has a PowerShell tool, which a Bash matcher never sees; it
-# is turned off above, and the PowerShell entry gates `git push` if it is
-# ever turned back on. Linux and macOS have no PowerShell tool unless pwsh is
-# installed and opted into, so there the entry never fires.
+# There is no "if" filter, so the hook runs on every shell command and decides
+# for itself. An earlier filter sat on the matcher entry rather than the hook
+# handler, where the docs define it. The docs also call it best-effort and do
+# not say how it treats a multi-line command, which is the shape a chained
+# commit and push usually takes.
+#
+# One entry per shell tool. Claude Code on Windows also has a PowerShell tool,
+# which a Bash matcher never sees; it is turned off above, and the PowerShell
+# entry gates `git push` if it is ever turned back on. Linux and macOS have no
+# PowerShell tool unless pwsh is installed and opted into, so there the entry
+# never fires.
 #
 # The timeout leaves headroom for Windows, where the hook's git and bash
 # processes are slow to start (about 2.5 s on a small repo, against well
@@ -325,12 +331,10 @@ jq --arg cmd "${HOOK_COMMAND}" '
   .hooks.PreToolUse += [
     {
       "matcher": "Bash",
-      "if": "Bash(git push*)",
       "hooks": [{ "type": "command", "command": $cmd, "timeout": 30 }]
     },
     {
       "matcher": "PowerShell",
-      "if": "PowerShell(git push*)",
       "hooks": [{ "type": "command", "command": $cmd, "timeout": 30 }]
     }
   ]

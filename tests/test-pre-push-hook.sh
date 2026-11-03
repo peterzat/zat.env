@@ -1000,6 +1000,17 @@ else
   fail "jq unavailable: expected exit 2 with 'cannot read the command' stderr, got ec=${ec} stderr=${stderr_out}"
 fi
 
+# The hook runs on every shell command, so a broken jq must not stop the ones
+# needed to fix it. Only a payload that mentions a push is refused.
+ec=0
+payload=$(jq -n --arg c "ls -la" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+(cd "${TEST_REPO}" && printf '%s' "${payload}" | PATH="${JQ_SHIM_DIR}/broken:${PATH}" bash "${HOOK}" >/dev/null 2>&1) || ec=$?
+if [[ "${ec}" -eq 0 ]]; then
+  pass "jq unavailable: a command that never mentions a push still runs"
+else
+  fail "jq unavailable: non-push command expected exit 0, got ${ec}"
+fi
+
 teardown_test_repo
 rm -rf "${JQ_SHIM_DIR}"
 

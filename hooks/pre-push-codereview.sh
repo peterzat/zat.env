@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Pre-push hook for Claude Code: blocks git push unless /codereview has passed
 # for the current diff. Installed as a PreToolUse hook on Bash via
-# ~/.claude/settings.json by zat.env-install.sh, with an "if" filter on
-# Bash(git push*).
+# ~/.claude/settings.json by zat.env-install.sh, with no "if" filter, so it runs
+# on every shell command and decides for itself.
 #
 # Claude Code PreToolUse hooks fire for every matching Bash invocation. The
 # hook receives a JSON payload on stdin with tool_name, tool_input, and
@@ -409,9 +409,11 @@ HOOK_INPUT=$(cat)
 
 # If jq cannot run (missing from the hook's PATH, or a payload it cannot
 # parse), the command used to read as empty, which is "not a push", and the
-# push went through. zat.env-install.sh registers this hook only for commands
-# Claude Code has already matched as `git push*`, so refuse instead.
+# push went through. So refuse instead. This hook runs on every shell command,
+# so a payload that never mentions a push passes: a broken jq should not stop
+# the shell commands needed to fix it.
 if ! INVOKED_CMD=$(printf '%s' "${HOOK_INPUT}" | jq -r '.tool_input.command // ""' 2>/dev/null); then
+  if [[ "${HOOK_INPUT}" != *push* ]]; then exit 0; fi
   echo "Pre-push gate: cannot read the command from the hook payload (is jq on PATH?)." >&2
   echo "Refusing to push. Investigate, then retry." >&2
   exit 2

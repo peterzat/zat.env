@@ -1909,10 +1909,14 @@ has "${HOOK}" 'INVOKED_CMD="\$\{INVOKED_CMD//\$.\\r./\}"' \
   "hook: strips CR from the command before tokenizing (native Windows jq writes CRLF)"
 has "${HOOK}" 'if ! INVOKED_CMD=\$\(printf' \
   "hook: refuses the push when jq cannot read the command"
-has "${REPO_DIR}/zat.env-install.sh" '"if": "Bash\(git push\*\)"' \
+has "${REPO_DIR}/zat.env-install.sh" '"matcher": "Bash"' \
   "install: gates git push from the Bash tool"
-has "${REPO_DIR}/zat.env-install.sh" '"if": "PowerShell\(git push\*\)"' \
+has "${REPO_DIR}/zat.env-install.sh" '"matcher": "PowerShell"' \
   "install: gates git push from the PowerShell tool too"
+hasnt "${REPO_DIR}/zat.env-install.sh" '"if":' \
+  "install: no if filter on the gate, so coverage does not depend on how Claude Code matches a command"
+has "${HOOK}" 'HOOK_INPUT\}" != \*push\*' \
+  "hook: a broken jq refuses only a payload that mentions a push"
 has "${REPO_DIR}/zat.env-install.sh" '\.env\.CLAUDE_CODE_USE_POWERSHELL_TOOL = "0"' \
   "install: Windows runs Bash as the only shell tool"
 has "${REPO_DIR}/zat.env-install.sh" 'export MSYS=winsymlinks:nativestrict' \
