@@ -75,3 +75,9 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Why deferred:** With Bash as the only shell tool the model has no reason to wrap a push. Kept out of the Windows-support change on 2026-10-13, and out of the 2026-11-03 gate fixes, because false positives now cost more: the push-first rule refuses a command outright, so a commit message that reads as a push could not be retried without moving it to a file.
 - **Revisit criteria:** A wrapped push is seen skipping review, OR the PowerShell tool is enabled under zat.env, where `bash -lc "git push"` is the natural form.
 - **Origin:** ad-hoc (Windows support 2026-10-13)
+
+### push-gate-quoted-text-false-positive
+- **One-line description:** The pre-push gate's tokenizer ignores quoting, so text that only mentions a push reads as a real one when an operator character comes before it: a commit message or heredoc line, or a quoted grep alternation. Since the push-first rule these are refused outright rather than sent to review. Making `_normalize_ops` skip quoted text would fix it, but it has to keep a quoted `-C` path working, and it loses the accidental detection of `bash -c "a; git push x"`.
+- **Why deferred:** Found after the 2026-11-03 gate fixes passed their tests, with one occurrence so far (a read-only grep in the session that made them), and the refusal says how to recover. A tokenizer change deserves its own review rather than joining that push.
+- **Revisit criteria:** The refusal shows up in transcripts on commands that are not pushes more than occasionally, OR a command that cannot reasonably move its text to a file is blocked, OR push-gate-wrapped-push-detection is picked up, since both change quote handling.
+- **Origin:** ad-hoc (push gate fixes 2026-11-03)

@@ -451,8 +451,9 @@ Run those statements first, then push in a separate call, one push per call.
 Any /codereview the push needs is checked then. To push another repo, use
 git -C <path> push rather than cd <path> && git push.
 
-If the command only mentions a push, in a commit message or heredoc, move that
-text to a file and pass the file (for example, git commit -F <file>).
+If the command only mentions a push, in a commit message, heredoc, or quoted
+pattern, move that text to a file and pass the file (git commit -F <file>,
+grep -f <file>).
 EOF
   exit 2
 fi

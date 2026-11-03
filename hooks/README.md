@@ -36,8 +36,9 @@ A `v<digit>` name skips review only when it is really a tag whose commits a remo
 already has. A tag push sends the commits it points at, so a tag on an unpushed
 commit goes to review like the branch does.
 
-The tokenizer ignores quoting, so a commit message or heredoc with a line that
-reads like a push can be refused too. Put that text in a file and pass the file.
+The tokenizer ignores quoting, so a commit message, heredoc, or quoted pattern
+that reads like a push can be refused too. Put that text in a file and pass the
+file.
 
 The marker is per-project (project hash = `md5sum` of git root path) so multiple
 projects don't share gate state. The codereview marker is content-addressed by
