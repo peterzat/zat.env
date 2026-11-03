@@ -1417,6 +1417,8 @@ for skill in spec architect tester; do
 done
 has "${REPO_DIR}/zat.env-install.sh" '\.effortLevel //= "xhigh"' \
   "install: seeds effortLevel only when unset"
+has "${REPO_DIR}/zat.env-install.sh" '\.autoUpdatesChannel //= "stable"' \
+  "install: seeds the stable update channel only when unset, so a /config choice survives"
 has "${REPO_DIR}/zat.env-install.sh" '\.autoMode\.classifyAllShell = true' \
   "install: auto mode classifies every shell command"
 has "${REPO_DIR}/hooks/allow-venv-source.sh" "permission_mode // empty'\)\" == \"auto\"" \

@@ -205,8 +205,13 @@ fi
 # over this top-level value. Skills that need a fixed level set it in their own
 # frontmatter; the rest inherit the session level. showThinkingSummaries makes
 # the collapsed thinking readable with Ctrl+O.
-jq '.effortLevel //= "xhigh" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), showThinkingSummaries on"
+#
+# Seed the stable update channel only when unset, so a choice made in /config
+# survives re-runs. On the default channel Claude Code updates itself as soon as
+# a release ships. Homebrew, apt, dnf, and apk pick the channel by package, so
+# the setting does nothing there.
+jq '.effortLevel //= "xhigh" | .autoUpdatesChannel //= "stable" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), autoUpdatesChannel: $(jq -r '.autoUpdatesChannel' "${SETTINGS_FILE}"), showThinkingSummaries on"
 
 # Allow list is replaced wholesale on each install to prevent
 # session-accumulated cruft: allow entries widen what runs unprompted, so
