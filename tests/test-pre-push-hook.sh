@@ -127,11 +127,19 @@ for cmd in \
   "git --exec-path=/usr/lib/git-core push" \
   "git --super-prefix=sub push" \
   "git -C /home/peter/src/zat.env push" \
+  "git push --force-with-lease"; do
+  assert_exit "${cmd}" 0 "detects as push (no-git-repo allow): ${cmd}"
+done
+
+# These allowed through the not-a-repo exit until the push-first rule, which
+# has to run before that exit: `git init && ... && git push` starts outside a
+# repo. Exit 2 also shows detection directly, where exit 0 could not.
+for cmd in \
   "git add . && git push" \
   "git commit -m done && git push" \
   "( cd /tmp && git push )" \
-  "git push --force-with-lease"; do
-  assert_exit "${cmd}" 0 "detects as push (no-git-repo allow): ${cmd}"
+  "git init && git add . && git commit -m x && git push"; do
+  assert_exit "${cmd}" 2 "refused outside a repo when a statement comes first: ${cmd}"
 done
 
 # ============================================================
@@ -554,6 +562,102 @@ else
   fail "(git push) subshell NOT gated (bypass): got exit ${ec}"
 fi
 teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: a push cannot be vouched for after an earlier statement"
+# ============================================================
+#
+# The hook sees the repo only as it stands when the command starts. zat-hermes's
+# first push went out this way: nothing was tracked yet, so the diff read as
+# "nothing to review", and the commit existed by the time the push ran. Every
+# case here used to exit 0. They run on a tree with nothing to review (or a
+# valid marker), where only the push-first rule can catch them.
+same_command_cmds=(
+  'git add -A && git commit -qm x && git push'
+  $'git add -A\ngit commit -qm x\ngit push -u origin main'
+  'git merge -q feature && git push'
+  'git cherry-pick feature && git push'
+  'git am patch && git push'
+  'git rebase feature && git push'
+  'sed -i s/a/b/ file.txt && git commit -qam x && git push'
+  'cd ../other && git push'
+  'git push origin main && git push origin v1.0'
+)
+for cmd in "${same_command_cmds[@]}"; do
+  setup_test_repo
+  ec=0
+  out=$(invoke_in_test_repo "${cmd}" 2>&1) || ec=$?
+  if [[ "${ec}" -eq 2 ]] && [[ "${out}" == *"run this push as its own command"* ]]; then
+    pass "statement before push refused: $(printf '%q' "${cmd}")"
+  else
+    fail "statement before push not refused: $(printf '%q' "${cmd}") (exit ${ec})"
+  fi
+  teardown_test_repo
+done
+
+# The incident itself: an unborn branch with only untracked files.
+UNBORN_REPO=$(mktemp -d)
+git -C "${UNBORN_REPO}" init -q -b main
+echo "x" > "${UNBORN_REPO}/README.md"
+ec=0
+payload=$(jq -n --arg c $'git add README.md && git commit -qm first\ngit push -u origin main' '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')
+(cd "${UNBORN_REPO}" && printf '%s' "${payload}" | bash "${HOOK}" >/dev/null 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "first commit and push in one command refused on an unborn branch"
+else
+  fail "first commit and push in one command: expected exit 2, got ${ec}"
+fi
+rm -rf "${UNBORN_REPO}"
+
+# A valid marker does not help: the hash still matches and nothing is
+# uncommitted when the command starts, but the file is new by the time it pushes.
+setup_test_repo
+echo "reviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "reviewed"
+(cd "${TEST_REPO}" && codereview-marker write)
+echo "new" > "${TEST_REPO}/untracked.txt"
+ec=0
+invoke_in_test_repo 'git add -A && git commit -qm x && git push' >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "valid marker does not cover a file committed in the same command"
+else
+  fail "valid marker with same-command commit: expected exit 2, got ${ec}"
+fi
+teardown_test_repo
+
+# A refused command leaves the one-shot bypass in place for the separate retry.
+setup_test_repo
+touch "${TEST_SKIP_MARKER}"
+ec=0
+invoke_in_test_repo 'git add -A && git commit -qm x && git push' >/dev/null 2>&1 || ec=$?
+if [[ "${ec}" -eq 2 ]] && [[ -f "${TEST_SKIP_MARKER}" ]]; then
+  pass "refusal does not consume the skip marker"
+else
+  fail "refusal and skip marker: expected exit 2 with the marker kept, got ${ec}"
+fi
+teardown_test_repo
+
+# A push that comes first is judged as before, whatever follows it.
+for cmd in \
+  'git push' \
+  'git push -u origin main' \
+  'git push 2>&1 | tail -3' \
+  'git push; echo done' \
+  'git push && git status' \
+  '(git push)' \
+  '{ git push; }' \
+  $'\ngit push'; do
+  setup_test_repo
+  ec=0
+  invoke_in_test_repo "${cmd}" >/dev/null 2>&1 || ec=$?
+  if [[ "${ec}" -eq 0 ]]; then
+    pass "push that comes first is allowed on a clean tree: $(printf '%q' "${cmd}")"
+  else
+    fail "push that comes first wrongly refused: $(printf '%q' "${cmd}") (exit ${ec})"
+  fi
+  teardown_test_repo
+done
 
 # ============================================================
 echo ""

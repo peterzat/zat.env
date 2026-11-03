@@ -51,6 +51,11 @@ set -euo pipefail
 # Remaining limitation (rare; the guard stays simple rather than embedding a
 # shell parser): quoted paths containing whitespace, e.g. `git -C "/a b"
 # push`, can be missed or misdetected (the tokenizer splits inside the quotes).
+#
+# The tokenizer ignores quoting, so a push named in a commit message or heredoc
+# can read as a real one. That was only a needless review until the rule in
+# push_is_alone_and_first, which refuses such a command outright. The refusal
+# tells the agent to move the text into a file.
 
 # Promote shell statement separators, control operators, and grouping parens
 # (newline, ; && || | & and "(" ")") to standalone, whitespace-delimited
@@ -72,18 +77,18 @@ _normalize_ops() {
   printf '%s' "${norm}"
 }
 
-# Print, one per line, the token index of the "push" subcommand for each
-# genuine command-position git-push invocation; empty output means no push.
-# This is the single source of the push-detection walk: both is_git_push and
-# is_tag_only_push consume it, so the command-position rule and the git-level
-# option handling live in exactly one place and cannot drift apart.
+# Print, one per line, "<git-token-index> <push-token-index>" for each genuine
+# command-position git-push invocation; empty output means no push. This is the
+# single source of the push-detection walk: every check below consumes it, so
+# the command-position rule and the git-level option handling live in exactly
+# one place and cannot drift apart.
 #
 # A "git" token counts as a command only if it is first or follows a shell
 # operator (so "echo git push" is not misread as a push). _normalize_ops has
 # already promoted those operators to standalone tokens even when the user
 # wrote them tight-packed ("cmd1;git push"), across newlines, or in a subshell
 # "(git push)".
-_push_subcommand_indices() {
+_push_invocations() {
   local -a t
   # shellcheck disable=SC2206
   read -ra t < <(_normalize_ops "$1") || true
@@ -107,7 +112,7 @@ _push_subcommand_indices() {
         --*|-*)
           j=$((j + 1)) ;;
         push)
-          printf '%s\n' "$j"; break ;;
+          printf '%s %s\n' "$i" "$j"; break ;;
         *)
           # Other subcommand (add, commit, status, ...): not a push.
           break ;;
@@ -117,9 +122,43 @@ _push_subcommand_indices() {
   done
 }
 
+# The "push" token index of each invocation, for callers that only need that.
+_push_subcommand_indices() {
+  local _git_idx push_idx
+  while read -r _git_idx push_idx; do
+    printf '%s\n' "${push_idx}"
+  done < <(_push_invocations "$1")
+}
+
 is_git_push() {
   if [[ -n "$(_push_subcommand_indices "$1")" ]]; then return 0; fi
   return 1
+}
+
+# The hook runs once, before the command, so it can only vouch for the repo as
+# it stands at that moment. Anything an earlier statement does is invisible to
+# it: a commit of untracked files, a merge, an edit plus `git commit -a`, a cd
+# into another repo, or a `git init`. So a push must be the command's first
+# statement, and its only push. Statements after it cannot change what it sends.
+push_is_alone_and_first() {
+  local -a t
+  # shellcheck disable=SC2206
+  read -ra t < <(_normalize_ops "$1") || true
+  local count=0 first="" git_idx _push_idx
+  while read -r git_idx _push_idx; do
+    count=$((count + 1))
+    if [[ -z "${first}" ]]; then first="${git_idx}"; fi
+  done < <(_push_invocations "$1")
+  if (( count != 1 )); then return 1; fi
+  local k=0
+  while (( k < first )); do
+    case "${t[k]}" in
+      "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") ;;
+      *) return 1 ;;
+    esac
+    k=$((k + 1))
+  done
+  return 0
 }
 
 # Detect tag-only pushes. Tag pushes carry no code content to review, so we
@@ -210,6 +249,23 @@ INVOKED_CMD="${INVOKED_CMD//$'\r'/}"
 # Pass through anything that is not a git push invocation.
 if ! is_git_push "${INVOKED_CMD}"; then
   exit 0
+fi
+
+# This comes before every exit that allows the push, so that neither a tag push
+# nor a directory that is not a repo yet can carry an earlier statement past it.
+if ! push_is_alone_and_first "${INVOKED_CMD}"; then
+  cat >&2 <<EOF
+Pre-push gate: run this push as its own command.
+
+The gate sees the repo as it stands when the command starts, so it cannot vouch
+for anything an earlier statement in the same command does, such as a commit.
+Run those statements first, then push in a separate call, one push per call.
+Any /codereview the push needs is checked then.
+
+If the command only mentions a push, in a commit message or heredoc, move that
+text to a file and pass the file (for example, git commit -F <file>).
+EOF
+  exit 2
 fi
 
 # Tag-only pushes carry no code changes — skip the gate.
