@@ -1901,6 +1901,23 @@ has "${SKILLS}/codereview/SKILL.md" "ending your turn is how you" \
 # "network error". See the Windows contract point in CLAUDE.md.
 
 echo ""
+echo "==> hw-bootstrap: docker group is opt-in"
+
+# The group is root-equivalent. An unconditional usermod would undo a deliberate
+# removal the next time the script runs, with no message.
+BOOTSTRAP="${REPO_DIR}/hw-bootstrap.sh"
+has "${BOOTSTRAP}" 'ZAT_DOCKER_GROUP:-0' \
+  "hw-bootstrap: docker group membership is behind ZAT_DOCKER_GROUP"
+hasnt "${BOOTSTRAP}" '^sudo usermod -aG docker' \
+  "hw-bootstrap: no unconditional usermod into the docker group"
+hasnt "${BOOTSTRAP}" '^[[:space:]]*docker run' \
+  "hw-bootstrap: GPU smoke test does not assume group membership"
+hasnt "${BOOTSTRAP}" 'Docker GPU runs: docker run' \
+  "hw-bootstrap: GPU notes do not assume group membership"
+hasnt "${REPO_DIR}/docs/hardware-setup.md" '^docker run' \
+  "hardware-setup: commands do not assume group membership"
+
+echo ""
 echo "==> Windows (Git Bash)"
 
 has "${REPO_DIR}/.gitattributes" '^\* text=auto eol=lf$' \

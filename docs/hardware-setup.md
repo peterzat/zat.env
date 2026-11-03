@@ -103,7 +103,9 @@ cd ~/src/zat.env
 bash hw-bootstrap.sh
 ```
 
-The Docker GPU test at the end may fail with a "permission denied" error. This is expected because your user is not yet in the `docker` group (the script added you, but it takes effect on next login). Log out and back in:
+The script does not add your user to the `docker` group, because membership is root-equivalent and this account runs package install scripts. Use `sudo docker`. To opt in anyway, run the script with `ZAT_DOCKER_GROUP=1 bash hw-bootstrap.sh`; a later run without the variable does not remove you, and does not add you back if you remove yourself.
+
+Log out and back in to pick up the updated PATH and environment variables:
 
 ```bash
 exit
@@ -116,7 +118,7 @@ ssh peter@<public-ip>
 Verify Docker GPU access:
 
 ```bash
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+sudo docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
 
 **Phase 5: Tailscale, hostname, system updates**
@@ -183,7 +185,7 @@ Final sanity check:
 hostname -f
 nvidia-smi
 tailscale status
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+sudo docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
 
 **Phase 6: zat.env config and Claude Code**

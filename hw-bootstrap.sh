@@ -194,7 +194,15 @@ fi
 echo "==> Installing Docker (Ubuntu package)"
 sudo apt-get install -y docker.io docker-compose-v2 || sudo apt-get install -y docker.io docker-compose-plugin
 sudo systemctl enable --now docker
-sudo usermod -aG docker "${USER_NAME}" || true
+# Membership in the docker group is root-equivalent, and this account runs package
+# install scripts. So it is opt-in, and a re-run never restores membership that
+# was removed on purpose. Without it, use sudo docker.
+if [[ "${ZAT_DOCKER_GROUP:-0}" == "1" ]]; then
+  sudo usermod -aG docker "${USER_NAME}" || true
+else
+  echo "Not adding ${USER_NAME} to the docker group, which is root-equivalent."
+  echo "Use sudo docker, or re-run with ZAT_DOCKER_GROUP=1 to opt in."
+fi
 
 echo "==> Installing Tailscale"
 if ! command -v tailscale >/dev/null 2>&1; then
@@ -226,7 +234,7 @@ if ! dpkg -l nvidia-container-toolkit >/dev/null 2>&1; then
   sudo systemctl restart docker
 
   echo "==> Testing GPU in Docker"
-  docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi || true
+  sudo docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi || true
 else
   echo "NVIDIA Container Toolkit already installed"
 fi
@@ -262,7 +270,7 @@ fi
 echo "==> Done"
 echo
 echo "Next steps:"
-echo "  1. Log out and back in (docker group membership + updated PATH/env vars)"
+echo "  1. Log out and back in (updated PATH/env vars, and docker group membership if you opted in)"
 echo "  2. Authenticate Tailscale:"
 echo "       sudo tailscale up --ssh"
 echo "     or, with an auth key:"
@@ -276,6 +284,6 @@ echo "  6. Start working on a project:"
 echo "       cd ~/src/myrepo && zatmux"
 echo
 echo "GPU notes:"
-echo "  - Docker GPU runs: docker run --rm --gpus all --shm-size=8g <image>"
+echo "  - Docker GPU runs: sudo docker run --rm --gpus all --shm-size=8g <image>"
 echo "  - PyTorch DataLoader in Docker needs --shm-size=8g or --ipc=host"
 echo "  - Verify GPU: nvidia-smi"
