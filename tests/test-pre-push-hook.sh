@@ -8,6 +8,9 @@ set -uo pipefail
 #     this suite: `git -C <dir> push` and other prefix variants silently
 #     bypassed the gate)
 #   - is_tag_only_push detection
+#   - What the gate refuses because it cannot vouch for it: a statement before
+#     the push, a second push, gh repo create --push, an unknown target repo,
+#     and a ref with commits outside HEAD
 #   - Empty non-excluded diff allow-path
 #   - Marker file hash match / mismatch
 #   - Skip marker consumption
@@ -121,12 +124,10 @@ for cmd in \
   "git -C /tmp push" \
   "git -c user.name=foo push" \
   "git -c user.name=foo -c user.email=bar push" \
-  "git --git-dir=/tmp/x push" \
-  "git --work-tree=/tmp/x push" \
   "git --namespace=foo push" \
   "git --exec-path=/usr/lib/git-core push" \
   "git --super-prefix=sub push" \
-  "git -C /home/peter/src/zat.env push" \
+  "git -C ${SCRATCH_NOGIT} push" \
   "git push --force-with-lease"; do
   assert_exit "${cmd}" 0 "detects as push (no-git-repo allow): ${cmd}"
 done
@@ -140,6 +141,17 @@ for cmd in \
   "( cd /tmp && git push )" \
   "git init && git add . && git commit -m x && git push"; do
   assert_exit "${cmd}" 2 "refused outside a repo when a statement comes first: ${cmd}"
+done
+
+# The gate cannot follow these to a repo, so it refuses them wherever it runs.
+for cmd in \
+  "git --git-dir=/tmp/x push" \
+  "git --work-tree=/tmp/x push" \
+  "git --git-dir /tmp/x push" \
+  'git -C "$HOME/src/x" push' \
+  'git -C `pwd` push' \
+  "git -C ${SCRATCH_NOGIT}/does-not-exist push"; do
+  assert_exit "${cmd}" 2 "refused when the target repo is unknown: ${cmd}"
 done
 
 # ============================================================
@@ -583,6 +595,8 @@ same_command_cmds=(
   'sed -i s/a/b/ file.txt && git commit -qam x && git push'
   'cd ../other && git push'
   'git push origin main && git push origin v1.0'
+  # The tag-only exit must not carry an earlier statement past the rule.
+  'git commit -qam x && git tag v1.0 && git push origin v1.0'
 )
 for cmd in "${same_command_cmds[@]}"; do
   setup_test_repo
@@ -658,6 +672,176 @@ for cmd in \
   fi
   teardown_test_repo
 done
+
+# Asserts the hook's exit code for a command run in the test repo, and when a
+# message is given, that stderr contains it.
+expect_in_repo() {
+  local cmd="$1" expected="$2" label="$3" message="${4:-}" ec=0 out
+  out=$(invoke_in_test_repo "${cmd}" 2>&1) || ec=$?
+  if [[ "${ec}" -eq "${expected}" ]] && [[ "${out}" == *"${message}"* ]]; then
+    pass "${label}"
+  else
+    fail "${label} (expected exit ${expected}, got ${ec}: ${out})"
+  fi
+}
+
+# ============================================================
+echo ""
+echo "==> Regression: git -C judges the repo it targets, not the current one"
+# ============================================================
+# `git -C other push` from a clean checkout read as nothing to review.
+
+OTHER_REPO=$(mktemp -d)
+git -C "${OTHER_REPO}" init -q -b main
+git -C "${OTHER_REPO}" config user.email test@test.invalid
+git -C "${OTHER_REPO}" config user.name "test"
+echo "first" > "${OTHER_REPO}/file.txt"
+git -C "${OTHER_REPO}" add file.txt
+git -C "${OTHER_REPO}" commit -q -m "initial"
+git -C "${OTHER_REPO}" update-ref refs/remotes/origin/main HEAD
+echo "unreviewed" > "${OTHER_REPO}/file.txt"
+git -C "${OTHER_REPO}" commit -q -am "unreviewed"
+OTHER_MARKER=$(cd "${OTHER_REPO}" && codereview-marker path)
+rm -f "${OTHER_MARKER}"
+
+setup_test_repo
+expect_in_repo "git -C ${OTHER_REPO} push" 2 "git -C: unreviewed other repo is blocked" "This push targets"
+expect_in_repo "git -C \"${OTHER_REPO}\" push" 2 "git -C: quoted path is followed" "This push targets"
+# Git applies a relative -C against the directory before it.
+expect_in_repo "git -C $(dirname "${OTHER_REPO}") -C $(basename "${OTHER_REPO}") push" 2 "git -C: stacked paths are followed in order" "This push targets"
+(cd "${OTHER_REPO}" && codereview-marker write)
+expect_in_repo "git -C ${OTHER_REPO} push" 0 "git -C: the other repo's own marker allows it"
+rm -f "${OTHER_MARKER}"
+git -C "${OTHER_REPO}" update-ref refs/remotes/origin/main HEAD
+expect_in_repo "git -C ${OTHER_REPO} push" 0 "git -C: other repo with nothing to review is allowed"
+# Same repo: no note about another repo.
+echo "modified" > "${TEST_REPO}/file.txt"
+ec=0
+out=$(invoke_in_test_repo "git -C ${TEST_REPO} push" 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]] && [[ "${out}" != *"This push targets"* ]]; then
+  pass "git -C: pointing at the current repo reads as the current repo"
+else
+  fail "git -C: current repo expected exit 2 with no note (exit ${ec})"
+fi
+teardown_test_repo
+rm -rf "${OTHER_REPO}"
+rm -f "${OTHER_MARKER}"
+
+# ============================================================
+echo ""
+echo "==> Regression: a named ref with commits outside HEAD is refused"
+# ============================================================
+# The hash describes HEAD and the working tree, so `git push origin feature`
+# from a clean main read as nothing to review.
+
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" checkout -q main
+for cmd in \
+  'git push origin feature' \
+  'git push origin "feature"' \
+  'git push origin +feature' \
+  'git push origin feature:main' \
+  'git push origin refs/heads/feature' \
+  'git push origin main feature' \
+  'git push origin refs/heads/*:refs/heads/*' \
+  'git push --all' \
+  'git push --branches origin' \
+  'git push --mirror'; do
+  expect_in_repo "${cmd}" 2 "other ref refused: ${cmd}" "the review cannot cover"
+done
+for cmd in \
+  'git push origin main' \
+  'git push origin HEAD' \
+  'git push origin HEAD:refs/heads/copy' \
+  'git push origin no-such-branch' \
+  'git push origin --delete feature' \
+  'git push origin :feature' \
+  'git push -u origin "$(git rev-parse --abbrev-ref HEAD)"' \
+  'git push origin main > /tmp/push.log 2>&1'; do
+  expect_in_repo "${cmd}" 0 "sends nothing outside HEAD, allowed: ${cmd}"
+done
+# "Push now" stays a bypass for this check as well.
+touch "${TEST_SKIP_MARKER}"
+expect_in_repo 'git push origin feature' 0 "other ref: the skip marker still applies"
+# Once a remote has the commits, there is nothing left to review.
+git -C "${TEST_REPO}" update-ref refs/remotes/origin/feature feature
+expect_in_repo 'git push origin feature' 0 "other ref: already on a remote-tracking ref, allowed"
+expect_in_repo 'git push --all' 0 "other ref: --all with everything on a remote, allowed"
+teardown_test_repo
+
+# Fully merged into HEAD: the review of HEAD covers it.
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b feature
+echo "feature" > "${TEST_REPO}/feature.txt"
+git -C "${TEST_REPO}" add feature.txt
+git -C "${TEST_REPO}" commit -q -m "feature"
+git -C "${TEST_REPO}" checkout -q main
+git -C "${TEST_REPO}" merge -q --ff-only feature
+expect_in_repo 'git push origin feature' 2 "other ref in HEAD: goes to review instead" "has not passed /codereview"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: version-like branches and tags on unpushed commits are reviewed"
+# ============================================================
+# Any name starting v<digit> read as a tag, and a tag push counted as carrying
+# no code, though it sends the commits the tag points at.
+
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b v2-fix
+echo "fix" > "${TEST_REPO}/fix.txt"
+git -C "${TEST_REPO}" add fix.txt
+git -C "${TEST_REPO}" commit -q -m "fix"
+expect_in_repo 'git push origin v2-fix' 2 "version-like branch, checked out: goes to review" "has not passed /codereview"
+git -C "${TEST_REPO}" checkout -q main
+expect_in_repo 'git push origin v2-fix' 2 "version-like branch, elsewhere: refused" "the review cannot cover"
+expect_in_repo 'git push origin v2-fix:main' 2 "version-like source with another destination: refused" "the review cannot cover"
+teardown_test_repo
+
+setup_test_repo
+git -C "${TEST_REPO}" tag v1.0
+expect_in_repo 'git push origin v1.0' 0 "tag on a pushed commit: still skips the gate"
+expect_in_repo 'git push origin refs/tags/v1.0' 0 "tag by full ref on a pushed commit: still skips the gate"
+expect_in_repo 'git push --tags' 0 "--tags with every tag on a pushed commit: still skips the gate"
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+git -C "${TEST_REPO}" tag v1.1
+expect_in_repo 'git push origin v1.1' 2 "tag on an unpushed HEAD: goes to review" "has not passed /codereview"
+expect_in_repo 'git push origin refs/tags/v1.1' 2 "tag by full ref on an unpushed HEAD: goes to review" "has not passed /codereview"
+expect_in_repo 'git push --tags' 2 "--tags with a tag on an unpushed HEAD: goes to review" "has not passed /codereview"
+(cd "${TEST_REPO}" && codereview-marker write)
+expect_in_repo 'git push origin v1.1' 0 "tag on an unpushed HEAD with a valid marker: allowed"
+teardown_test_repo
+
+setup_test_repo
+git -C "${TEST_REPO}" checkout -q -b elsewhere
+echo "elsewhere" > "${TEST_REPO}/elsewhere.txt"
+git -C "${TEST_REPO}" add elsewhere.txt
+git -C "${TEST_REPO}" commit -q -m "elsewhere"
+git -C "${TEST_REPO}" tag v3.0
+git -C "${TEST_REPO}" checkout -q main
+expect_in_repo 'git push origin v3.0' 2 "tag on another branch's unpushed commit: refused" "the review cannot cover"
+expect_in_repo 'git push --tags' 2 "--tags with a tag on another branch's unpushed commit: refused" "the review cannot cover"
+teardown_test_repo
+
+# ============================================================
+echo ""
+echo "==> Regression: gh repo create --push pushes with no git token to detect"
+# ============================================================
+
+setup_test_repo
+echo "unreviewed" > "${TEST_REPO}/file.txt"
+git -C "${TEST_REPO}" commit -q -am "unreviewed"
+expect_in_repo 'gh repo create me/x --private --source . --push' 2 "gh repo create --push refused" "Create the repo without --push"
+expect_in_repo 'echo hi; gh repo create me/x --source . --push' 2 "gh repo create --push refused after a statement" "Create the repo without --push"
+expect_in_repo 'gh repo create me/x --private --source . --remote origin' 0 "gh repo create without --push passes through"
+expect_in_repo 'echo gh repo create me/x --push' 0 "gh in an echo passes through"
+expect_in_repo 'gh repo view; echo --push' 0 "another gh command passes through"
+teardown_test_repo
 
 # ============================================================
 echo ""

@@ -18,6 +18,27 @@ current diff.
 4. If the marker exists and the diff hash matches the current diff → push allowed
 5. If no marker or hash mismatch → push blocked; Claude is instructed to run `/codereview`
 
+**What it refuses without looking at the marker.** The hook runs once, before the
+command, and describes the checked-out branch of one repo. It refuses what that
+view cannot cover, and each refusal says what to run instead:
+
+- A statement before the push, or a second push in the same command. A commit
+  made earlier in the command does not exist yet when the hook looks. Run the
+  other statements first, then push in a separate call.
+- `gh repo create --push`, which runs git itself. Create the repo, then push.
+- A target repo it cannot establish: `--git-dir`, `--work-tree`, or a `-C` path
+  that the shell would expand or that does not exist. A literal `git -C <path>
+  push` works, and is judged against that repo and its own marker.
+- A ref with commits in neither HEAD nor any remote-tracking ref, such as
+  `git push origin feature` from `main`. Check out that ref and review it there.
+
+A `v<digit>` name skips review only when it is really a tag whose commits a remote
+already has. A tag push sends the commits it points at, so a tag on an unpushed
+commit goes to review like the branch does.
+
+The tokenizer ignores quoting, so a commit message or heredoc with a line that
+reads like a push can be refused too. Put that text in a file and pass the file.
+
 The marker is per-project (project hash = `md5sum` of git root path) so multiple
 projects don't share gate state. The codereview marker is content-addressed by
 diff hash and persists across pushes (a failed network push or remote rejection

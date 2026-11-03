@@ -77,6 +77,17 @@ _normalize_ops() {
   printf '%s' "${norm}"
 }
 
+# True when token <index> of the caller's array t starts a command, so it is not
+# just an argument to something else.
+_in_command_position() {
+  local p=$(( $1 - 1 ))
+  if (( p < 0 )); then return 0; fi
+  case "${t[p]}" in
+    "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") return 0 ;;
+  esac
+  return 1
+}
+
 # Print, one per line, "<git-token-index> <push-token-index>" for each genuine
 # command-position git-push invocation; empty output means no push. This is the
 # single source of the push-detection walk: every check below consumes it, so
@@ -95,12 +106,7 @@ _push_invocations() {
   local n=${#t[@]} i=0
   while (( i < n )); do
     if [[ "${t[i]}" != "git" ]]; then i=$((i + 1)); continue; fi
-    if (( i > 0 )); then
-      case "${t[i-1]}" in
-        "&&"|"||"|";"|"|"|"&"|"("|"{"|"!") ;;
-        *) i=$((i + 1)); continue ;;
-      esac
-    fi
+    if ! _in_command_position "$i"; then i=$((i + 1)); continue; fi
     # Skip git-level options to reach the subcommand. The listed options take
     # a separate-space argument (consume two tokens); any other -short/--long
     # is a boolean flag or inline --key=value (one token).
@@ -161,6 +167,151 @@ push_is_alone_and_first() {
   return 0
 }
 
+# `gh repo create --push` runs git itself, so there is no git token to detect.
+# It can also point at another directory with --source. Refusing it is simpler
+# than judging it, and creating the repo first costs one extra command.
+is_gh_repo_create_push() {
+  local -a t
+  # shellcheck disable=SC2206
+  read -ra t < <(_normalize_ops "$1") || true
+  local n=${#t[@]} i=0 k
+  while (( i + 2 < n )); do
+    if [[ "${t[i]}" == "gh" && "${t[i+1]}" == "repo" && "${t[i+2]}" == "create" ]] && _in_command_position "$i"; then
+      k=$((i + 3))
+      while (( k < n )); do
+        case "${t[k]}" in
+          "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break ;;
+          --push|--push=*) return 0 ;;
+        esac
+        k=$((k + 1))
+      done
+    fi
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# Move this process to the repo the push targets, so that everything below
+# judges that repo: `git -C other push` from a clean checkout used to read as
+# nothing to review. git applies each -C in order, so this does too. Returns
+# non-zero when the target cannot be established: --git-dir and --work-tree,
+# which a cd cannot model, a path that needs the shell to expand it, or a path
+# that does not exist.
+enter_push_target() {
+  local -a t
+  # shellcheck disable=SC2206
+  read -ra t < <(_normalize_ops "$1") || true
+  local git_idx push_idx d
+  read -r git_idx push_idx < <(_push_invocations "$1") || true
+  local k=$((git_idx + 1))
+  while (( k < push_idx )); do
+    case "${t[k]}" in
+      -C)
+        d="${t[k+1]}"
+        d="${d#[\"\']}"
+        d="${d%[\"\']}"
+        # The tokens are unexpanded text, so a literal tilde is what is matched.
+        # shellcheck disable=SC2088
+        case "${d}" in
+          *'$'*|*'`'*) return 1 ;;
+          "~") d="${HOME}" ;;
+          "~/"*) d="${HOME}/${d#"~/"}" ;;
+        esac
+        cd -- "${d}" 2>/dev/null || return 1
+        k=$((k + 2))
+        ;;
+      --git-dir|--git-dir=*|--work-tree|--work-tree=*) return 1 ;;
+      -c|--namespace|--exec-path|--super-prefix|--config-env) k=$((k + 2)) ;;
+      *) k=$((k + 1)) ;;
+    esac
+  done
+  return 0
+}
+
+# True when the given revisions reach a commit that is neither in HEAD nor on
+# any remote-tracking ref. The review covers HEAD, and what a remote has already
+# went through the gate. Fails closed if rev-list itself fails.
+_has_commits_outside_head() {
+  local -a exclude=(--remotes)
+  if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then exclude+=(HEAD); fi
+  local out
+  out=$(git rev-list --max-count=1 "$@" --not "${exclude[@]}" 2>/dev/null) || return 0
+  [[ -n "${out}" ]]
+}
+
+# The hash describes HEAD and the working tree, but a push can name something
+# else: `git push origin feature` from a clean main read as nothing to review.
+# Prints the first ref carrying commits the review cannot have covered. A delete
+# sends no commits. A name that does not resolve is skipped, because git fails
+# on it too; that also covers redirection tokens and the quoted substitution in
+# `git push -u origin "$(git rev-parse --abbrev-ref HEAD)"`, which /pr uses.
+push_sends_commits_outside_head() {
+  local -a t
+  # shellcheck disable=SC2206
+  read -ra t < <(_normalize_ops "$1") || true
+  local n=${#t[@]} _git_idx push_idx
+  read -r _git_idx push_idx < <(_push_invocations "$1") || true
+  local k=$((push_idx + 1)) seen_remote=0
+  local -a refs=() globs=()
+  while (( k < n )); do
+    case "${t[k]}" in
+      "&&"|"||"|";"|"|"|"&"|"("|"{"|"!"|")"|"}") break ;;
+      --delete|-d) return 1 ;;
+      --all|--branches) globs+=(--branches) ;;
+      --mirror) globs+=(--all) ;;
+      --tags) globs+=(--tags) ;;
+      --*|-*) ;;
+      *)
+        if (( seen_remote == 0 )); then seen_remote=1; else refs+=("${t[k]}"); fi
+        ;;
+    esac
+    k=$((k + 1))
+  done
+  local g r src sha
+  if (( ${#globs[@]} > 0 )); then
+    for g in "${globs[@]}"; do
+      if _has_commits_outside_head "${g}"; then printf '%s\n' "${g}"; return 0; fi
+    done
+  fi
+  if (( ${#refs[@]} > 0 )); then
+    for r in "${refs[@]}"; do
+      r="${r#[\"\']}"
+      r="${r%[\"\']}"
+      r="${r#+}"
+      src="${r%%:*}"
+      if [[ -z "${src}" ]]; then continue; fi
+      case "${src}" in
+        *'*'*) printf '%s\n' "${src}"; return 0 ;;
+      esac
+      if sha=$(git rev-parse --verify --quiet "${src}^{commit}" 2>/dev/null) \
+        && _has_commits_outside_head "${sha}"; then
+        printf '%s\n' "${src}"
+        return 0
+      fi
+    done
+  fi
+  return 1
+}
+
+# A refspec is tag-only when it looks like a tag and nothing says otherwise. The
+# name alone is not enough: a branch can be called v2-fix, v2-fix:main sends
+# that branch, and a tag push sends the commits the tag points at, so a tag on
+# an unpushed commit carries code. A name that resolves to nothing passes, since
+# git then has nothing to send.
+_refspec_is_tag_only() {
+  local r="$1" name sha
+  if [[ ! "${r}" =~ ^v[0-9] ]] && [[ ! "${r}" =~ ^refs/tags/ ]]; then return 1; fi
+  if [[ "${r}" == *:* ]]; then return 1; fi
+  name="${r#refs/tags/}"
+  if [[ "${r}" != refs/tags/* ]] && git show-ref --verify --quiet "refs/heads/${name}" 2>/dev/null; then
+    return 1
+  fi
+  if sha=$(git rev-parse --verify --quiet "refs/tags/${name}^{commit}" 2>/dev/null); then
+    [[ -z "$(git rev-list --max-count=1 "${sha}" --not --remotes 2>/dev/null)" ]] || return 1
+  fi
+  return 0
+}
+
 # Detect tag-only pushes. Tag pushes carry no code content to review, so we
 # skip the gate for them. This is CONSERVATIVE by construction: a false
 # positive here SKIPS the gate (the opposite polarity from is_git_push, where
@@ -207,19 +358,23 @@ is_tag_only_push() {
     done
     local tag_only_here=0
     if (( ${#positionals[@]} >= 2 )); then
-      # Explicit refspecs present: tag-only iff every refspec looks like a tag.
+      # Explicit refspecs present: tag-only iff every refspec is a tag push.
       tag_only_here=1
       local r
       for r in "${positionals[@]:1}"; do
-        if [[ ! "${r}" =~ ^v[0-9] ]] && [[ ! "${r}" =~ ^refs/tags/ ]]; then
+        if ! _refspec_is_tag_only "${r}"; then
           tag_only_here=0; break
         fi
       done
     else
       # No explicit refspec (`git push`, `git push origin`, `git push --tags`,
-      # `git push --tags origin`): tag-only only if --tags was given;
-      # otherwise this pushes the current branch and must be reviewed.
+      # `git push --tags origin`): tag-only only if --tags was given and every
+      # tag's commits are already on a remote-tracking ref; otherwise this
+      # sends code and must be reviewed.
       tag_only_here=${has_tags}
+      if (( has_tags == 1 )) && [[ -n "$(git rev-list --max-count=1 --tags --not --remotes 2>/dev/null)" ]]; then
+        tag_only_here=0
+      fi
     fi
     if (( tag_only_here == 0 )); then return 1; fi
   done
@@ -246,6 +401,15 @@ fi
 # is not on the last line skips the gate. jq on Linux and macOS emits none.
 INVOKED_CMD="${INVOKED_CMD//$'\r'/}"
 
+if is_gh_repo_create_push "${INVOKED_CMD}"; then
+  cat >&2 <<EOF
+Pre-push gate: gh repo create --push pushes where the gate cannot check it.
+
+Create the repo without --push, then run git push as its own command.
+EOF
+  exit 2
+fi
+
 # Pass through anything that is not a git push invocation.
 if ! is_git_push "${INVOKED_CMD}"; then
   exit 0
@@ -260,10 +424,22 @@ Pre-push gate: run this push as its own command.
 The gate sees the repo as it stands when the command starts, so it cannot vouch
 for anything an earlier statement in the same command does, such as a commit.
 Run those statements first, then push in a separate call, one push per call.
-Any /codereview the push needs is checked then.
+Any /codereview the push needs is checked then. To push another repo, use
+git -C <path> push rather than cd <path> && git push.
 
 If the command only mentions a push, in a commit message or heredoc, move that
 text to a file and pass the file (for example, git commit -F <file>).
+EOF
+  exit 2
+fi
+
+SESSION_TOP=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if ! enter_push_target "${INVOKED_CMD}"; then
+  cat >&2 <<EOF
+Pre-push gate: cannot tell which repo this push targets, so refusing it.
+
+Push from inside the repo, or use git -C with a literal path to one that exists.
+The gate does not follow --git-dir, --work-tree, or a path the shell expands.
 EOF
   exit 2
 fi
@@ -298,6 +474,17 @@ fi
 if [[ -f "${SKIP_MARKER}" ]]; then
   rm -f "${SKIP_MARKER}"
   exit 0
+fi
+
+if OUTSIDE_REF=$(push_sends_commits_outside_head "${INVOKED_CMD}"); then
+  cat >&2 <<EOF
+Pre-push gate: this push sends commits the review cannot cover (${OUTSIDE_REF}).
+
+The gate reviews the checked-out branch, and those commits are in neither HEAD
+nor any remote-tracking ref. Check out that ref, then run /codereview and push
+from there. To push several branches, push each one from its own checkout.
+EOF
+  exit 2
 fi
 
 # Compute the diff hash via the shared script. The script encapsulates
@@ -396,5 +583,10 @@ background work is still running.
 Do not offer to skip the review. The one-time bypass is only for when the
 user explicitly says "push now" unprompted; never suggest it.
 EOF
+
+TARGET_TOP=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [[ "${TARGET_TOP}" != "${SESSION_TOP}" ]]; then
+  printf '\nThis push targets %s, not the current repo, so /codereview has to run there.\n' "${TARGET_TOP}" >&2
+fi
 
 exit 2

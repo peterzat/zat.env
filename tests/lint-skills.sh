@@ -464,11 +464,28 @@ hasnt "${HOOK}" '!= git\\ push\*' \
   "hook: no legacy 'git push*' prefix match (regression guard)"
 
 # Hook: the push-detection walk (command-position rule + git-level option
-# handling) is single-sourced in _push_subcommand_indices and consumed by both
-# is_git_push and is_tag_only_push, so the two cannot drift apart. Reintroducing
-# a divergent inline walk would silently weaken this regression guard.
+# handling) is single-sourced in _push_invocations, reached through
+# _push_subcommand_indices by is_git_push and is_tag_only_push, so they cannot
+# drift apart. Reintroducing a divergent inline walk would silently weaken this
+# regression guard.
 has "${HOOK}" "_push_subcommand_indices" \
   "hook: push detection single-sourced via _push_subcommand_indices"
+has "${HOOK}" "_push_invocations" \
+  "hook: every push check shares the _push_invocations walk"
+
+# Hook: what the gate refuses because it cannot vouch for it. See "What the gate
+# can vouch for" in CLAUDE.md. Each check is one conditional in the main flow, so
+# deleting one would pass the tests of the others.
+has "${HOOK}" 'if ! push_is_alone_and_first' \
+  "hook: refuses a push with a statement before it, or a second push"
+has "${HOOK}" 'if is_gh_repo_create_push' \
+  "hook: refuses gh repo create --push"
+has "${HOOK}" 'if ! enter_push_target' \
+  "hook: judges the repo git -C targets, and refuses when it cannot tell"
+has "${HOOK}" 'OUTSIDE_REF=\$\(push_sends_commits_outside_head' \
+  "hook: refuses a ref with commits outside HEAD and the remote-tracking refs"
+has "${HOOK}" '_refspec_is_tag_only "\$\{r\}"' \
+  "hook: a refspec needs more than a tag-like name to skip the gate"
 
 # Hook: the push-detection walk must handle git-level options that take
 # separate arguments. If any of these are missing from the case block,
