@@ -1,34 +1,50 @@
-## Review — 2026-11-07 (commit: 897b1a7)
+## Review — 2026-11-07 (commit: 431af78)
 
-**Summary:** Refresh review of 897b1a7, which commits the prior review's fixes: bin/spec-backlog-apply.sh refuses a symlinked or non-regular BACKLOG.md and tracks fences only above the first entry in every op, lint requires the four-field template at all three /spec sites, and README names the turn-close direct write.
-- **Scope.** Focus set: CLAUDE.md, README.md, bin/spec-backlog-apply.sh, tests/README.md, tests/lint-skills.sh, tests/test-spec-backlog-apply.sh. Already-reviewed set (33cea03 and d12ce05, checked for interactions only): BACKLOG.md, claude/skills/spec/SKILL.md, claude/skills/tester/SKILL.md.
-- **Verified.** The committed script matches what the prior fix loop and /security re-checks read. Probes confirm that a fenced `### ` or `## ` in the header is ignored by purge, delete, append, and clear, and that an unclosed fence in an entry body no longer hides later entries.
-- **Fix loop.** Two /codefix cycles. Cycle 1 fixed two WARNs: Step 3f had no stop rule for a script error (the new symlink refusal's main path), and a CRLF BACKLOG.md made `purge-origin:` remove ACTIVE entries (pre-existing since origin/main). Cycle 2 made cycle 1's CRLF test portable to macOS. /security re-checked both cycles and found nothing new in the fixes.
-- **What is left.** The bundled-commit WARN on 33cea03 (user decision), the nine carried WARNs, and NOTEs.
-- **Tests.** tests/run-all.sh went from 1164/1164 to 1168/1168 across 6 suites.
-- **Commit before pushing.** The fixes are uncommitted in bin/spec-backlog-apply.sh, claude/skills/spec/SKILL.md, and tests/test-spec-backlog-apply.sh, so the gate refuses until they are committed. CODEREVIEW.md and SECURITY.md are uncommitted too.
-- **Incident.** One /security probe in the initial scan ran the script in zat.env's root after a failed `cd` and appended a `### probe` entry to the real BACKLOG.md. /security restored it at once; this run confirmed the blob matches HEAD (e728437). The file is mode 0600, as earlier `mv`-based runs already left it.
+**Summary:** Refresh review of 431af78, the one commit not on origin/main. It changes only documentation and a script header comment: they now name every `spec-backlog-apply.sh` caller and the one BACKLOG.md write that skips the script, as two NOTEs from the 897b1a7 review asked. No behavior changes.
+- **Scope.** The push diff against origin/main is CLAUDE.md, README.md, and bin/spec-backlog-apply.sh (comment lines only). 5c774f1, which committed the 897b1a7 review's fixes, is already on origin/main. Its files (claude/skills/spec/SKILL.md, tests/test-spec-backlog-apply.sh) were read only to check the new text's claims.
+- **Verified.** Every caller the new text names exists: Step 3f append and clear (spec SKILL.md:379, 403), Step 3g (437), Step 4 adoption (553), and /tester design D.6 (tester SKILL.md:551). The Step 3c turn-close template (spec SKILL.md:177-195) is the only BACKLOG.md write a skill directs outside the script. The four-field template sits in Step 3c, the Step 3f append manifest, and the Format section, which matches the lint pin at tests/lint-skills.sh:792-799.
+- **Security.** /security scanned the four files changed since its last scan (SECURITY_META at 897b1a7). It found no BLOCK or WARN, one new NOTE (merged into the turn-close NOTE below), and no secrets. SECURITY.md is updated and uncommitted.
+- **Tests.** tests/run-all.sh: 1168/1168 across 6 suites. There was no fix loop, so the suite was not re-run.
+- **Uncommitted review files.** SECURITY.md and CODEREVIEW.md are uncommitted. The push gate excludes them, so they do not block the push.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 9 findings, 8 kept after Step 6. One became part of the Step 3f WARN, five merged into NOTEs (two carried, one new), one became a new NOTE, and one (the em-dash in the D.7 template) was dropped as a writing-style point.
+`/code-review high`: 5 findings, 5 kept after Step 6. One merged into the carried turn-close NOTE; the other four merged into the two new NOTEs.
 
 ### Findings
 
-No BLOCK findings.
+No BLOCK findings. No new WARN findings.
 
-Resolved in this run's fix loop, cycle 1 (uncommitted):
-- **Step 3f error handling** (also claude-code). Step 3f's Append and Clear paths said nothing about a non-zero exit, though 897b1a7 added the symlink refusal and `/spec backlog` append is the path the prior security WARN named. Both now say to stop, report the output, and not edit or remove BACKLOG.md (claude/skills/spec/SKILL.md:391-392, 409-410).
-- **CRLF defeats the ACTIVE carve-out** (security, pre-existing since origin/main). On a CRLF BACKLOG.md, `purge-origin:` removed ACTIVE entries and the other ops missed headings. The script strips a trailing `\r` from the heading copy used for matching in delete, adopt, purge, and the append check, leaving the file's bytes alone (bin/spec-backlog-apply.sh:208, 238, 297, 332). /security confirmed each op, and `clear`, behaves on a CRLF file as on an LF one.
+New this run:
 
-Resolved in cycle 2 (uncommitted):
-- **CRLF test portability** (also security). Cycle 1's test built its fixture with `sed 's/$/\r/'`, which BSD sed on macOS reads as a plain `r`, so the test would fail falsely there. It now uses `awk '{ printf "%s\r\n", $0 }'`, as tests/test-pre-push-hook.sh:1426 does (tests/test-spec-backlog-apply.sh:173). /security's mutation check: removing the purge strip fails 2 checks, and a fixture without CRs fails 1.
+[NOTE] claude/skills/spec/SKILL.md:658, bin/spec-backlog-apply.sh:4, tests/lint-skills.sh:883-887 — (also claude-code for the script and lint lines) Three caller or op descriptions the cleanup missed:
+  - The skill's own Manifest format paragraph says the manifest is piped "by Step 3f, Step 3g Step 2, and `/tester design`". It leaves out Step 4's `adopt:` call (SKILL.md:553).
+  - The script header's first line still says "Apply a BACKLOG sweep manifest", above the new list of callers that are not the sweep. README:696 now says "Apply a BACKLOG.md manifest".
+  - The lint section comment says the script "parses ops (`delete:` / `adopt:`)" and leaves out `clear`, `purge-origin:`, and `append:`.
+  These are comments and prose only; every op has its own lint pins and tests. Confidence: high.
+  Suggested fix: Add Step 4 to SKILL.md:658, say "BACKLOG.md manifest" on the script's line 4, and list all five ops in the lint comment.
 
-[WARN] (carried forward) commit 33cea03 — Requires a user decision; not for /codefix. The commit bundles five independent changes: the /tester defects channel and D.3 evidence question, /spec Step 4 ACTIVE adoption, backlog mode through the script with the new `clear` op, the Step 2 routing change for a first-run brief, and the template label. They share a source (one round of zat-hermes feedback), and the message describes each. But the routing change and the tester defects channel are unrelated to each other and to the script, so none can be reverted alone. The repo's history is otherwise one concern per commit.
-  Evidence: `git show --stat 33cea03` and the commit message's five paragraphs. Confidence: high on the bundling. WARN rather than BLOCK because each piece has its own lint pins and the message separates them.
-  Suggested fix: Split it before publishing (reset to origin/main and re-commit by concern), or accept the bundle. 897b1a7 belongs with the script change.
+[NOTE] README.md:855, CLAUDE.md:62 — (claude-code) README's Done (v1.4) bullet still says "Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script". That contradicts the exception now named at README:323 and CLAUDE.md:59, 62. The bullet is release history, so it can stay as a record of v1.4.
+  Separately, CLAUDE.md:62 opens with an unscoped "All BACKLOG.md mutations flow through the script", although user hand-edits are also allowed (README:35, spec SKILL.md:357, 572). The clause that follows scopes the rule to "from inside the skills", so a misreading is unlikely.
+  Confidence: high on the text, low that either one misleads.
+  Suggested fix: Optional. Leave the release bullet as history or add "(except the turn-close capture)", and start CLAUDE.md:62's sentence with "All skill-driven BACKLOG.md mutations".
+
+[NOTE] claude/skills/spec/SKILL.md:177-195, CLAUDE.md:59, 62 — (also claude-code, also security; carried and extended) The Step 3c turn-close capture still tells the conversation "I'll create BACKLOG.md with a `# Backlog` header if it doesn't exist" and never mentions the script. 431af78 documents this write as the one exception rather than routing it through `append:`. The write therefore skips two things the script does:
+  - The same-name check. A duplicate `### <name>` heading can land, and a later `delete:` or `adopt:` then acts on the first copy (claude-code).
+  - The symlink refusal. /security extended this case on Claude Code 2.1.311. Write refuses a symlinked BACKLOG.md, but its error tells the agent to write to the target instead. Write follows a directory link: `repo/app/BACKLOG.md`, with `app` linking outside the repo, created the file outside. A shell append follows either kind of link. Step 3f forbids that fallback; the turn-close text does not.
+  Confidence: high on the tool behavior, low on occurrence, since it needs a hostile repo and a poor choice after a refusal.
+  Suggested fix: Have the capture append each entry with an `append:` manifest, then drop the exception from CLAUDE.md:59, 62 and README:323. The directory-link check suggested for the script (`git rev-parse --show-prefix` must succeed and print nothing) would then cover every BACKLOG.md write.
+
+Resolved by 431af78:
+- The 897b1a7 review's stale-lists NOTE. The script header, README:696, and CLAUDE.md's Tester/spec contract (1) now name every caller and all three template sites.
+- The CLAUDE.md half of the turn-close NOTE. CLAUDE.md:59 and 62 now name the exception, so CLAUDE.md and README:323 agree.
+
+Dropped:
+- The bundled-commit WARN on 33cea03. The commit is on origin/main, so splitting it would take a force-push, and pushing it settled the decision the WARN asked for.
+
+Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" in them means that review. Since then, bin/spec-backlog-apply.sh has changed only in its header comment, and claude/skills/spec/SKILL.md and tests/test-spec-backlog-apply.sh only by the fixes that review recorded.
 
 [NOTE] tests/test-spec-backlog-apply.sh:165-184, bin/spec-backlog-apply.sh:239 — (security) The CRLF test covers only `purge-origin:`; with the `\r` strip removed from delete, adopt, or the append check, every test still passes. A regression there shows as a MISS or a duplicate heading, not a silent loss. Separately, `adopt:` on a CRLF file rewrites its heading with an LF ending, leaving one line that differs from the rest (cosmetic; git's autocrlf normalizes it on commit).
   Suggested fix: Optional. Add one CRLF case each for delete, adopt, and the append collision.
@@ -53,12 +69,6 @@ Resolved in cycle 2 (uncommitted):
 
 [NOTE] tests/lint-skills.sh:951-965, bin/spec-backlog-apply.sh:159-329 — (also claude-code) The header-only fence rule is copied, with small variations, into six awk programs (count_entries, clear, delete, adopt, purge, append), and the lint pins count matches. The first pin counts `!fence && /^### /` against a threshold of 5, but the script has 7 matches (delete and adopt carry it twice), so removing the guard from two ops still passes; this run removed it from clear and the append check in a copy and the count was exactly 5. Its comment says "Five gated matches". The second pin (5 of 5) catches a removal but not which op lost it. The behavioral tests cover each op, so a regression would still fail the suite.
   Suggested fix: Optional. Pin each op's guard by a line unique to it, or move the rule into one awk prelude (an `is_heading()` function) that each program includes.
-
-[NOTE] claude/skills/spec/SKILL.md:180-192, CLAUDE.md:60, 62 — (also claude-code, also security; carried, partly resolved) The turn-close capture in Step 3c still tells the main-thread agent "I'll create BACKLOG.md with a `# Backlog` header if it doesn't exist", with no instruction to use the script, so that write goes through Edit or Write and skips the symlink guard and the collision check. /security settled the symlink half this run: on this host's Claude Code (2.1.311), Edit and Write refuse to write through a symlink, live or dangling, so the capture cannot follow a symlinked BACKLOG.md; the skipped collision check stands. 897b1a7 resolved the README half: README:323 now names it as the one direct write. CLAUDE.md still says "All BACKLOG.md mutations by `/spec` and `/tester` still flow through `spec-backlog-apply.sh`" (line 60) and "All BACKLOG.md mutations flow through the script" (line 62), so the developer doc and README now disagree.
-  Suggested fix: Have the capture prompt append each entry with an `append:` manifest (or `/spec backlog`); otherwise name the exception in CLAUDE.md's two bullets.
-
-[NOTE] bin/spec-backlog-apply.sh:6-8, README.md:696, CLAUDE.md:63 — Stale lists left behind by 33cea03 and 897b1a7. The script's header comment names only Step 3g and /tester design as callers, and README's directory overview says "(used by /spec Step 3g)"; Steps 3f and 4 also call it. CLAUDE.md's Tester/spec contract (1) says the template is in `/spec` "Step 3c and BACKLOG.md Format section", while the BACKLOG.md prompt contracts bullet that 897b1a7 updated (line 61) and the lint pin now count three sites, Step 3f included.
-  Suggested fix: Update the three lists.
 
 [NOTE] bin/spec-backlog-apply.sh:56, 143-147 — (security, carried) The symlink guard checks only the last path component. Run from inside a tracked directory link (`cd app && spec-backlog-apply.sh`, with `app` linking outside the repo), the script creates and fills BACKLOG.md outside the repo. Every skill runs it from the project root. /security re-confirmed this run that `git rev-parse --show-prefix` fails (exit 128) in that case, so the suggested check would refuse it; it would not stop a run in another repo's root.
   Suggested fix: Refuse unless `git rev-parse --show-prefix` succeeds and prints nothing. That also blocks /spec outside a git repo, which needs a decision.
@@ -319,14 +329,7 @@ Carried forward from the 2026-11-03 review. The files they cite are unchanged si
 
 ### Fixes Applied
 
-Cycle 1, applied by /codefix, uncommitted:
-- [WARN] claude/skills/spec/SKILL.md:391-392, 409-410 — (also claude-code) Step 3f's Append and Clear paths stop and report on a non-zero script exit and do not edit or remove BACKLOG.md.
-- [WARN] bin/spec-backlog-apply.sh:208, 238, 297, 332 — (security) Heading matches in delete, adopt, purge (ACTIVE test), and the append check strip a trailing `\r`; a CRLF purge test checks the ACTIVE entry survives with its CRLF.
-
-Cycle 2, applied by /codefix, uncommitted:
-- [WARN] tests/test-spec-backlog-apply.sh:173 — (also security) The CRLF fixture is built with awk instead of GNU-only `sed 's/$/\r/'`.
-
-### Accepted Risks
+None.
 
 ### Accepted Risks
 
@@ -338,6 +341,6 @@ Cycle 2, applied by /codefix, uncommitted:
 
 
 ---
-*Prior review (2026-11-07, commit d12ce05): Refresh review of 33cea03 and d12ce05. Two /codefix cycles fixed three WARNs and a BLOCK the first cycle introduced (symlinked BACKLOG.md, fenced headings across ops, the template lint threshold), committed in 897b1a7, and left 0 BLOCK / 10 WARN / 74 NOTE, all needing a user decision or informational.*
+*Prior review (2026-11-07, commit 897b1a7): Refresh review of 897b1a7. Two /codefix cycles fixed two WARNs (Step 3f had no stop rule for a script error; CRLF headings defeated the ACTIVE carve-out) and made the CRLF test portable to macOS, committed in 5c774f1. It left 0 BLOCK / 10 WARN / 80 NOTE, all needing a user decision or informational.*
 
-<!-- REVIEW_META: {"date":"2026-11-07","commit":"897b1a7","reviewed_up_to":"897b1a7e0d3a40ad05ed6b9176bed04fd524dace","base":"origin/main","tier":"refresh","block":0,"warn":10,"note":80} -->
+<!-- REVIEW_META: {"date":"2026-11-07","commit":"431af78","reviewed_up_to":"431af789e1e19721f12798f02f980105fa33232f","base":"origin/main","tier":"refresh","block":0,"warn":9,"note":81} -->

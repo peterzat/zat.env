@@ -1,23 +1,16 @@
 ## Security Review — 2026-11-07 (scope: paths)
 
-**Summary:** Path-scoped scan, at HEAD 897b1a7, of the four security-surface files changed since
-the d12ce05 scan: CLAUDE.md, bin/spec-backlog-apply.sh, tests/lint-skills.sh, and
-tests/test-spec-backlog-apply.sh. 897b1a7 commits the two /codefix cycles that the prior entry's
-post-fix re-checks read: the script refuses a symlinked or non-regular BACKLOG.md and tracks fences
-only above the first entry, with tests and lint pins for both. The committed files match what those
-re-checks read. No new findings. The one in-scope prior finding, the directory-link NOTE, is still
-present, and the symlink guard refused every op through a clone-delivered link. Twenty-seven
-findings in out-of-scope files are carried, and no secrets were found. The post-fix re-check of
-/codefix's uncommitted changes to bin/spec-backlog-apply.sh, claude/skills/spec/SKILL.md, and
-tests/test-spec-backlog-apply.sh resolves the CRLF defect this scan passed to the code review: the
-script strips a trailing carriage return before each heading match, so `purge-origin:` keeps ACTIVE
-entries on a CRLF file, and /spec Step 3f now stops on a non-zero exit from the script. It adds one
-NOTE, pre-existing in the /spec skill that the re-check brought into scope: the model pastes a date
-read from SPEC.md into a `git log` command. The directory-link NOTE and the /spec grant NOTE (no
-longer carried, since the skill is now in scope) are still present. A second post-fix re-check, of
-/codefix's awk rebuild of the CRLF fixture in tests/test-spec-backlog-apply.sh, adds no finding: the
-BSD sed portability point passed to the code review is resolved, and one pre-existing robustness
-point (an unchecked `mktemp -d`) goes to the code review. Totals: 0 BLOCK / 9 WARN / 20 NOTE.
+**Summary:** Path-scoped scan, at HEAD 431af78, of the four files changed since the 897b1a7 scan:
+CLAUDE.md, bin/spec-backlog-apply.sh, claude/skills/spec/SKILL.md, and
+tests/test-spec-backlog-apply.sh. 5c774f1 commits the /codefix changes the prior entry's two post-fix
+re-checks read (CRLF-tolerant heading matches, the Step 3f stop rule, and the CRLF test), and
+431af78 changes only prose: the script's header comment and three CLAUDE.md bullets, two of which
+now name /spec's turn-close capture as the one BACKLOG.md write outside the script. No new code
+defect. One new NOTE: that capture has no guard of its own, and this scan found that Claude Code's
+Write tool, which refuses a symlinked BACKLOG.md, follows a directory link in the path. The three
+in-scope prior NOTEs (directory link, /spec grant, date pasted into `git log`) are still present,
+twenty-six findings in out-of-scope files are carried, and no secrets were found. Totals: 0 BLOCK /
+9 WARN / 21 NOTE.
 
 ### Findings
 
@@ -226,12 +219,11 @@ compares with local HEAD (carried from the 2026-10-02 scan, not re-checked).
     unless the remote PR head equals local HEAD, and pass `--match-head-commit` where gh supports
     it.
 
-[NOTE] bin/spec-backlog-apply.sh:56, 143-147 — the symlink guard checks only the last path
+[NOTE] bin/spec-backlog-apply.sh:57, 144-148 — the symlink guard checks only the last path
 component, and the script resolves BACKLOG.md against the caller's working directory, so a run from
 inside a tracked directory link still creates and fills a BACKLOG.md outside the repo. This is what
 remains of the symlinked-BACKLOG.md WARN, which 897b1a7 resolves. Found in the 2026-11-07 post-fix
-re-check at d12ce05. Re-checked at 897b1a7, and on the working tree in the post-fix re-check below:
-still present.
+re-check at d12ce05. Re-checked at 431af78: still present.
   Attack vector: a cloned repo tracks `app -> ../../.bashrc.d`, and text in it steers the agent to
     run the backlog step from app/ (a CLAUDE.md that names app/ as the project root, say), so the
     command is `cd app && spec-backlog-apply.sh <<'MANIFEST'` with an `append:` block. The script
@@ -239,23 +231,25 @@ still present.
     every file in ~/.bashrc.d, so the entry's code spans run at each interactive shell start, as in
     the resolved WARN. The Claude Code 2.1.311 binary names `~/.claude/rules/` and
     `.claude/rules/*.md`, so a link to that directory would likely load the entry into every
-    session as instructions. Every skill invocation of the script says to run it from the project
-    root, so the agent has to be steered past that, and the target directory must already exist
-    (the script creates none). On this host neither directory exists, and ~/.bashrc sources no
-    directory.
-  Evidence: this scan, at 897b1a7, in a scratch clone with `app` tracked as mode 120000 pointing at
-    a directory outside the clone: run from app/, `append:` exited 0 and created BACKLOG.md there
-    holding the entry, and the clone's status stayed clean. In that directory `pwd -P` named the
-    outside directory, and `git rev-parse --show-toplevel` and `--show-prefix` both failed (exit
-    128). Both post-fix re-checks at d12ce05, and this entry's post-fix re-check with the fixed
-    script, had the same result. The Fedora and RHEL behavior is
-    from their default ~/.bashrc and the rules loading from strings in the binary; neither was run.
-    Confidence: high on the mechanism, low on likelihood.
+    session as instructions. Every skill invocation of the script (/spec Steps 3f, 3g, and 4, and
+    /tester design D.6) says to run it from the project root, so the agent has to be steered past
+    that, and the target directory must already exist (the script creates none). On this host
+    neither directory exists, and ~/.bashrc sources no directory.
+  Evidence: this scan, at 431af78, run from inside a scratch directory link to a directory outside
+    the link's parent: `append:` exited 0 and created BACKLOG.md holding the entry in the outside
+    directory. Lines 57 and 144-148 are unchanged since 897b1a7 (431af78 changed only the header
+    comment). As recorded at 897b1a7, in a scratch clone with `app` tracked as mode 120000: the same
+    result, the clone's status stayed clean, and `git rev-parse --show-toplevel` and `--show-prefix`
+    both failed (exit 128) inside the link. The Fedora and RHEL behavior is from their default
+    ~/.bashrc and the rules loading from strings in the binary; neither was run. Confidence: high on
+    the mechanism, low on likelihood.
   Remediation: refuse unless `git rev-parse --show-prefix` succeeds and prints nothing, which holds
     only when the working directory is the repo's toplevel by its physical path (comparing `pwd -P`
     with `--show-toplevel` would likely fail on Git Bash, where git.exe spells the drive as `C:/`).
     This also stops a stray BACKLOG.md in a subdirectory. It would refuse /spec outside a git
-    repo, which needs a decision. Add a test that runs the script from a directory link.
+    repo, which needs a decision. Add a test that runs the script from a directory link. The check
+    covers only writes made through the script; the turn-close NOTE below covers the one write that
+    is not.
 
 [NOTE] hooks/pre-push-codereview.sh:80-137, 255-258, 272-273 — past the bounds 82379d2 put on its
 heredoc tracking, and in a few unusual spellings, a push that bash runs reads as no push. Some of
@@ -422,10 +416,8 @@ push of another ref. Deferred to BACKLOG.md (skip-marker-bound-to-diff). Last re
 
 [NOTE] claude/skills/spec/SKILL.md:8-9 — since 6f43afe made the frontmatter parse, /spec is an
 inline, model-invocable skill whose `allowed-tools` grants `Bash(*)`, Write, and Edit for the rest
-of the turn that invokes it. Found in the 2026-10-02 scan. Re-checked on the working tree in the
-post-fix re-check below: lines 8-9 unchanged. 33cea03 added spec-backlog-apply.sh calls (Step 4's
-adoption for Steps 3a, 3b, and 3e, and Step 3f's append and clear) and the fix adds Step 3f prose,
-but neither adds a grant.
+of the turn that invokes it. Found in the 2026-10-02 scan. Re-checked at 431af78: lines 8-9
+unchanged, and neither 5c774f1 nor 431af78 adds a grant.
   Attack vector: the post-ExitPlanMode hook tells the model to run `/spec plan`, so a turn that
     leaves plan mode can carry unprompted Bash, Write, and Edit into implementation, where content
     the model reads can steer a command.
@@ -440,8 +432,7 @@ but neither adds a grant.
 run `git log --oneline` since it (Step 2's stale-proposal check takes the `### Proposal
 (YYYY-MM-DD)` heading, Step 3d the SPEC_META date), with no format check or quoting rule, so a
 command substitution placed in that value runs if the model pastes it unquoted or in double quotes.
-New in this entry's post-fix re-check, which brought the skill into scope; pre-existing, not
-introduced by the fix.
+Found in the 2026-11-07 post-fix re-check on 897b1a7. Re-checked at 431af78: both sites unchanged.
   Attack vector: a cloned repo, or a contributor's commit, carries a SPEC.md whose proposal heading
     reads `### Proposal (2026-11-01$(<cmd>))`, or whose SPEC_META date holds the same. The user runs
     `/spec` with no arguments, the routine command for the next turn, and the stale-proposal check
@@ -455,9 +446,40 @@ introduced by the fix.
   Remediation: extract the date inside the command with a strict pattern and skip the check when it
     comes back empty, for example `git log --oneline --since="$(grep -oE '^### Proposal
     \([0-9]{4}-[0-9]{2}-[0-9]{2}\)' SPEC.md | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"` (a
-    scratch run returned nothing for the hostile heading above and the date for a normal one), and
-    the same for the SPEC_META date; or say to use the value only when it matches
+    scratch run in the prior scan returned nothing for the hostile heading above and the date for a
+    normal one), and the same for the SPEC_META date; or say to use the value only when it matches
     `^[0-9]{4}-[0-9]{2}-[0-9]{2}$` and to single-quote it.
+
+[NOTE] claude/skills/spec/SKILL.md:177-195, CLAUDE.md:59, 62 — /spec's turn-close capture, which
+431af78 names in CLAUDE.md as the one BACKLOG.md write outside spec-backlog-apply.sh, has no guard
+of its own, so the symlink refusal that resolved the symlinked-BACKLOG.md WARN does not cover it.
+Pre-existing: 431af78 documents the write and changes no behavior. New in this scan.
+  Attack vector: a cloned repo tracks a symlinked BACKLOG.md, or a directory link plus text that
+    names the linked directory as the project root (as in the directory-link NOTE above). The user
+    runs /spec to a turn close and offers a deferred idea, and the main-thread agent writes the
+    entry under the session's own permission rules, since the skill has ended. With a symlinked
+    BACKLOG.md, Write and Edit refuse, but the refusal tells the agent to write the link's target
+    instead, and a shell append (`cat >> BACKLOG.md`) follows the link with no refusal; Step 3f
+    forbids that fallback after a script error (SKILL.md:391-392, 409-410), and the turn-close text
+    has no such rule. Through a directory link, Write itself follows the link. Either way the entry
+    lands outside the repo, where its code spans run if the target is a sourced shell file, as in
+    the directory-link NOTE. The repo picks the target, not the text, unless it also steers the
+    entry's content.
+  Evidence: this scan, on this host's Claude Code (2.1.311, still the installed build), with both
+    ends in the scratchpad. Write to a dangling symlinked BACKLOG.md refused with "it is a symbolic
+    link. Write to the link's target path instead: <target>" and created nothing. Write to
+    `repo/app/BACKLOG.md`, with `app -> ../outside`, reported success and created outside/BACKLOG.md.
+    Whether the permission check resolves the link and prompts for the outside path was not tested,
+    since the scratchpad is writable either way. The turn-close block (SKILL.md:188-189, "I'll
+    create BACKLOG.md with a `# Backlog` header if it doesn't exist") names no tool and no stop
+    rule. The agent's choice after a refusal was not tested against a live model. Confidence: high
+    on the tool behavior, low on likelihood.
+  Remediation: have the capture append through the script with an `append:` manifest from the
+    project root, and stop on a non-zero exit as Step 3f does. That also restores the collision
+    check, and the directory-link NOTE's `--show-prefix` check would then cover every BACKLOG.md
+    write; update the two CLAUDE.md bullets and README.md:323, which name the direct write. At
+    least, add Step 3f's "do not edit or remove BACKLOG.md yourself" rule to the turn-close block,
+    with "if BACKLOG.md is a symlink, stop and tell the user".
 
 [NOTE] zat.env-install.sh:200, 213 — every settings.json write creates a new file at the process
 umask and moves it into place (also lines 267, 276, 285, 307, 346, 363, 381), so a settings.json
@@ -606,167 +628,60 @@ from the 2026-10-01 scan, not re-checked).
     ${TEST_DIR}.
 ```
 
-Resolved since the prior entry: none. The prior entry's final state already listed the
-symlinked-BACKLOG.md WARN as resolved by its post-fix re-check. 897b1a7 commits that fix, and this
-scan confirmed it at HEAD: bin/spec-backlog-apply.sh:143-147 refuse a symlink (live or dangling) or
-any other non-regular BACKLOG.md before any read or write. The one in-scope finding, the
-directory-link NOTE, was re-checked and is still present.
+Resolved since the prior entry: none. That entry's post-fix re-checks had already resolved the CRLF
+defect it passed to the code review; 5c774f1 commits that fix, and this scan confirmed the committed
+code matches what the re-checks read.
 
 ### Coverage
 
-All eight dimensions were reviewed for the four files at HEAD 897b1a7.
+All eight dimensions were reviewed for the four files at HEAD 431af78.
 
-- Read in full: bin/spec-backlog-apply.sh (343 lines), CLAUDE.md (82 lines), and the
-  d12ce05..897b1a7 diff of all four files. tests/test-spec-backlog-apply.sh (695 lines): its setup,
-  its 201 added lines, and its tail were read, and the whole file was searched for write targets and
-  unguarded `cd` or `pushd`. tests/lint-skills.sh (2,071 lines): the changed hunks, the header, the
-  shellcheck loop, and the PyYAML block were read, and the whole file was searched for execution
-  sinks (`eval`, `source`, `bash -c`, interpreter calls, invocations of repo scripts, and
-  file-derived values in arithmetic). Neither test file was read line by line in full.
-- The committed files match what the prior entry's post-fix re-checks read: the script's line
-  numbers (guard at 143-147, fence toggles at 159, 203-204, 232-233, 288-290, and 324-326) and the
-  suite counts are the same.
-- Suites on Linux (bash 5.1.16, git 2.34.1), with XDG_CACHE_HOME in the scratchpad:
-  test-spec-backlog-apply.sh 108/108 and lint-skills.sh 543/543. Shellcheck 0.8.0 is clean on the
-  script at every level, and at warning level on both test files. tests/run-all.sh was not run,
-  because test-review-external.sh calls the real provider APIs (NOTE above).
-- Probes, in scratch clones of scratch repos:
-  - BACKLOG.md tracked as mode 120000, pointing outside the clone: `append:`, `clear`, `delete:`,
-    `adopt:`, and `purge-origin:` each exited 1 with the ERROR line, and the target's hash, the
-    link, and the clone's status were unchanged.
-  - The directory-link NOTE's reproduction (Evidence above).
+- Read in full: bin/spec-backlog-apply.sh (348 lines), claude/skills/spec/SKILL.md (712 lines),
+  tests/test-spec-backlog-apply.sh (717 lines), CLAUDE.md (82 lines), and the 897b1a7..431af78 diff
+  of the four files and README.md.
+- The committed files match what the prior entry's post-fix re-checks read. 5c774f1 holds the four
+  `sub(/\r$/, ...)` strips (now lines 209, 239, 298, and 333), the two Step 3f stop sentences
+  (SKILL.md:391-392, 409-410), and the CRLF test (lines 165-184). 431af78 adds one line to the
+  script's header comment and rewrites three CLAUDE.md bullets (lines 59, 62, and 64).
+- Suites on Linux (bash 5.1.16, git 2.34.1), run from a scratch working directory with TMPDIR and
+  XDG_CACHE_HOME in the scratchpad: test-spec-backlog-apply.sh 112/112 and lint-skills.sh 543/543,
+  with no temp files left. Shellcheck 0.8.0 is clean on the script at every level and on the test
+  at warning level. tests/run-all.sh was not run, because test-review-external.sh calls the real
+  provider APIs (NOTE above).
+- Probes, each in a new directory under the scratchpad: the directory-link reproduction and the two
+  Write probes (Evidence above). A first directory-link probe built as a scratch git clone was
+  declined by the permission system. The script runs no git command, so the plain directory link
+  exercises the same code; the clone-only facts are cited from the 897b1a7 run.
 - Checked and not findings:
-  - Lint executes no repo content. `has` and `hasnt` run `grep -E --` over repo files, the new pins
-    are fixed patterns and `grep -c` counts, shellcheck is static, and the frontmatter parse uses
-    `yaml.safe_load`. Every file-derived value that reaches a bash arithmetic context is a `grep -c`
-    count, a digit-only match, or a line number. The PyYAML probe is `python3 -c` without `-I`, so it
-    would import a `yaml.py` from the working directory. Run from zat.env's root, as CLAUDE.md says,
-    such a file would be part of the tree under review, which gives no more than editing the lint.
-  - The tests write only under their mktemp directory (the link targets included), guard every
-    `pushd` with `|| exit`, and remove the directory with `rm -rf`, which does not follow links.
-  - Manifest text reaches awk only through `-v`, which processes escapes but cannot run code. An
-    escape in an `adopt:` date can put extra lines into the annotated heading, which an `append:`
-    can already write.
-  - CLAUDE.md's change is one line of prose naming the Step 3f template copy. The file holds no
-    secret and grants nothing.
-- Not a security finding, passed to the code review: on a CRLF BACKLOG.md, `purge-origin:` removes
-  ACTIVE entries. The ACTIVE regex is anchored at `$` and the carriage return defeats it, while the
-  Origin match strips trailing whitespace and still matches. With `### a` and `### c (ACTIVE in spec
-  2026-01-02)`, both with Origin `tester design 2026-01-01`, `purge-origin: tester design` printed
-  PURGED for both and left 0 entries; the same file with LF kept c. Git for Windows checks out CRLF
-  by default in a repo with no LF pin (zat.env has one, CLAUDE.md Windows item 6), so /tester
-  design's dedup on such a checkout can drop adopted work. `delete:` and `adopt:` MISS on such a
-  file, and the `append:` collision check misses. Pre-existing, not new in 897b1a7; git restores the
-  file when it is committed.
-- An incident during this scan: one probe's `cd` into a link failed (the link target was one
-  directory off), and the compound command went on to run the script in the shell's starting
-  directory, zat.env's root. It appended a three-line `### probe` entry to zat.env's BACKLOG.md. The
-  file was truncated back to its committed content within the run: its blob hash equals HEAD's
-  (e728437), its mode is still 0600, and `git status` is clean. Only its mtime changed. Later probes
-  ran in a `set -e` subshell with `cd ... || exit 1`. The incident shows the operational side of the
-  directory-link NOTE's mechanism: the script acts on BACKLOG.md in whatever directory it runs in,
-  and the NOTE's `--show-prefix` check would not stop a run at another repo's toplevel. Passed to the
-  code review as a robustness point, not a security finding.
-- Nothing left the machine, and no marker was written outside the scratchpad. zat.env's tree was not
-  changed apart from this file and the restored BACKLOG.md above.
-- Not verified: Windows and macOS at this HEAD, including the CRLF case on a real Windows checkout
-  (the CRLF file was built on Linux).
+  - The CRLF strips apply only to the copy used for matching, so they change no byte of the file,
+    and they can only add ACTIVE protection in purge and collision detection in append.
+  - Every manifest in the skill is a quoted heredoc (`<<'MANIFEST'`), so the shell expands nothing
+    in it, and every op line has a prefix, so a heading taken from BACKLOG.md or SPEC.md cannot end
+    the heredoc. Step 3f's Origin comes from the SPEC_META date, which sits on one line; a
+    terminator line would need the model to turn an escape in that value into a newline.
+  - Manifest text reaches awk only through `-v`, which processes escapes but cannot run code.
+  - The guard (lines 144-148) runs before any read or write, and no manifest field names a path:
+    the script writes only BACKLOG.md in its working directory and `mktemp` files (mode 0600).
+    Swapping BACKLOG.md for a link between the guard and a write needs a concurrent writer in the
+    repo directory, which already has that access. A hardlinked BACKLOG.md passes the regular-file
+    test, but git cannot deliver one.
+  - CLAUDE.md's changes are prose. They grant nothing and hold no secret; the two bullets that name
+    the turn-close exception describe what Step 3c already did (turn-close NOTE).
+- Not security findings, still present at HEAD and already in CODEREVIEW.md: the test's unchecked
+  `TEST_DIR=$(mktemp -d)` (line 28), which on a mktemp failure runs every case against the
+  caller's BACKLOG.md, and the CRLF test covering only `purge-origin:`.
+- Not verified: Windows and macOS at this HEAD, and whether Claude Code's permission check resolves
+  a directory link before it allows a Write.
 
-Git history checked for secrets: `git log -p --follow -3` for each of the four files, the
-d12ce05..897b1a7 diff, and the HEAD files, pattern-scanned for OpenAI, Anthropic, Google, GitHub,
-AWS, Slack, Hugging Face, and Tailscale keys, private-key headers, and generic key, token, secret,
-and password assignments. No hits. None of the four files handles credentials. PII: no email
-address or personal name in the four files.
+Git history checked for secrets: `git log -p --follow -3` for each of the four files (commits
+431af78, 5c774f1, 897b1a7, 33cea03, d12ce05, and 6f43afe among them) and the 897b1a7..431af78 diff,
+pattern-scanned for OpenAI, Anthropic, Google, GitHub, GitLab, AWS, Slack, Hugging Face, npm, and
+Tailscale keys, private-key headers, and generic key, token, secret, and password assignments. No
+hits. None of the four files handles credentials. PII: no email address or personal name in the
+four files.
 
-Post-fix re-check (2026-11-07). Scope: /codefix's uncommitted changes, on 897b1a7, to
-bin/spec-backlog-apply.sh (a `sub(/\r$/, ...)` on the heading copy before each of the four heading
-matches: delete, adopt, purge-origin's ACTIVE test, and the append collision check),
-claude/skills/spec/SKILL.md (Step 3f's Append and Clear paths now say to stop on a non-zero exit
-and not to edit or remove BACKLOG.md), and tests/test-spec-backlog-apply.sh (one CRLF purge-origin
-test, four checks). All eight dimensions were reviewed for the three files.
-
-- Read in full: the script (347 lines) and the three files' diff against HEAD. In the skill: the
-  frontmatter, Steps 1, 2, 3c's turn-close capture, 3d, 3e, 3f, 3g, and 4, the BACKLOG.md Format
-  section, and every shell command it tells the model to run. In the test: the setup, the fixture,
-  and the new test.
-- Suites on Linux, with XDG_CACHE_HOME in the scratchpad: test-spec-backlog-apply.sh 112/112 and
-  lint-skills.sh 543/543. Shellcheck 0.8.0 is clean on the script, and at warning level on the test.
-- Resolved: the CRLF defect this scan passed to the code review (Coverage above). Probes on a CRLF
-  file in scratch directories: `purge-origin:` keeps the ACTIVE entry and still purges the others,
-  `delete:` and `adopt:` find their headings, the append collision check reports SKIPPED, and
-  `clear` keeps the header. PURGED lines no longer carry a carriage return. The strip applies only
-  to the copy used for matching, so a heading matches exactly when its LF form would, and in purge
-  it can only add ACTIVE protection.
-- Mutation check on scratch copies: with all four strips removed, 2 of 112 checks fail, both in the
-  new test; with only the delete (line 208), adopt (238), or append-check (332) strip removed, all
-  112 pass. Only the purge site is pinned. Passed to the code review as a coverage point.
-- The directory-link NOTE, repeated on the working tree: an `append:` run from inside a tracked link
-  created BACKLOG.md in the outside directory, `git rev-parse --show-prefix` exited 128 there, and
-  the clone's status stayed clean.
-- This settles the prior entry's unverified item. On this host's Claude Code (2.1.311), Edit and
-  Write refused a symlinked path, live or dangling, with "Refusing to write ...: it is a symbolic
-  link. Write to the link's target path instead: <target>", and neither the link nor its target
-  changed (scratchpad test). So Step 3c's turn-close capture, which writes BACKLOG.md through Edit
-  or Write, cannot follow a symlinked BACKLOG.md on this build. The refusal names the target, and a
-  write there would be an ordinary write outside the project under the session's permission rules
-  (not tested). A shell append such as `printf ... >> BACKLOG.md` would follow the link; the new
-  Step 3f text forbids that fallback after a script refusal, and the capture has no such text
-  (CODEREVIEW.md NOTE). A directory link in the path was not tested with these tools.
-- Checked and not findings: every manifest stays in a quoted heredoc (`<<'MANIFEST'`), so the shell
-  expands no heading or body text, and each op line has a prefix, so a heading read from BACKLOG.md
-  or SPEC.md cannot end the heredoc (a body line reading exactly `MANIFEST` could, which takes a
-  model steered into writing one). The plan slug in Step 3e is the user's own argument. The new
-  Step 3f text grants nothing.
-- Not a security finding, passed to the code review: the new test builds its CRLF fixture with
-  `sed -i.bak 's/$/\r/'`. GNU sed reads `\r` as a carriage return; BSD sed on macOS likely reads it
-  as a literal `r`, so there the ACTIVE heading would end in `r` and the test would fail with
-  "ACTIVE entry removed" (medium confidence; not run on macOS). `sed -i.bak $'s/$/\r/'` works with
-  both. Also, `adopt:` on a CRLF file writes its rewritten heading with LF, leaving one LF line.
-- Git history checked for secrets: `git log -p --follow -3` for the three files, the fix diff, and
-  the working-tree files, pattern-scanned as above. No hits. None of the three files handles
-  credentials, and none holds an email address or personal name.
-- Nothing left the machine. The probes ran in new directories under the scratchpad, each guarded by
-  `cd ... || exit 1` and a `pwd -P` check, and zat.env's BACKLOG.md still matches HEAD.
-
-Post-fix re-check 2 (2026-11-07). Scope: /codefix's uncommitted change, on 897b1a7, to
-tests/test-spec-backlog-apply.sh. Line 173 builds the CRLF fixture with `awk '{ printf "%s\r\n", $0
-}'` into `${BACKLOG}.crlf` and moves it over BACKLOG.md, in place of `sed -i.bak 's/$/\r/'`. All
-eight dimensions were reviewed for the file.
-
-- Read in full: the test (717 lines) and its diff against HEAD.
-- Suite on Linux, run from a scratch working directory with TMPDIR in the scratchpad:
-  test-spec-backlog-apply.sh 112/112, with no temp directory left behind. Shellcheck 0.8.0 is clean
-  at warning level; its one info-level note (SC2016, line 573) is pre-existing and intended.
-- Resolved: the BSD sed portability point the first re-check passed to the code review. awk, gawk,
-  mawk, busybox awk, and `gawk --posix` each wrote a carriage return for `\r`. BSD awk was not run
-  (not installed); POSIX lists `\r` among awk's string escapes.
-- Mutation check on scratch copies: with the purge-site strip (line 297) removed, or all four, 2 of
-  112 checks fail, both in the CRLF test. With line 173 removed, so the fixture stays LF, 1 check
-  fails, so a converter that writes no carriage return cannot pass silently. The delete, adopt, and
-  append-check strips stay unpinned (first re-check; not re-run).
-- Checked and not findings: the new temp file is in the test's own `mktemp -d` directory (mode
-  0700, so no other account can plant a link at that name), the awk program is a fixed
-  single-quoted string that takes each line as a `%s` argument, and `&&` keeps `mv` from running
-  when the redirect or awk fails. Every write target in the file is under TEST_DIR, and every
-  manifest is a quoted heredoc.
-- Not a security finding, passed to the code review: line 28's `TEST_DIR=$(mktemp -d)` is unchecked,
-  and the suite runs without `set -e`. When mktemp fails, TEST_DIR is empty and `pushd ""` exits 0
-  without changing directory, so no `|| exit` guard fires and every manifest runs against the
-  BACKLOG.md in the caller's working directory, usually zat.env's root under tests/run-all.sh. This
-  qualifies the main scan's note that the tests write only under their mktemp directory. Probe: a
-  copy of the suite, run with TMPDIR set to a missing directory from a scratch git repo holding a
-  copy of zat.env's BACKLOG.md. 78 of 105 checks failed before the suite stopped at line 701 with no
-  summary line, and the copy gained six fixture entries (30 lines) from the append tests. `delete:`,
-  `adopt:`, `purge-origin:`, and `clear` failed closed only because the script's own mktemp failed
-  the same way; a failure that blocks only directory creation was not tested. The content is the
-  test's fixed text, the file is tracked, and the run fails loudly. Pre-existing since ba621cf, which
-  created the file; the fix does not touch it. Suggested fix: `TEST_DIR=$(mktemp -d) || exit 1`.
-- Git history checked for secrets: `git log -p --follow -3` for the file (897b1a7, 33cea03,
-  ba621cf), the fix diff, and the working-tree file, pattern-scanned as above. No hits. The file
-  handles no credentials and holds no email address or personal name.
-- Nothing left the machine. The probes ran in new directories under the scratchpad, each `cd`
-  guarded by `|| exit 1` and a `pwd -P` check, and zat.env's BACKLOG.md still matches HEAD
-  (e728437).
+Nothing left the machine and no marker was written. zat.env's tree was not changed apart from this
+file; BACKLOG.md still matches HEAD (e728437, mode 0600).
 
 ### Accepted Risks
 
@@ -822,13 +737,11 @@ eight dimensions were reviewed for the file.
   above); /codereview external has no such check.
 
 ---
-*Prior review (2026-11-07, scope: paths, at d12ce05, with two post-fix re-checks of the fixes
-897b1a7 then committed): eight files (CLAUDE.md, the backlog script and its tests, the /spec and
-/tester skills, the pre-push hook and its tests, and lint), 0 BLOCK / 9 WARN / 19 NOTE at the last
-re-check, no secrets. It found that the script followed a symlinked BACKLOG.md, so a cloned repo
-could turn an append into a write outside the repo (WARN, resolved by the first re-check's guard),
-left the directory-link NOTE, passed fix cycle 1's stray-fence data loss to the code review (cycle 2
-fixed it, and the second re-check fuzzed 7,500 cases against a reference model), re-ran every open
-gate finding, and carried eighteen findings in other files.*
+*Prior review (2026-11-07, scope: paths, at 897b1a7, with two post-fix re-checks of the fixes
+5c774f1 then committed): CLAUDE.md, the backlog script and its tests, and lint, with the /spec skill
+added by the re-checks; 0 BLOCK / 9 WARN / 20 NOTE, no secrets. It confirmed 897b1a7's symlink
+guard, re-ran the directory-link NOTE, passed a CRLF defect that made `purge-origin:` delete ACTIVE
+entries to the code review (resolved by the first re-check), added the NOTE on the date /spec pastes
+into `git log`, and carried the findings in other files.*
 
-<!-- SECURITY_META: {"date":"2026-11-07","commit":"897b1a7e0d3a40ad05ed6b9176bed04fd524dace","scope":"paths","scanned_files":["CLAUDE.md","bin/spec-backlog-apply.sh","claude/skills/spec/SKILL.md","tests/lint-skills.sh","tests/test-spec-backlog-apply.sh"],"block":0,"warn":9,"note":20} -->
+<!-- SECURITY_META: {"date":"2026-11-07","commit":"431af789e1e19721f12798f02f980105fa33232f","scope":"paths","scanned_files":["CLAUDE.md","bin/spec-backlog-apply.sh","claude/skills/spec/SKILL.md","tests/test-spec-backlog-apply.sh"],"block":0,"warn":9,"note":21} -->
