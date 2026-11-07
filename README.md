@@ -693,7 +693,7 @@ Post-install layout (annotated):
 │   ├── codereview-marker             # Resolve base and security surface, compute/write/locate the codereview push marker (single source of truth)
 │   ├── codereview-skip               # Create one-time bypass marker for pre-push gate
 │   ├── review-external.sh            # External multi-model reviewer (stdin diff, stdout findings)
-│   ├── spec-backlog-apply.sh         # Apply BACKLOG sweep manifest from stdin (used by /spec Step 3g)
+│   ├── spec-backlog-apply.sh         # Apply a BACKLOG.md manifest from stdin (used by /spec and /tester design)
 │   └── zatmux                        # Attach/create tmux session based on current dir
 │
 ├── data/                             # Shared large datasets and model files (not in git)

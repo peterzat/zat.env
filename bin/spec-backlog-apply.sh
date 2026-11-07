@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Apply a BACKLOG sweep manifest (read from stdin) to BACKLOG.md.
 #
-# Deterministic counterpart to the /spec skill's proposal-consume step
-# (Step 3g) and /tester design mode. Keeps BACKLOG.md mutations out of
-# LLM-executed file edits.
+# Deterministic counterpart to /spec backlog mode (Step 3f), its
+# proposal-consume step (Step 3g), and ACTIVE adoption (Step 4), and to
+# /tester design mode. Keeps BACKLOG.md mutations out of LLM-executed
+# file edits.
 #
 # Invocation:
 #   spec-backlog-apply.sh <<'MANIFEST'
