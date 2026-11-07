@@ -36,6 +36,12 @@ hasnt() {
   else fail "$3 [grep error ${rc}: invalid pattern?]"; fi
 }
 
+text_has() {
+  # text_has <text> <pattern> <label> — has, for a section already cut
+  # out of a file (e.g. with awk '/^## Step 4:/{p=1} /^## Step 5:/{p=0} p').
+  if printf '%s\n' "$1" | grep -qE -- "$2"; then pass "$3"; else fail "$3"; fi
+}
+
 # --- META field cross-references ---
 # Fields read by one skill must exist in the writing skill's template.
 
@@ -826,6 +832,52 @@ has "${SKILLS}/spec/SKILL.md" "Can a revisit criterion be derived" \
 has "${SKILLS}/spec/SKILL.md" "Is the why-deferred reason concrete" \
   "spec: Step 3f pressure test checks why-deferred reason"
 
+# Step 3f changes BACKLOG.md only through spec-backlog-apply.sh, like every
+# other BACKLOG mutation. Append used to Edit the file and clear used `rm`,
+# which deleted a header a project had written above the entries.
+SPEC_3F=$(awk '/^## Step 3f:/{p=1} /^## Step 3g:/{p=0} p' "${SKILLS}/spec/SKILL.md")
+text_has "${SPEC_3F}" 'append: <short name>' \
+  "spec: Step 3f append pipes an append: op to the script"
+text_has "${SPEC_3F}" '^ +clear$' \
+  "spec: Step 3f clear pipes the clear op to the script"
+if [[ $(printf '%s\n' "${SPEC_3F}" | grep -c 'spec-backlog-apply.sh <<') -ge 2 ]]; then
+  pass "spec: Step 3f invokes the script by heredoc for both append and clear"
+else
+  fail "spec: Step 3f invokes the script by heredoc for both append and clear"
+fi
+if printf '%s\n' "${SPEC_3F}" | grep -q 'rm BACKLOG'; then
+  fail "spec: Step 3f does not rm BACKLOG.md"
+else
+  pass "spec: Step 3f does not rm BACKLOG.md"
+fi
+has "${SKILLS}/spec/SKILL.md" '^- `clear` \(alone on its line' \
+  "spec: BACKLOG.md Format documents the clear op"
+
+# Step 2 routing: a brief reaches direct mode even with no SPEC.md. The old
+# order checked "no SPEC.md" first, so /spec <brief> in a new project always
+# interviewed.
+SPEC_S2=$(awk '/^## Step 2:/{p=1} /^## Step 3a:/{p=0} p' "${SKILLS}/spec/SKILL.md")
+text_has "${SPEC_S2}" 'no SPEC.md exists and `\$ARGUMENTS` is empty:\*\* Interview' \
+  "spec: Step 2 interviews only on new or no-SPEC.md-and-no-arguments"
+text_has "${SPEC_S2}" 'Direct spec mode \(Step 3b\),' \
+  "spec: Step 2 sends a brief to direct mode whether or not SPEC.md exists"
+
+# ACTIVE annotation in every spec-writing mode. It is what keeps
+# /tester design's purge-origin: from deleting an entry a spec is building;
+# Step 3g set it and Steps 3a/3b/3e did not.
+SPEC_S4=$(awk '/^## Step 4:/{p=1} /^## Step 5:/{p=0} p' "${SKILLS}/spec/SKILL.md")
+text_has "${SPEC_S4}" 'BACKLOG adoption \(Steps 3a, 3b, 3e\)' \
+  "spec: Step 4 marks entries taken on by Steps 3a/3b/3e"
+text_has "${SPEC_S4}" 'adopt: <heading> \| YYYY-MM-DD' \
+  "spec: Step 4 adoption pipes adopt: ops to the script"
+text_has "${SPEC_S4}" 'Sharing a topic with the spec is not enough' \
+  "spec: Step 4 adoption excludes mere topic overlap"
+for step in 3a 3b 3e; do
+  STEP_TEXT=$(awk -v s="^## Step ${step}:" '$0 ~ s {p=1; next} /^## Step /{p=0} p' "${SKILLS}/spec/SKILL.md")
+  text_has "${STEP_TEXT}" 'ACTIVE in Step 4' \
+    "spec: Step ${step} overlap scan points to Step 4 adoption"
+done
+
 # --- Sweep apply contract ---
 # The sweep manifest is the prompt/infrastructure boundary for backlog
 # mutations: the skill pipes a manifest on stdin to
@@ -883,6 +935,8 @@ for op in "delete:" "adopt:"; do
   has "${APPLY_SCRIPT}" "${op}" \
     "sweep apply: script parses '${op}' op"
 done
+has "${APPLY_SCRIPT}" '== "clear" \]\]' \
+  "sweep apply: script parses the bare clear op"
 
 # Annotation format: the "(ACTIVE in spec YYYY-MM-DD)" stripper must use
 # the same shape as the skill writes. Drift here breaks match-normalization.
@@ -1687,6 +1741,33 @@ if [[ -n "${TESTER_D5_LINE}" ]] && [[ -n "${TESTER_D55_LINE}" ]]; then
     printf '  FAIL tester: D.5 why-deferred gate missing boilerplate guard\n'
   fi
 fi
+
+# Defects channel. A design run that finds something failing today reports
+# it as a defect in D.7 instead of filing it as a rollout entry with a
+# "Why deferred" line (a zat-hermes run filed a check that skipped two of its
+# three commands as a backlog entry, deferred because the run could only
+# write TESTING.md and BACKLOG.md).
+TESTER_D2=$(awk '/^### Step D\.2:/{p=1} /^### Step D\.3:/{p=0} p' "${TESTER}")
+TESTER_D3=$(awk '/^### Step D\.3:/{p=1} /^### Step D\.4:/{p=0} p' "${TESTER}")
+TESTER_D5=$(awk '/^### Step D\.5:/{p=1} /^### Step D\.5\.5:/{p=0} p' "${TESTER}")
+TESTER_D7=$(awk '/^### Step D\.7:/{p=1} p' "${TESTER}")
+text_has "${TESTER_D2}" 'What fails today' \
+  "tester: D.2 looks for what fails today"
+text_has "${TESTER_D5}" 'Defects are not rollout entries' \
+  "tester: D.5 keeps defects out of the rollout"
+text_has "${TESTER_D5}" 'never in BACKLOG.md' \
+  "tester: D.5 sends defects to the report, never BACKLOG.md"
+text_has "${TESTER_D7}" 'Defects found' \
+  "tester: D.7 report has a Defects found section"
+text_has "${TESTER_D7}" 'Defects found: none\.' \
+  "tester: D.7 states when there are no defects"
+text_has "${TESTER_D7}" "where this project's CLAUDE.md sends review findings" \
+  "tester: D.7 hands defect routing to the caller and the project's rules"
+
+# Evidence tied to a commit versus to a time. A deterministic pass goes stale
+# when the code changes; a live-system check goes stale with time.
+text_has "${TESTER_D3}" 'What is each recorded result evidence about' \
+  "tester: D.3 asks what each recorded result is evidence about"
 
 # D.1 overlap scan must extend to all BACKLOG entries (not just tester-design).
 # The "two passes" framing in D.1 is what flags non-tester topical overlap to

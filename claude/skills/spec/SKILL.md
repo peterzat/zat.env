@@ -84,10 +84,13 @@ mode instead of adopting the plan.
   exists, fall through to interview mode.
 - **`backlog <description>` or `backlog clear`:** Backlog mode (Step 3f).
   Append captures a deferred idea as a structured BACKLOG.md entry; clear
-  deletes BACKLOG.md outright. Neither touches SPEC.md. Wins over direct
-  spec mode when the first token is `backlog`.
-- **`new` or no SPEC.md exists:** Interview mode (Step 3a)
-- **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b)
+  removes every entry and keeps the file's header. Neither touches
+  SPEC.md. Wins over direct spec mode when the first token is `backlog`.
+- **`new`, or no SPEC.md exists and `$ARGUMENTS` is empty:** Interview mode
+  (Step 3a)
+- **`$ARGUMENTS` describes a feature or task:** Direct spec mode (Step 3b),
+  whether or not SPEC.md exists. A brief in a project's first `/spec` is
+  the user's answer to the interview's questions.
 - **No arguments, SPEC.md exists with a `### Proposal` section:**
   Proposal consume mode (Step 3g). **Stale proposal check:** run
   `git log --oneline` since the proposal date. If there are 5 or more
@@ -115,7 +118,8 @@ to repeat what is already documented.
 
 If BACKLOG.md exists with entries, scan them for topic overlap with the
 interview answers and mention overlapping entries so the user can decide
-whether to pull them into scope.
+whether to pull them into scope. Entries the spec takes on are marked
+ACTIVE in Step 4.
 
 After the user responds, write SPEC.md (Step 4).
 
@@ -129,6 +133,7 @@ intent by providing the description. The user can adjust the spec after seeing i
 
 **BACKLOG.md overlap.** If BACKLOG.md exists with entries, scan for topic
 overlap with the brief and mention overlapping entries before writing SPEC.md.
+Entries the spec takes on are marked ACTIVE in Step 4.
 
 **Under-specification escape hatch.** If the brief is too vague to produce
 verifiable criteria (one-word descriptions like "add auth", purely aspirational
@@ -184,7 +189,7 @@ based on the current codebase state (read relevant code and tests). Then:
         > `# Backlog` header if it doesn't exist):
         >
         >     ### <short name>
-        >     - **One-line description** of the proposal.
+        >     - **One-line description:** <what, and roughly where>.
         >     - **Why deferred:** reason.
         >     - **Revisit criteria:** what would make this worth picking up again.
         >     - **Origin:** spec date or plan slug where it was first considered.
@@ -301,7 +306,8 @@ that thinking becomes a testable contract.
    Plans may have been written against a prior version of the code; trust the
    current code when there is conflict, and note the drift in the Context section
    of SPEC.md. If BACKLOG.md exists with entries, scan for topic overlap with
-   the plan's scope and mention overlapping entries.
+   the plan's scope and mention overlapping entries. Entries the spec takes
+   on are marked ACTIVE in Step 4.
 
 4. **Draft acceptance criteria from the plan.** Plans typically describe stages,
    approaches, and expected outcomes in prose. Your job is to extract verifiable
@@ -330,8 +336,10 @@ Present the result in Step 5 with the adoption noted: "Spec adopted from plan
 ## Step 3f: Backlog Mode
 
 Invoked via `/spec backlog <description>` (append an entry) or
-`/spec backlog clear` (delete BACKLOG.md). Does not touch SPEC.md or
-consume a proposal.
+`/spec backlog clear` (remove every entry, keeping the file's header).
+Does not touch SPEC.md or consume a proposal. Both paths change
+BACKLOG.md only through `spec-backlog-apply.sh`, so a header a project
+wrote above the entries survives.
 
 Parse the argument after the `backlog` keyword. Dispatch:
 - Empty: stop with "Run `/spec backlog <description>` to defer an idea, or
@@ -365,9 +373,21 @@ Parse the argument after the `backlog` keyword. Dispatch:
    (SPEC_META date if present, else `ad-hoc`). See the BACKLOG.md Format
    section below for layout.
 
-5. **Append to BACKLOG.md.** Create the file with the `# Backlog` header and
-   purpose line from the Format section if absent. Do not reorder existing
-   entries.
+5. **Append through the script.** Pipe the entry to `spec-backlog-apply.sh`
+   from the project root:
+
+       spec-backlog-apply.sh <<'MANIFEST'
+       append: <short name>
+       - **One-line description:** <what, and roughly where>.
+       - **Why deferred:** reason.
+       - **Revisit criteria:** what would make this worth picking up again.
+       - **Origin:** <origin>
+       end-append
+       MANIFEST
+
+   The script creates BACKLOG.md with the standard header if it is absent
+   and adds the entry at the end. If it prints `SKIPPED:` (an entry with
+   that short name exists), report the step 2 duplicate message instead.
 
 6. Confirm via Step 5.
 
@@ -376,9 +396,16 @@ Skips the overlap scan (see Steps 3a/3b/3e) and proposal generator; additive, na
 ### Clear
 
 1. If BACKLOG.md doesn't exist, stop: "BACKLOG.md doesn't exist. Nothing to clear."
-2. Count existing `### ` entries (use Grep or Bash) for the confirm message.
-3. Delete BACKLOG.md via Bash: `rm BACKLOG.md`.
-4. Confirm via Step 5.
+2. From the project root:
+
+       spec-backlog-apply.sh <<'MANIFEST'
+       clear
+       MANIFEST
+
+   The script removes every entry and keeps everything above the first
+   one, including notes a project put in the header. It prints
+   `CLEARED: N entries`.
+3. Confirm via Step 5, with N from the `CLEARED:` line.
 
 The clear path is deterministic and single-imperative; it does not read
 SPEC.md, does not pressure-test, does not write a new entry.
@@ -511,6 +538,23 @@ Rules for writing acceptance criteria:
   schema" is a task, not an acceptance criterion; "API persists records across
   restarts" is a criterion)
 
+**BACKLOG adoption (Steps 3a, 3b, 3e).** Step 3g marks the entries it
+revives. The other modes that write a new spec mark theirs here, after
+SPEC.md is written, because the `(ACTIVE in spec ...)` annotation is what
+keeps `/tester design`'s `purge-origin:` from deleting an entry a spec is
+building. An entry is taken on when the user pulled it into scope, the
+brief or plan names it, or the new criteria do the work it describes.
+Sharing a topic with the spec is not enough. Pipe one `adopt:` line per
+entry taken on, with today's date, in a single call from the project root:
+
+    spec-backlog-apply.sh <<'MANIFEST'
+    adopt: <heading> | YYYY-MM-DD
+    MANIFEST
+
+Skip the call when no entry was taken on. Report the script's
+`ANNOTATED:` lines in Step 5 as "Annotated in BACKLOG.md as ACTIVE: ...".
+On a MISS, report it and do not hand-edit BACKLOG.md.
+
 ## Step 5: Confirm
 
 Show the user the spec you wrote. End with a one-line summary:
@@ -524,7 +568,7 @@ Show the user the spec you wrote. End with a one-line summary:
   ask this conversation to review and enrich the proposal with context from this session."
 - **Backlog append:** "Added `<short name>` to BACKLOG.md. Edit the file directly
   if Why deferred or Revisit criteria need refinement."
-- **Backlog clear:** "Cleared N entries from BACKLOG.md. Reversible via git."
+- **Backlog clear:** "Cleared N entries from BACKLOG.md; its header is kept. Reversible via git."
 - **Escape (brief too vague):** no spec written; end with the plan-mode suggestion
   from Step 3b verbatim.
 
@@ -557,10 +601,11 @@ asks for it.
 Optional per-project file at the project root. The mechanism is opt-in: use
 it when durable deferred proposals are worth carrying across turns, skip it
 when SPEC.md's out-of-scope section is enough. Create only when there's an
-entry to write; do not pre-populate. Reset the register anytime with
-`/spec backlog clear` (or `rm BACKLOG.md` from the terminal); both are
-reversible via git. The skill tolerates absence at every read site, so a
-project can run indefinitely without BACKLOG.md existing.
+entry to write; do not pre-populate. Empty the register anytime with
+`/spec backlog clear`, which keeps the file's header, or remove the file
+with `rm BACKLOG.md` from the terminal; both are reversible via git. The
+skill tolerates absence at every read site, so a project can run
+indefinitely without BACKLOG.md existing.
 
 The file is the durable home for proposals considered and deferred during
 a turn, so they survive SPEC.md's turn-close truncation.
@@ -574,7 +619,7 @@ Durable register of considered proposals that were deferred, scoped out, or
 rejected. Read before drafting a new SPEC.md; swept at turn close.
 
 ### <short name>
-- **One-line description** of the proposal.
+- **One-line description:** <what, and roughly where>.
 - **Why deferred:** reason.
 - **Revisit criteria:** what would make this worth picking up again.
 - **Origin:** where first considered. Canonical forms: `spec YYYY-MM-DD`,
@@ -607,11 +652,12 @@ a proposed deletion, the user edits the `### Backlog Sweep` subsection
 (remove the line) or BACKLOG.md (nothing to delete then) before running
 `/spec` again. Deletions are reversible via git.
 
-Manifest format (piped to `bin/spec-backlog-apply.sh` on stdin by Step 3g
-Step 2 and by `/tester design`, one op per line except `append:` which
-spans a block):
+Manifest format (piped to `bin/spec-backlog-apply.sh` on stdin by Step 3f,
+Step 3g Step 2, and `/tester design`, one op per line except `append:`
+which spans a block):
 
 ```
+clear
 delete: <heading>
 adopt: <heading> | <YYYY-MM-DD>
 purge-origin: <origin prefix>
@@ -621,6 +667,10 @@ end-append
 ```
 
 Rules:
+- `clear` (alone on its line, no argument) removes every entry, ACTIVE
+  ones included, and any `## ` theme subhead left empty. Every line above
+  the first entry stays; a `### ` inside a fenced code block there is not
+  an entry. Reports `CLEARED: N entries`. Used by `/spec backlog clear`.
 - `delete:` removes the `### <heading>` entry from BACKLOG.md, including
   all bullets until the next `### ` or `## ` (or EOF).
 - `adopt:` sets the `### <heading>` line to
@@ -651,8 +701,8 @@ Rules:
   comments or blank lines in the heredoc are safe — unless they appear
   inside an `append:` / `end-append` block, where every line is body.
 - The script invocation is skipped entirely when there are zero ops.
-- Ops run in order: delete, adopt, purge, append. Within an op type,
-  entries run in parse order.
+- Ops run in order: clear, delete, adopt, purge, append. Within an op
+  type, entries run in parse order.
 - If a `delete:` or `adopt:` heading is not found in BACKLOG.md, the
   script reports a MISS to stderr and exits non-zero. The skill surfaces
   the MISS to the user rather than silently dropping it. `purge-origin:`

@@ -15,6 +15,7 @@ set -euo pipefail
 #   append: <heading>
 #   <entry body lines, verbatim>
 #   end-append
+#   clear
 #   MANIFEST
 #
 # Heading matching strips any trailing "(ACTIVE in spec YYYY-MM-DD)" on
@@ -31,9 +32,16 @@ set -euo pipefail
 # already-present heading (with or without an ACTIVE annotation) emits
 # SKIPPED and no write; otherwise APPENDED and the entry is added. If
 # BACKLOG.md does not exist and the manifest has append ops, the file is
-# created with the standard `# Backlog` header. Ops run in parse order
-# where independent; across op types the order is delete, adopt, purge,
-# append.
+# created with the standard `# Backlog` header.
+#
+# clear (a line on its own, no argument) removes every entry, and any
+# `## ` theme subhead left with nothing under it, while keeping every line
+# above the first entry: the `# Backlog` header and any notes a project
+# put there. A `### ` line inside a fenced code block is not an entry. If
+# nothing is left above the first entry, the standard header is written.
+#
+# Ops run in parse order where independent; across op types the order is
+# clear, delete, adopt, purge, append.
 
 BACKLOG=BACKLOG.md
 
@@ -44,6 +52,7 @@ strip_annot() {
   sed -E 's/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$//'
 }
 
+clear=0
 deletes=()
 adopt_headers=()
 adopt_dates=()
@@ -71,6 +80,10 @@ while IFS= read -r line; do
     continue
   fi
   line="${line# }"
+  if [[ "${line%"${line##*[![:space:]]}"}" == "clear" ]]; then
+    clear=1
+    continue
+  fi
   case "$line" in
     delete:*)
       hdr="${line#delete:}"
@@ -114,16 +127,24 @@ if [[ "$in_append" -eq 1 ]]; then
   exit 1
 fi
 
-total_ops=$((${#deletes[@]} + ${#adopt_headers[@]} + ${#purge_prefixes[@]} + ${#append_headers[@]}))
+total_ops=$((clear + ${#deletes[@]} + ${#adopt_headers[@]} + ${#purge_prefixes[@]} + ${#append_headers[@]}))
 [[ "$total_ops" -gt 0 ]] || exit 0
 
-if [[ ! -f "$BACKLOG" ]] && [[ "${#append_headers[@]}" -gt 0 ]]; then
-  cat > "$BACKLOG" <<'HEADER'
+write_header() {
+  cat > "$1" <<'HEADER'
 # Backlog
 
 Durable register of considered proposals that were deferred, scoped out, or
 rejected. Read before drafting a new SPEC.md; swept at turn close.
 HEADER
+}
+
+count_entries() {
+  awk '/^```/{f=!f; next} !f && /^### /{n++} END{print n+0}' "$BACKLOG"
+}
+
+if [[ ! -f "$BACKLOG" ]] && [[ "${#append_headers[@]}" -gt 0 ]]; then
+  write_header "$BACKLOG"
 fi
 
 if [[ ! -f "$BACKLOG" ]]; then
@@ -132,6 +153,27 @@ if [[ ! -f "$BACKLOG" ]]; then
 fi
 
 miss=0
+
+if [[ "$clear" -eq 1 ]]; then
+  cleared=$(count_entries)
+  tmp=$(mktemp)
+  awk '
+    /^```/ { fence = !fence }
+    !fence && /^### / { exit }
+    { pre[++n] = $0 }
+    END {
+      while (n > 0 && (pre[n] ~ /^[[:space:]]*$/ || pre[n] ~ /^## /)) n--
+      for (i = 1; i <= n; i++) print pre[i]
+    }
+  ' "$BACKLOG" > "$tmp"
+  if [[ -s "$tmp" ]]; then
+    mv "$tmp" "$BACKLOG"
+  else
+    rm -f "$tmp"
+    write_header "$BACKLOG"
+  fi
+  printf 'CLEARED: %s entries\n' "$cleared"
+fi
 
 # Loop guards use the ${arr[@]+"${arr[@]}"} idiom: bash 3.2 (stock macOS
 # /bin/bash) treats an empty array expansion as unset under `set -u`, so an
@@ -272,7 +314,6 @@ for i in ${append_headers[@]+"${!append_headers[@]}"}; do
   printf 'APPENDED: %s\n' "$hdr"
 done
 
-count=$(awk '/^```/{f=!f; next} !f && /^### /{n++} END{print n+0}' "$BACKLOG")
-printf 'BACKLOG.md: %s entries\n' "$count"
+printf 'BACKLOG.md: %s entries\n' "$(count_entries)"
 
 exit "$miss"

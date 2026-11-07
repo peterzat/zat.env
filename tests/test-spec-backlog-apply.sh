@@ -9,6 +9,9 @@ set -uo pipefail
 #     backtick and bullet-marker variations, empty-prefix safety,
 #     combination with delete/adopt in one manifest
 #   - missing BACKLOG.md fall-through
+#   - append: new entry, collisions, file creation, unterminated block
+#   - clear: header kept (fenced examples included), headerless file,
+#     ordering against append
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"
@@ -399,6 +402,87 @@ if grep -q "revised rollout entry" "${BACKLOG}"; then pass "combined purge+appen
 # ACTIVE entry preserved through purge, append skipped.
 if grep -q "^### tester-active (ACTIVE in spec 2026-04-20)$" "${BACKLOG}"; then pass "combined purge+append: ACTIVE preserved"; else fail "combined purge+append: ACTIVE removed"; fi
 if echo "${OUT}" | grep -q "^SKIPPED: tester-active"; then pass "combined purge+append: duplicate append SKIPPED"; else fail "combined purge+append: duplicate append not skipped"; fi
+
+# ============================================================
+echo ""
+echo "==> clear: removes entries, keeps a project's own header"
+# ============================================================
+
+cat > "${BACKLOG}" <<'EOF'
+# Backlog
+
+This project's own notes: review findings go to docs/other.md.
+
+```
+### an-example-inside-a-fence
+- not an entry
+```
+
+## Theme A
+
+### first
+- **Origin:** spec 2026-04-01
+
+## Theme B
+
+### second (ACTIVE in spec 2026-04-20)
+- **Origin:** `tester design 2026-04-20`
+EOF
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+clear
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "clear: exit 0"; else fail "clear: expected exit 0, got ${EC}"; fi
+if echo "${OUT}" | grep -q "^CLEARED: 2 entries$"; then pass "clear: CLEARED counts entries, not the fenced example"; else fail "clear: wrong or missing CLEARED line: ${OUT}"; fi
+if echo "${OUT}" | grep -q "^BACKLOG.md: 0 entries$"; then pass "clear: trailing count is 0"; else fail "clear: trailing count not 0"; fi
+if grep -q "^This project's own notes" "${BACKLOG}"; then pass "clear: custom header kept"; else fail "clear: custom header lost"; fi
+if grep -q "^### an-example-inside-a-fence$" "${BACKLOG}"; then pass "clear: fenced ### in the header kept"; else fail "clear: fenced ### treated as an entry"; fi
+if ! grep -qE "^### (first|second)" "${BACKLOG}"; then pass "clear: entries removed, ACTIVE included"; else fail "clear: an entry survived"; fi
+if ! grep -q "^## Theme" "${BACKLOG}"; then pass "clear: emptied theme subheads removed"; else fail "clear: theme subhead left behind"; fi
+if [[ "$(tail -n 1 "${BACKLOG}")" == '```' ]]; then pass "clear: no trailing blank lines"; else fail "clear: file does not end at the header's last line"; fi
+
+# ============================================================
+echo ""
+echo "==> clear: a file with no header gets the standard one"
+# ============================================================
+
+printf '### lonely\n- **Origin:** ad-hoc\n' > "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+clear
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "clear headerless: exit 0"; else fail "clear headerless: expected exit 0, got ${EC}"; fi
+if grep -q "^# Backlog$" "${BACKLOG}"; then pass "clear headerless: standard header written"; else fail "clear headerless: no header"; fi
+if ! grep -q "^### lonely$" "${BACKLOG}"; then pass "clear headerless: entry removed"; else fail "clear headerless: entry survived"; fi
+
+# ============================================================
+echo ""
+echo "==> clear: runs before append; 'clear' inside an append body is body"
+# ============================================================
+
+fixture_standard "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append: after-clear
+- **One-line description:** lands after the clear.
+clear
+end-append
+clear
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "clear+append: exit 0"; else fail "clear+append: expected exit 0, got ${EC}"; fi
+if grep -q "^### after-clear$" "${BACKLOG}"; then pass "clear+append: appended entry survives the clear"; else fail "clear+append: appended entry missing"; fi
+if ! grep -q "^### keep-spec$" "${BACKLOG}"; then pass "clear+append: prior entries cleared"; else fail "clear+append: prior entry survived"; fi
+if [[ "$(grep -c '^clear$' "${BACKLOG}")" -eq 1 ]]; then pass "clear+append: body line 'clear' stored verbatim"; else fail "clear+append: body line 'clear' lost or duplicated"; fi
+if echo "${OUT}" | grep -q "^BACKLOG.md: 1 entries$"; then pass "clear+append: trailing count is 1"; else fail "clear+append: trailing count not 1"; fi
 
 # ============================================================
 echo ""

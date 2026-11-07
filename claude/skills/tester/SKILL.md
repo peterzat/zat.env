@@ -308,6 +308,10 @@ capture:
   JSON logs, FINDINGS.md-style ledgers.
 - **Drift / baseline signals.** `*.golden.json`, anchor corpora dirs,
   image baselines, perceptual-hash fixtures.
+- **What fails today.** Anything broken now: a suite that errors or
+  reports zero tests, a configured check that runs fewer commands than it
+  names, a test that cannot fail. Confirm each by running or reproducing
+  it. These are defects for the Step D.7 report, not rollout entries.
 
 Record a one-line signals fingerprint you can reference when explaining
 the contract to the user.
@@ -330,6 +334,17 @@ Before writing anything, settle these questions and adjust the draft:
 - What will drift, and how is that checked? GPU inference, LLM output,
   image-gen, measurement-based asserts: drift tracking usually warranted.
   Pure-compute deterministic code: usually not.
+- What is each recorded result evidence about? A deterministic test's
+  pass is evidence about the code at a commit. It goes stale when that
+  code changes, not as days pass, so it reruns on change (pre-commit,
+  CI), not on an interval. A check against a running system, an outside
+  service, or an unpinned dependency is evidence about a moment and goes
+  stale with time, so it reruns on a schedule. Where the project records
+  results (a status file, a "last verified" date, a CI badge), check what
+  each is tied to and how old it is in those terms. A recorded pass that
+  no longer covers the current code, or a check the project relies on
+  that was never recorded, is a defect when the project reads it as
+  current.
 - Does the contract survive a fresh session cold-open? A new Claude
   reading the contract (only) should know how to run the suite and add
   a new test without reading other files.
@@ -398,7 +413,7 @@ state toward the contract, draft one BACKLOG.md entry using the
 four-field template:
 
     ### <short name>
-    - **One-line description** of the proposal.
+    - **One-line description:** <what, and roughly where>.
     - **Why deferred:** reason.
     - **Revisit criteria:** what would make this worth picking up again.
     - **Origin:** `tester design YYYY-MM-DD`
@@ -417,6 +432,14 @@ Each entry must satisfy the BACKLOG pressure-test gates:
   "Requires `<dependency>` to land first" or "No test framework chosen
   yet." A reason that would fit every entry, such as "Out of scope for
   current contract seed," is boilerplate, not a reason.
+
+**Defects are not rollout entries.** A rollout entry is a step toward the
+contract. Something that fails today (Step D.2's "What fails today", or a
+stale recorded result from Step D.3) is a defect, and it goes in the
+Step D.7 report, never in BACKLOG.md. Filed as an entry, a defect hides
+under a "Why deferred" line, and this run's write scope is not a reason
+to defer anything. A rollout entry may still cover the guard that keeps
+the defect from recurring.
 
 Origin MUST be exactly `tester design YYYY-MM-DD` (today's date). The
 `tester design` prefix is the string the `purge-origin:` op matches on
@@ -528,7 +551,7 @@ TESTING.md BACKLOG.md` for files that this run created.
        spec-backlog-apply.sh <<'MANIFEST'
        purge-origin: tester design
        append: <short name>
-       - **One-line description** of the proposal.
+       - **One-line description:** <what, and roughly where>.
        - **Why deferred:** reason.
        - **Revisit criteria:** what would make this worth picking up again.
        - **Origin:** `tester design YYYY-MM-DD`
@@ -567,6 +590,15 @@ TESTING.md BACKLOG.md` for files that this run created.
 
 Emit a concise report to the user:
 
+- **Defects found**, first, since they are the most actionable output.
+  One per defect, on audit mode's severity scale (BLOCK or WARN, Step 4):
+
+      [BLOCK|WARN] <what fails> — <evidence: file, line, command, observed result>
+        Recommendation: <concrete fix>
+
+  Follow them with: "Not recorded in BACKLOG.md or TESTING.md. Fix now,
+  or record each where this project's CLAUDE.md sends review findings."
+  With none, the single line `Defects found: none.`
 - One line naming the contract shape written (greenfield seed /
   growing two-tier / mature full-dimension).
 - The script's `PURGED:`, `APPENDED:`, and `SKIPPED:` lines verbatim.
