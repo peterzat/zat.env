@@ -671,6 +671,15 @@ markdown and outside the listed scope.
 
 ### Accepted Risks
 
+- **`/pr merge` cannot tell reviewed commits from later ones** (claude/skills/pr/SKILL.md, review
+  gate conditions 3 and 4): a commit pulled from the PR after the review, or pushed with
+  `codereview-skip`, passes the gate. The skill and README state the gap and name a read for pulled
+  changes. Deferred 2026-11-07 to BACKLOG `pr-merge-reviewed-changes-hash`.
+- **Review files decide review depth** (claude/skills/codereview/SKILL.md, Steps 1, 2, 5, and 6):
+  CODEREVIEW.md and SECURITY.md edits inside the reviewed commits can anchor a refresh, mark
+  findings accepted, or skip a security scan, and the review diff excludes those files. Needs a
+  hostile committer in the reviewed range. Deferred 2026-11-07 to BACKLOG
+  `review-files-set-review-depth`.
 - **Gate follows `git -C <path>` before approval** (hooks/pre-push-codereview.sh,
   `enter_push_target`): the hook runs `git diff` in the repo a `-C` names before the command is
   approved, so that repo's config (`core.fsmonitor`, `diff.external`) chooses what runs. Accepted
