@@ -41,10 +41,12 @@ set -euo pipefail
 # put there. A `### ` line inside a fenced code block is not an entry. If
 # nothing is left above the first entry, the standard header is written.
 # clear must be the manifest's only op: only /spec backlog clear sends it,
-# so a clear beside other ops (a stray line, or a body line that ended an
-# append block early) is refused before anything changes. An append: with
-# an empty heading is refused the same way, since its body lines would
-# otherwise be read as ops.
+# so a clear beside other ops is refused before anything changes. An
+# end-append line outside an append block is refused the same way: it
+# means a body line reading "end-append" ended the block early, and the
+# body lines after it would otherwise run as ops. An append: with an empty
+# heading is refused too, since its body lines would otherwise be read as
+# ops.
 #
 # Ops run in parse order where independent; across op types the order is
 # delete, adopt, purge, append.
@@ -76,6 +78,7 @@ purge_prefixes=()
 append_headers=()
 append_bodies=()
 in_append=0
+stray_end=0
 current_header=""
 current_body=""
 while IFS= read -r line; do
@@ -96,6 +99,10 @@ while IFS= read -r line; do
     continue
   fi
   line="${line# }"
+  if [[ "${line%"${line##*[![:space:]]}"}" == "end-append" ]]; then
+    stray_end=1
+    continue
+  fi
   if [[ "${line%"${line##*[![:space:]]}"}" == "clear" ]]; then
     clear=1
     continue
@@ -156,6 +163,11 @@ fi
 
 if [[ "$clear" -eq 1 && "$total_ops" -gt 1 ]]; then
   printf 'ERROR: clear must be the only op in its manifest; nothing changed\n' >&2
+  exit 1
+fi
+
+if [[ "$stray_end" -eq 1 ]]; then
+  printf 'ERROR: end-append outside an append block (a body line ended the block early?); nothing changed\n' >&2
   exit 1
 fi
 

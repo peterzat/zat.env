@@ -896,12 +896,12 @@ text_has "${SPEC_S2}" 'Direct spec mode \(Step 3b\),' \
 # SPEC.md dates reach a git log command. SPEC.md is repo content, so a
 # date carrying $(...) would run under /spec's Bash(*) without the format
 # rule and the single quotes.
-text_has "${SPEC_S2}" "--since='YYYY-MM-DD'" \
+text_has "${SPEC_S2}" "--since='YYYY-MM-DD 00:00'" \
   "spec: Step 2 stale-proposal check single-quotes the date"
 text_has "${SPEC_S2}" '\^\[0-9\]\{4\}-\[0-9\]\{2\}-\[0-9\]\{2\}\$' \
   "spec: Step 2 uses the proposal date only when it matches the date format"
 SPEC_3D=$(awk '/^## Step 3d:/{p=1} /^## Step 3e:/{p=0} p' "${SKILLS}/spec/SKILL.md")
-text_has "${SPEC_3D}" "--since='YYYY-MM-DD'" \
+text_has "${SPEC_3D}" "--since='YYYY-MM-DD 00:00'" \
   "spec: Step 3d git log single-quotes the SPEC_META date"
 text_has "${SPEC_3D}" 'same date-format rule' \
   "spec: Step 3d applies Step 2's date-format rule"

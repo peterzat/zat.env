@@ -1,192 +1,82 @@
 ## Security Review — 2026-11-07 (scope: paths)
 
-**Summary:** Path-scoped scan, at HEAD 431af78, of the four files changed since the 897b1a7 scan:
-CLAUDE.md, bin/spec-backlog-apply.sh, claude/skills/spec/SKILL.md, and
-tests/test-spec-backlog-apply.sh. 5c774f1 commits the /codefix changes the prior entry's two post-fix
-re-checks read (CRLF-tolerant heading matches, the Step 3f stop rule, and the CRLF test), and
-431af78 changes only prose: the script's header comment and three CLAUDE.md bullets, two of which
-now name /spec's turn-close capture as the one BACKLOG.md write outside the script. No new code
-defect. One new NOTE: that capture has no guard of its own, and this scan found that Claude Code's
-Write tool, which refuses a symlinked BACKLOG.md, follows a directory link in the path. The three
-in-scope prior NOTEs (directory link, /spec grant, date pasted into `git log`) are still present,
-twenty-six findings in out-of-scope files are carried, and no secrets were found. Totals: 0 BLOCK /
-9 WARN / 21 NOTE.
+**Summary:** Path-scoped scan, at HEAD 895c3d3, of the eleven files `codereview-marker surface
+431af78` lists: CLAUDE.md, bin/spec-backlog-apply.sh, the codefix, codereview, pr, spec, and tester
+skills, tests/lint-skills.sh, tests/test-pre-push-hook.sh, tests/test-spec-backlog-apply.sh, and
+zat.env-install.sh. Five prior findings are resolved or narrowed: the Monitor gate gap (1608332),
+the light-tier WARN (13b67ba), the /spec date and turn-close NOTEs (b47852a, 5cd6836), and the /pr
+merge WARN, which 13b67ba narrows to commits the operator pulls (re-reported below). The four gate
+WARNs that 1608332 moved to Accepted Risks are no longer listed. One new NOTE: since 500153c, a
+finding carried into a review goes to /codefix with its own suggested fix even outside the diff,
+and that text is repo content. One action outside the code: this host's live settings.json still
+has the old `Bash` matcher, and a dry-run `git push` started through Monitor in this session ran
+ungated, so re-run zat.env-install.sh and restart open sessions. No secrets. The post-fix re-check
+of the six files /codefix then changed (the backlog script, the codereview, pr, and spec skills, and
+two test files) resolves no finding and adds one NOTE: the `--match-head-commit` guard /codefix moved
+ahead of `gh pr merge` does nothing on this host, whose gh 2.4.0 lacks the flag. Line numbers in
+those six files now refer to the working tree. Totals: 0 BLOCK / 3 WARN / 21 NOTE.
 
 ### Findings
 
 ```
-[WARN] hooks/pre-push-codereview.sh:487-525, 785, 799, 882 — following `git -C <path>` makes the
-hook run `git diff` in a directory named by the command, before the command is approved, and that
-repo's own config names what `git diff` executes. New with 49ecf37. Last re-checked on 2026-11-07
-at d12ce05: still present (carried from the 2026-11-03 scan, not re-checked).
-  Attack vector: a hostile repo is cloned. Git refuses to track a `.git` directory but tracks a
-    bare-repo layout under any other name, so vendor/inner/{HEAD,config,objects,refs} arrive as
-    ordinary files, with `core.worktree = .` and `core.fsmonitor` or `diff.external` in
-    vendor/inner/config. An extracted archive carrying a real .git/config works the same way. Text
-    in the repo steers the agent to `git -C vendor/inner push`, the form the hook's own refusals
-    recommend (lines 785, 799). The configured command then runs as the user, whether or not the
-    hook goes on to refuse the push.
-  Evidence: the 2026-11-07 scan at d12ce05, from a clean session repo, `git -C <target> push` where the target's
-    .git/config sets `core.fsmonitor` to a sentinel script and its working tree has a change: the
-    hook exited 2 and the sentinel ran 4 times. As recorded on 2026-11-03: the clone-delivered
-    layout, tracked files only and a plain `git clone`, exited 0 and ran the payload twice; `git
-    -C vendor/inner diff` or `status` run directly ran it once each; the no-working-tree refusal
-    (lines 820-829) stops a layout without `core.worktree` before any `git diff`; `codereview-marker
-    hash` (line 882) runs `git diff --quiet` and then `git diff` in the target. Why this is not a
-    BLOCK: an approved `git -C vendor/inner diff` or `status` runs the same payload, and `Bash(git
-    *)` skips approval outside auto mode (accepted risk), so what is lost is the approval step for
-    this one command, in auto mode, the mode the installer sets. Confidence: high on the mechanism,
-    low on how often an agent is steered to that command.
-  Remediation: refuse a `-C` target whose toplevel is not the session's, and say to run /codereview
-    and the push from inside it. To close the cwd route too, have bin/codereview-marker pass
-    `--no-ext-diff --no-textconv` to each diff and export GIT_CONFIG_COUNT overrides for
-    `core.fsmonitor=false` and `diff.external=`, refuse a repo whose local config defines
-    `filter.*`, and add a clone-delivered layout case to tests/test-pre-push-hook.sh that asserts
-    the sentinel is absent.
+[WARN] claude/skills/pr/SKILL.md:183-201 — /pr merge now refuses when the remote PR head differs
+from local HEAD (13b67ba), but a commit that reached the PR branch some other way still merges
+unreviewed once the operator pulls it: the gate checks only that the last review is an ancestor,
+and the review treats everything on the upstream as already reviewed. What remains of the
+2026-10-02 WARN; re-checked at 895c3d3 and after this run's /codefix pass.
+  Attack vector: a collaborator, a bot that pushes to PR branches, or a suggestion applied on
+    GitHub adds commit X to the PR branch after the last /codereview. The operator, or the agent,
+    then pulls: the usual answer to a rejected push, and to this gate's own refusal, which says
+    only that /codereview must run first. Local HEAD and the PR head are now both X,
+    REVIEWED_UP_TO is an ancestor of X, and REVIEW_BLOCKS is 0, so all four conditions hold and
+    `gh pr merge` merges X. Running /codereview first does not help: X is on `@{upstream}`, so
+    `codereview-marker hash` exits 2, Step 2 stops with nothing to review, and the old
+    REVIEW_META stays. A local commit pushed under "push now" or from a terminal passes the same
+    way, which lines 197-198 ("Local commits reach the PR through the pre-push gate") do not allow
+    for.
+  Evidence: this scan, in scratch repos with a local bare remote, a fetch into the bare repo
+    standing in for each push and its branch for `gh api ... --jq .head.sha`: after `git pull
+    --ff-only` of a commit authored by bot@example.invalid, the skill's own commands gave
+    REVIEW_BLOCKS=0, `merge-base --is-ancestor` true, a PR head equal to HEAD, and
+    `codereview-marker hash` exit 2, while `git diff --stat <reviewed_up_to> HEAD` showed the
+    unreviewed change. 13b67ba's message says why a "no change since the reviewed commit" check
+    was left out: it would refuse the usual flow where /codefix's fixes are committed after the
+    review. The post-fix placement of `--match-head-commit` (lines 222-225) does not reach this
+    case: after the pull, local HEAD is X, so the flag pins the merge to X. Confidence: high on
+    the mechanism, medium on frequency (it needs someone else's commit on the PR branch, the case
+    the new check was written for).
+  Remediation: bind the review to content rather than ancestry. At Step 9, have /codereview record
+    a hash of `git diff <reviewed_up_to>` (working tree, review files excluded, computed by a
+    codereview-marker subcommand so both sides agree), and have /pr merge require `git diff
+    <reviewed_up_to> HEAD` over the same paths to hash the same. That passes the /codefix flow,
+    whose committed fixes are the reviewed working-tree change, and refuses a pulled commit or a
+    later edit. Simpler: when that diff is not empty, list `git log --format='%h %an %s'
+    <reviewed_up_to>..HEAD` and stop for the user, since /pr runs only on request. Needs a user
+    decision.
 
-[WARN] hooks/pre-push-codereview.sh:530-536, 545-630 — a recognized push can still send commits the
-review did not cover. The hook judges only refs spelled plainly after the push and counts any
-remote-tracking ref as already gated. Last re-checked on 2026-11-07 at d12ce05: still present
-(carried from the 2026-10-02 scan, not re-checked).
-  Attack vector: no adversary is needed. From a clean main with an unreviewed `feature`, or in the
-    state named, the hook exits 0 for each of these. (ran) marks a real push to a bare remote by
-    an earlier scan.
-    - Fetched, never reviewed: `git push origin origin/contrib:main`, `git push origin
-      fork/evil:refs/heads/main`, and a tag on such a commit, `git push origin v7`.
-    - A local upstream: on a branch made with `--track main`, where main holds an unreviewed
-      commit, `git push origin topic:main`.
-    - Implicit refspecs: `git -c push.default=matching push`, `git -c
-      remote.origin.push=feature:main push`, `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=remote.origin.push
-      GIT_CONFIG_VALUE_0=feature:main git push`, and the same keys or `remote.origin.mirror` set in
-      config (not re-run).
-    - Abbreviated options and `--repo=`: `git push --al`, `--mir`, `--ta` (ran: a tag on the
-      unreviewed commit reached the remote), and `git push --repo=origin feature`.
-    - An option that takes the next word: git reads `--repo -d` as the repository `-d`, which the
-      positional `origin` then overrides, so `git push --repo -d origin feature:main` sends
-      feature to main (ran), and `--rep -d` does the same (ran). The walk steps over `--repo` as a
-      flag (line 591) and then returns at the `-d` as for a delete (line 587).
-    - /pr's spelling in another repo: `git -C <other> push origin "$(git rev-parse --abbrev-ref
-      HEAD)"`, where the substitution names a branch of the shell's repo, not <other>'s.
-    - An ancestor under a valid marker: `git push origin HEAD~1:main` sends the unfixed commit.
-    - A non-tag ref on a tree: with refs/foo/bar on a new tree, `git push --mirror`.
-    - A submodule: `--recurse-submodules=on-demand` is skipped as an option (line 591); its payload
-      exits 0, but no submodule push was run.
-  Evidence: the 2026-11-07 scan at d12ce05, in a scratch repo with origin/main at main and one unreviewed commit on
-    `feature`: the controls `git push origin feature:main` and `git push origin feature` exited 2;
-    `git push --repo -d origin feature:main`, `--rep -d origin feature:main`, `--repo=origin
-    feature`, `git -c push.default=matching push`, and `git push --ta` exited 0; and with
-    refs/remotes/contrib/x at feature, `git push origin contrib/x:main` and `git push origin
-    feature:main` exited 0. The rest as recorded on 2026-11-03, where the `GIT_CONFIG_PARAMETERS`
-    form was refused as a side effect of the mixed-quote prefix rule (line 442) and the
-    `GIT_CONFIG_COUNT` form passed. tests/test-pre-push-hook.sh has none of the open cases.
-    Confidence: high on the mechanism, medium on frequency for the fetched-branch cases, low for
-    the rest.
-  Remediation: (1) In the argument walk, treat `--al`, `--b*`, `--m*`, and `--ta*` as the options
-    they abbreviate, and `--repo` and its unique abbreviations (and `--receive-pack` and `--exec`)
-    as taking the next word as their value. (2) With no refspec, refuse when `push.default` is
-    `matching` or `remote.<r>.push` or `remote.<r>.mirror` is set, including through `-c`, and
-    refuse `GIT_CONFIG*=` in a prefix and `--recurse-submodules=on-demand`. (3) Count a commit as
-    gated only when the pushed remote's tracking ref for the destination has it. A git-native
-    pre-push hook (core.hooksPath) receives the exact local and remote refs and would close this
-    WARN with most other gate findings. It overrides per-repo hooks and fires on terminal pushes,
-    so it needs a user decision.
-
-[WARN] zat.env-install.sh:213, 336-345 — seeding `autoUpdatesChannel` to stable rolled this host
-back from Claude Code 2.1.317 to 2.1.311, which predates the fix that makes hooks matching Bash run
-on Monitor commands, and the installer registers no Monitor entry. New with 4132078 (carried from
-the 2026-11-03 scan at 8e8dee7, not re-checked).
-  Attack vector: Monitor is a model-callable tool that takes a shell command and follows the Bash
-    permission rules. The 2.1.314 changelog says "Fixed hooks matching Bash not running on shell
-    commands started by the Monitor tool". On an earlier build, an agent that runs `git push`
-    through Monitor skips the gate for any ref. With the channel set and no `minimumVersion`, the
-    updater moves a newer install back.
-  Evidence: as recorded at 8e8dee7: ~/.local/bin/claude moved from 2.1.317 to 2.1.311 at 06:18,
-    40 minutes after the install wrote the setting. On 2.1.317 a Monitor probe was refused with
-    `PreToolUse:Monitor`. The bypass on 2.1.311 was not reproduced: the headless probes stopped at
-    the spend limit before any model call. Confidence: high on the rollback, medium on the bypass.
-  Remediation: seed `minimumVersion` to 2.1.314 or later beside the channel, which also stops the
-    rollback, or add a `"matcher": "Monitor"` gate entry pinned in lint, after checking that two
-    matching entries do not run the hook twice and burn a skip marker. Say in README's settings
-    bullet that the setting can downgrade. This affects every install, so it needs a user decision.
-
-[WARN] zat.env-install.sh:331-346 — the two pre-push gate entries set no `onFailure`, and by
-default Claude Code runs the tool call when a command hook cannot start, exits with a code other
-than 0 or 2, or times out (carried from the 2026-11-03 scan at 8e8dee7, not re-checked; the
-2026-11-07 scan at d12ce05 re-ran only the hook-side crash). The crash point is hooks/pre-push-codereview.sh:915, and the
-tokenizing NOTE below names the long-command triggers.
-  Attack vector: no adversary is needed. A moved or renamed checkout leaves the stored command
-    pointing at a missing script (exit 127) until the installer is re-run. An unreadable marker
-    makes `cat` at hooks/pre-push-codereview.sh:915 fail under `set -e` (exit 1). A long command,
-    including a long quoted word in a call of about 150 KB or more, keeps the hook past the 30 s
-    timeout. The hook recognizes each of these pushes, so the accepted "detection is heuristic"
-    risk does not cover them.
-  Evidence: as recorded at 8e8dee7. The 2026-11-07 scan: with the marker at mode 000, the d12ce05 hook
-    exited 1 on `git push`. The hooks docs, as read on 2026-11-03: any other exit code is a
-    "Non-blocking error ... The action goes ahead", and with `"onFailure": "block"` a failure does
-    what exit 2 does (Claude Code 2.1.295 or later). Confidence: high on the mechanism and the
-    default, low on how often each trigger occurs.
-  Remediation: an EXIT trap, set once a push is recognized, that turns any status other than 0 or
-    2 into 2 closes the crash case. A missing script and a timeout need `"onFailure": "block"`.
-    Since 1a85d54 the hook runs on every shell command, so `block` would refuse every shell command
-    while the script is missing or slow, including the ones needed to fix it. That cost needs a
-    user decision.
-
-[WARN] claude/skills/codereview/SKILL.md:269-277 — the light tier treats `.txt` and `.gitconfig`
-files as plain documentation, so a diff limited to them skips /security, the tests, the external
-reviewers, and the built-in review, and still gets a marker (carried from the 2026-10-02 scan, not
-re-checked).
-  Attack vector: gitconfig/aliases.gitconfig is live configuration. zat.env-install.sh adds it to
-    ~/.gitconfig through include.path, and it can set `core.fsmonitor`, `core.pager`,
-    `core.sshCommand`, or a `!` alias, each of which runs a command during ordinary git use.
-    Downstream, `requirements*.txt` (pip accepts `--index-url` and direct URL requirements) and
-    `CMakeLists.txt` share the extension. Such a change is reviewed only for "broken
-    links/references, accidental secret leaks in prose, and factual accuracy" (lines 283-284),
-    while `.json`, `.yaml`, and `.toml` get the full tier because they are operationally live
-    (lines 271-272).
-  Evidence: as recorded on 2026-10-13: lines 269-277 unchanged, and `codereview-marker surface`
-    lists both extensions (bin/codereview-marker:133-135), so the gap is in the tier rule. The
-    2026-10-02 scan ran a `core.fsmonitor` set through an included file on `git status`.
-    Confidence: high on the mechanism.
-  Remediation: drop `.txt` and `.gitconfig` from the light tier (or keep only `.gitignore` and
-    prose `.txt` that is neither a dependency manifest nor a build file), and update the lint pin
-    for that text in tests/lint-skills.sh.
-
-[WARN] claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425, 555-561 — review state that
-the reviewed commits can change decides how deeply those commits are reviewed, and the changes
+[WARN] claude/skills/codereview/SKILL.md:203-209, 290-316, 413-436, 574-578, 686-688 — review state
+that the reviewed commits can change decides how deeply those commits are reviewed, and the changes
 never appear in the reviewed diff (same trust in claude/skills/security/SKILL.md:43-46 and
-claude/skills/pr/SKILL.md:184-191) (carried from the 2026-10-02 scan, not re-checked).
+claude/skills/pr/SKILL.md:183-193). Found in the 2026-10-02 scan. Re-checked at 895c3d3 and after
+the /codefix pass: still present. 72dee81 adds `tier` to the fields refresh detection reads from the same footer, and the
+new NOTE below covers what 500153c adds.
   Attack vector: commits the operator did not author (a contributor branch merged or checked out
     locally, a cherry-picked patch) edit CODEREVIEW.md and SECURITY.md beside the code. A
-    REVIEW_META with block 0, the right base, and reviewed_up_to at the code commit makes the run
-    a refresh with an empty focus set; a SECURITY.md META footer naming that commit with scope
-    full makes Step 5 skip /security; an Accepted Risks line describing the code downgrades
-    matching findings to NOTE (lines 206-207, 559). The review diff, the security surface, and the
-    push hash all exclude these files (line 238, bin/codereview-marker:68), so no reviewer sees the
-    edit, and /pr merge accepts the same REVIEW_META with no review at all.
-  Evidence: the 2026-10-02 scan reproduced the deterministic part with the skill's Step 2 and Step
-    5 commands in a scratch repo. The model-executed downgrades were not run end to end.
+    REVIEW_META with block 0, the right base, `"tier":"full"`, and reviewed_up_to at the code
+    commit makes the run a refresh with an empty focus set; a SECURITY.md META footer naming that
+    commit with scope full makes Step 5 skip /security; an Accepted Risks line describing the code
+    downgrades matching findings to NOTE (lines 206-207, 578). The review diff, the security
+    surface, and the push hash all exclude these files (line 238, bin/codereview-marker:68), so no
+    reviewer sees the edit, and /pr merge accepts the same REVIEW_META with no review at all.
+  Evidence: the cited lines read at 895c3d3, and EXCLUDES at bin/codereview-marker:68 still lists
+    both files. The 2026-10-02 scan reproduced the deterministic part with the skill's Step 2 and
+    Step 5 commands in a scratch repo; the model-executed downgrades were not run end to end.
     Confidence: high on the mechanism, medium on how the model weighs planted entries.
   Remediation: at Step 2, list `git log --format='%h %ae %s' "$(codereview-marker
     base)"..HEAD -- CODEREVIEW.md SECURITY.md`. When a commit not authored by the operator (`git
     config user.email`) touched them, take the full tier, run /security, read prior META and
     Accepted Risks from `git show "$(codereview-marker base):<file>"`, and do not honor Accepted
-    Risks added in the range until the user confirms them.
-
-[WARN] bin/codereview-marker:156, 167, 173, 177 — `list_surface`, `list_uncommitted`, and
-`compute_hash` call `git diff` without `--ignore-submodules`, so when a submodule has `ignore =
-all` (in .gitmodules, or `diff.ignoreSubmodules=all` in any git config), its pointer changes are
-left out of the marker hash, the uncommitted check, the security surface, and the review diff
-(claude/skills/codereview/SKILL.md:238, 471) (carried from the 2026-10-02 scan, not re-checked).
-  Attack vector: in a project with a submodule, a commit moves the pointer to an older, vulnerable
-    release or an unreviewed upstream commit. With `ignore = all` already in .gitmodules, `hash`
-    exits 2 and the hook prints "nothing to review. Allowed."; without it, the same commit can add
-    `ignore = all`, and every reviewer sees only that line while `codereview-marker write` produces
-    a marker the hook accepts.
-  Evidence: as recorded on 2026-10-02 (both cases reproduced in scratch repos, git 2.34.1).
-  Remediation: pass `--ignore-submodules=dirty` to every `git diff` in the script (the hash of a
-    repo without submodules is unchanged), add it to the review diffs in SKILL.md Steps 2, 5.5,
-    E.3, and E.4 (or add a `codereview-marker diff` subcommand), update the lint pins that match
-    those commands, and add an `ignore = all` test.
+    Risks added in the range until the user confirms them. Needs a user decision.
 
 [WARN] claude/global-claude.md:108 — the convention loaded into every session binds every service
 to 0.0.0.0. That is safe only behind a host firewall that sees the service's traffic, which
@@ -206,50 +96,88 @@ Docker-published ports bypass and which the documented setup path never enables 
     stays, add DOCKER-USER rules that drop forwarded traffic not arriving on tailscale0, have
     hw-bootstrap.sh enable UFW, and give Windows its own binding guidance.
 
-[WARN] claude/skills/pr/SKILL.md:184-191, 217 — /pr merge's review gate passes when the review
-covers any ancestor of local HEAD, and the merge acts on the remote PR head, which the gate never
-compares with local HEAD (carried from the 2026-10-02 scan, not re-checked).
-  Attack vector: a commit lands on the PR branch after the last /codereview (a GitHub suggestion, a
-    bot, a collaborator, a terminal push, or a "push now" skip). `git merge-base --is-ancestor
-    "${REVIEWED_UP_TO}" HEAD` stays true, and `gh pr merge --squash` merges the remote head, so the
-    unreviewed commit reaches main with the gate reporting a passing review.
-  Evidence: as recorded on 2026-10-02 (reproduced with the skill's own commands).
-  Remediation: require no non-review-file change since the reviewed commit (`git diff --quiet
-    "${REVIEWED_UP_TO}" HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'`), stop
-    unless the remote PR head equals local HEAD, and pass `--match-head-commit` where gh supports
-    it.
+[NOTE] claude/skills/codereview/SKILL.md:203-209, 566-572 — since 500153c, a finding carried into
+a review goes to /codefix with its suggested fix even when its file is outside the diff, and a
+carried finding's text is repo content: CODEREVIEW.md's prior entry, or a SECURITY.md finding that
+/security carries "not re-checked" by design (claude/skills/security/SKILL.md:142-145). The skill
+text already sent every BLOCK and WARN to /codefix; 500153c makes that the stated rule where
+practice had held these findings for the user. New in this scan.
+  Attack vector: a commit the operator did not author (as in the review-state WARN above) adds a
+    WARN to SECURITY.md's current entry about a file the push does not change, such as a CI
+    workflow or a dependency manifest, with a concrete remediation that pins an action or a
+    package to a commit, version, or index the attacker chose. A path-scoped /security run carries
+    it at its original severity without re-checking, Step 6 sends it to /codefix "like any other
+    when its suggested fix is concrete", and /codefix takes the suggested fix as its spec
+    (claude/skills/codefix/SKILL.md:40-44). A planted CODEREVIEW.md finding takes the same route
+    after Step 1's check that its pattern is still in the code, which the attacker can make true,
+    and lines 208-209's rule against downgrading it. The change lands outside the contributor's
+    visible diff, in a review that reports it as a fix. The accepted third-party-model risk covers
+    the external reviewers' findings; this channel is the repo's own files.
+  Evidence: lines 566-572 (500153c) and 203-209, and codefix lines 33-47, read at 895c3d3. What
+    stands in the way is model judgment: the /security post-fix re-check of the files /codefix
+    changed (lines 635-646) and the re-review, both of which see a pin, which reads as hardening.
+    Not run against a live model. Confidence: medium on the mechanism, low on likelihood.
+  Remediation: in Step 6, send a carried finding to /codefix only after this run has confirmed it
+    against the code, as Step 6 already requires for the built-in review's findings, and with a
+    fix this run derives from the code instead of one copied from the carried text. Mark a finding
+    that /security carried as not re-checked `Requires a user decision; not for /codefix.` The
+    review-state WARN's remediation, which distrusts review files that others' commits changed,
+    closes the planted-text half. Since the post-fix Step 7 (lines 608-611, 656-659) runs /codefix
+    only for findings without that mark, the mark alone keeps such a finding out of the fix loop.
+    Needs a user decision, since 500153c chose the current rule.
 
-[NOTE] bin/spec-backlog-apply.sh:57, 144-148 — the symlink guard checks only the last path
+[NOTE] claude/skills/pr/SKILL.md:222-230 — the `--match-head-commit` guard that /codefix moved ahead
+of the merge applies only when `gh pr merge --help` lists the flag, and this host's gh 2.4.0
+(Ubuntu 22.04's package) does not. There, a commit that reaches the PR branch between condition 4's
+check (lines 187, 194) and `gh pr merge` merges unreviewed. New in the post-fix re-check.
+  Attack vector: a collaborator, or a bot that pushes to PR branches, pushes commit X while /pr
+    merge runs. After `gh api` returns a PR head equal to local HEAD, the skill still runs the
+    readiness `gh pr view` and `gh pr merge --help` before it merges, a window of seconds, and `gh
+    pr merge --squash` then squashes the PR's current head, X included. hw-bootstrap.sh installs gh
+    from GitHub's APT repo only when no gh is present, so a host that already had Ubuntu's 2.4.0
+    keeps it, as this one has.
+  Evidence: this re-check: `gh --version` prints 2.4.0+dfsg1, `gh pr merge --help` lists no
+    `--match-head-commit`, and `expectedHeadOid` appears once in the binary, as a struct tag, with
+    no flag that sets it (not traced in gh's source). No merge or API call was made. Confidence:
+    high that the guard is absent here, low on likelihood (it needs a push inside that window).
+  Remediation: when the flag is missing, merge through the REST endpoint, which takes the expected
+    head on every gh version: `gh api -X PUT "repos/{owner}/{repo}/pulls/${PR_NUMBER}/merge" -f
+    merge_method=squash -f sha="$(git rev-parse HEAD)"` (GitHub refuses with 409 when the head
+    moved), then delete the branch as `--delete-branch` does. Or stop and ask the user to upgrade
+    gh.
+
+[NOTE] bin/spec-backlog-apply.sh:64, 158-162 — the symlink guard checks only the last path
 component, and the script resolves BACKLOG.md against the caller's working directory, so a run from
-inside a tracked directory link still creates and fills a BACKLOG.md outside the repo. This is what
-remains of the symlinked-BACKLOG.md WARN, which 897b1a7 resolves. Found in the 2026-11-07 post-fix
-re-check at d12ce05. Re-checked at 431af78: still present.
+inside a tracked directory link still creates and fills a BACKLOG.md outside the repo. Found in the
+2026-11-07 post-fix re-check at d12ce05. Re-checked at 895c3d3 and after the /codefix pass: still
+present. Since 5cd6836 the
+/spec turn-close capture also writes through the script, so this is the remaining gap in every
+skill-driven BACKLOG.md write.
   Attack vector: a cloned repo tracks `app -> ../../.bashrc.d`, and text in it steers the agent to
     run the backlog step from app/ (a CLAUDE.md that names app/ as the project root, say), so the
     command is `cd app && spec-backlog-apply.sh <<'MANIFEST'` with an `append:` block. The script
     creates ~/.bashrc.d/BACKLOG.md holding the entry. Fedora's and RHEL's default ~/.bashrc source
-    every file in ~/.bashrc.d, so the entry's code spans run at each interactive shell start, as in
-    the resolved WARN. The Claude Code 2.1.311 binary names `~/.claude/rules/` and
-    `.claude/rules/*.md`, so a link to that directory would likely load the entry into every
-    session as instructions. Every skill invocation of the script (/spec Steps 3f, 3g, and 4, and
-    /tester design D.6) says to run it from the project root, so the agent has to be steered past
-    that, and the target directory must already exist (the script creates none). On this host
-    neither directory exists, and ~/.bashrc sources no directory.
-  Evidence: this scan, at 431af78, run from inside a scratch directory link to a directory outside
-    the link's parent: `append:` exited 0 and created BACKLOG.md holding the entry in the outside
-    directory. Lines 57 and 144-148 are unchanged since 897b1a7 (431af78 changed only the header
-    comment). As recorded at 897b1a7, in a scratch clone with `app` tracked as mode 120000: the same
-    result, the clone's status stayed clean, and `git rev-parse --show-toplevel` and `--show-prefix`
-    both failed (exit 128) inside the link. The Fedora and RHEL behavior is from their default
-    ~/.bashrc and the rules loading from strings in the binary; neither was run. Confidence: high on
-    the mechanism, low on likelihood.
+    every file in ~/.bashrc.d, so the entry's code spans run at each interactive shell start. The
+    Claude Code 2.1.311 binary names `~/.claude/rules/` and `.claude/rules/*.md`, so a link to
+    that directory would likely load the entry into every session as instructions. Every skill
+    invocation of the script (/spec Steps 3c, 3f, 3g, and 4, and /tester design D.6) says to run
+    it from the project root, directly or by pointing at /spec backlog, so the agent has to be
+    steered past that, and the target directory must already exist (the script creates none). On
+    this host neither directory exists, and ~/.bashrc sources no directory.
+  Evidence: this scan, at 895c3d3, from inside a scratch directory link `app -> ../outside`: an
+    `append:` manifest exited 0 and created outside/BACKLOG.md holding the entry. b47852a's new
+    refusals (clear beside another op, an `append:` with no heading) run before any write and add
+    no path check, and neither does the post-fix end-append refusal (lines 102-105, 169-172): a
+    re-run against the working-tree script created outside/BACKLOG.md the same way. As recorded at 897b1a7, in a scratch clone with `app` tracked as mode 120000:
+    the same result, the clone's status stayed clean, and `git rev-parse --show-toplevel` and
+    `--show-prefix` both failed (exit 128) inside the link. The Fedora and RHEL behavior is from
+    their default ~/.bashrc and the rules loading from strings in the binary; neither was run.
+    Confidence: high on the mechanism, low on likelihood.
   Remediation: refuse unless `git rev-parse --show-prefix` succeeds and prints nothing, which holds
     only when the working directory is the repo's toplevel by its physical path (comparing `pwd -P`
     with `--show-toplevel` would likely fail on Git Bash, where git.exe spells the drive as `C:/`).
     This also stops a stray BACKLOG.md in a subdirectory. It would refuse /spec outside a git
-    repo, which needs a decision. Add a test that runs the script from a directory link. The check
-    covers only writes made through the script; the turn-close NOTE below covers the one write that
-    is not.
+    repo, which needs a decision. Add a test that runs the script from a directory link.
 
 [NOTE] hooks/pre-push-codereview.sh:80-137, 255-258, 272-273 — past the bounds 82379d2 put on its
 heredoc tracking, and in a few unusual spellings, a push that bash runs reads as no push. Some of
@@ -351,15 +279,15 @@ still present (carried from the 2026-10-02 scan, not re-checked).
   Remediation: after entering the target, compare `git rev-parse --absolute-git-dir` with the same
     call run from `--show-toplevel`, and refuse when they differ (on a throwaway copy this kept a
     normal repo, a separate-git-dir checkout, a linked worktree, and a submodule working). For
-    `-`, use `./-` at line 522 (not tried). These two items and the pre-approval WARN have no
-    BACKLOG deferral entry.
+    `-`, use `./-` at line 522 (not tried). These two items have no BACKLOG deferral entry; the
+    pre-approval `git diff` that the old WARN beside them described is now an accepted risk.
 
 [NOTE] hooks/pre-push-codereview.sh:94-152, 188-240, 295-310 — the hook's run time grows with the
 square of the command's length in a few shapes, and it tokenizes about ten times per recognized
 push and twice for any other command. A long command passes the 30 s timeout, and without
-`onFailure` (WARN above) the command then runs, including any statement before the push that the
-hook would have refused. Last re-checked on 2026-11-07 at d12ce05: still present (carried from the
-2026-10-13 scan, not re-checked).
+`onFailure` (accepted risk below) the command then runs, including any statement before the push
+that the hook would have refused. Last re-checked on 2026-11-07 at d12ce05: still present (carried
+from the 2026-10-13 scan, not re-checked).
   Attack vector: no adversary. One Bash call that holds a very long quoted word where the hook
     steps over whole words (an option value, a push argument), a line that ends in tens of
     kilobytes of backslashes, or a few hundred kilobytes of text holding quoted heredoc markers and
@@ -416,8 +344,8 @@ push of another ref. Deferred to BACKLOG.md (skip-marker-bound-to-diff). Last re
 
 [NOTE] claude/skills/spec/SKILL.md:8-9 — since 6f43afe made the frontmatter parse, /spec is an
 inline, model-invocable skill whose `allowed-tools` grants `Bash(*)`, Write, and Edit for the rest
-of the turn that invokes it. Found in the 2026-10-02 scan. Re-checked at 431af78: lines 8-9
-unchanged, and neither 5c774f1 nor 431af78 adds a grant.
+of the turn that invokes it. Found in the 2026-10-02 scan. Re-checked at 895c3d3: lines 8-9
+unchanged, and neither 5cd6836 nor b47852a adds a grant.
   Attack vector: the post-ExitPlanMode hook tells the model to run `/spec plan`, so a turn that
     leaves plan mode can carry unprompted Bash, Write, and Edit into implementation, where content
     the model reads can steer a command.
@@ -428,83 +356,32 @@ unchanged, and neither 5c774f1 nor 431af78 adds a grant.
     Grep, Glob) and let Write and Edit fall to the session's rules; consider the same for
     /codereview and /architect.
 
-[NOTE] claude/skills/spec/SKILL.md:95-96, 250 — /spec has the model read a date from SPEC.md and
-run `git log --oneline` since it (Step 2's stale-proposal check takes the `### Proposal
-(YYYY-MM-DD)` heading, Step 3d the SPEC_META date), with no format check or quoting rule, so a
-command substitution placed in that value runs if the model pastes it unquoted or in double quotes.
-Found in the 2026-11-07 post-fix re-check on 897b1a7. Re-checked at 431af78: both sites unchanged.
-  Attack vector: a cloned repo, or a contributor's commit, carries a SPEC.md whose proposal heading
-    reads `### Proposal (2026-11-01$(<cmd>))`, or whose SPEC_META date holds the same. The user runs
-    `/spec` with no arguments, the routine command for the next turn, and the stale-proposal check
-    builds `git log --oneline --since="<date>"`. Bash expands the substitution before git runs,
-    under /spec's `Bash(*)` grant (NOTE above), which skips approval outside auto mode; in auto mode
-    the classifier sees the whole command. Same class as the codereview META-commit NOTE below.
-  Evidence: SKILL.md:95-96 ("run `git log --oneline` since the proposal date") and 250 ("Run `git
-    log --oneline` since the SPEC_META date"); Step 1 reads SPEC.md from the project root, so the
-    value is repo content. Traced through the skill text; not tested against a live model, which may
-    notice and refuse such a value. Confidence: medium on the mechanism, low on likelihood.
-  Remediation: extract the date inside the command with a strict pattern and skip the check when it
-    comes back empty, for example `git log --oneline --since="$(grep -oE '^### Proposal
-    \([0-9]{4}-[0-9]{2}-[0-9]{2}\)' SPEC.md | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)"` (a
-    scratch run in the prior scan returned nothing for the hostile heading above and the date for a
-    normal one), and the same for the SPEC_META date; or say to use the value only when it matches
-    `^[0-9]{4}-[0-9]{2}-[0-9]{2}$` and to single-quote it.
-
-[NOTE] claude/skills/spec/SKILL.md:177-195, CLAUDE.md:59, 62 — /spec's turn-close capture, which
-431af78 names in CLAUDE.md as the one BACKLOG.md write outside spec-backlog-apply.sh, has no guard
-of its own, so the symlink refusal that resolved the symlinked-BACKLOG.md WARN does not cover it.
-Pre-existing: 431af78 documents the write and changes no behavior. New in this scan.
-  Attack vector: a cloned repo tracks a symlinked BACKLOG.md, or a directory link plus text that
-    names the linked directory as the project root (as in the directory-link NOTE above). The user
-    runs /spec to a turn close and offers a deferred idea, and the main-thread agent writes the
-    entry under the session's own permission rules, since the skill has ended. With a symlinked
-    BACKLOG.md, Write and Edit refuse, but the refusal tells the agent to write the link's target
-    instead, and a shell append (`cat >> BACKLOG.md`) follows the link with no refusal; Step 3f
-    forbids that fallback after a script error (SKILL.md:391-392, 409-410), and the turn-close text
-    has no such rule. Through a directory link, Write itself follows the link. Either way the entry
-    lands outside the repo, where its code spans run if the target is a sourced shell file, as in
-    the directory-link NOTE. The repo picks the target, not the text, unless it also steers the
-    entry's content.
-  Evidence: this scan, on this host's Claude Code (2.1.311, still the installed build), with both
-    ends in the scratchpad. Write to a dangling symlinked BACKLOG.md refused with "it is a symbolic
-    link. Write to the link's target path instead: <target>" and created nothing. Write to
-    `repo/app/BACKLOG.md`, with `app -> ../outside`, reported success and created outside/BACKLOG.md.
-    Whether the permission check resolves the link and prompts for the outside path was not tested,
-    since the scratchpad is writable either way. The turn-close block (SKILL.md:188-189, "I'll
-    create BACKLOG.md with a `# Backlog` header if it doesn't exist") names no tool and no stop
-    rule. The agent's choice after a refusal was not tested against a live model. Confidence: high
-    on the tool behavior, low on likelihood.
-  Remediation: have the capture append through the script with an `append:` manifest from the
-    project root, and stop on a non-zero exit as Step 3f does. That also restores the collision
-    check, and the directory-link NOTE's `--show-prefix` check would then cover every BACKLOG.md
-    write; update the two CLAUDE.md bullets and README.md:323, which name the direct write. At
-    least, add Step 3f's "do not edit or remove BACKLOG.md yourself" rule to the turn-close block,
-    with "if BACKLOG.md is a symlink, stop and tell the user".
-
 [NOTE] zat.env-install.sh:200, 213 — every settings.json write creates a new file at the process
-umask and moves it into place (also lines 267, 276, 285, 307, 346, 363, 381), so a settings.json
-the user restricted to 0600 comes back 0644 or 0664 on each run (carried from the 2026-11-03 scan at
-8e8dee7, not re-checked).
+umask and moves it into place (also lines 267, 276, 285, 307, 353, 370, 388), so a settings.json
+the user restricted to 0600 comes back 0644 or 0664 on each run. Found in the 2026-11-03 scan at
+8e8dee7. Re-checked at 895c3d3: still present; 1608332 changed only the gate entry's matcher.
   Attack vector: settings.json can hold secrets in its `env` block, and its hooks run as the user.
     Where another account can traverse the home directory (macOS creates /Users/<name> as 0755),
     that account can read the file after a re-run; with umask 0002 and a primary group shared with
     other accounts, it can also edit the hooks. Not reachable on this host: the home directory is
     0750, and group peter has no other members. The installer itself writes no secret there.
-  Evidence: as recorded at 8e8dee7 (~/.claude/settings.json here is 0664 under umask 0002; the
-    2026-10-13 scan rewrote a 0600 file with the installer's `jq ... > tmp && mv` pattern and it
-    came back 0664). Confidence: high on the mechanism, low on reachability.
+  Evidence: this scan: no `umask` in the script, ~/.claude/settings.json at 0664 under umask 0002,
+    the home directory at 0750. As recorded on 2026-10-13: a 0600 file rewritten with the
+    installer's `jq ... > tmp && mv` pattern came back 0664. Confidence: high on the mechanism,
+    low on reachability.
   Remediation: `umask 077` at the top of the installer (which also closes the reviewer .env's brief
     creation window), or restore the file's previous mode after each rewrite.
 
-[NOTE] claude/skills/codereview/SKILL.md:238, 471 — the review diffs honor the repository's own
+[NOTE] claude/skills/codereview/SKILL.md:238, 482 — the review diffs honor the repository's own
 .gitattributes, so a text file marked `-diff` or `binary` reaches every diff reader as "Binary
 files a/<f> and b/<f> differ", while the marker hash still binds its content (same in the
-external-mode diffs at lines 141 and 165) (carried from the 2026-10-13 scan, not re-checked).
+external-mode diffs at lines 141 and 165). Found in the 2026-10-13 scan. Re-checked at 895c3d3:
+still present; none of the four diff commands passes `--text`.
   Attack vector: a commit the operator did not write adds `<file> -diff` to .gitattributes beside a
     change to that file; or, more commonly, a downstream repo marks a lockfile `-diff` to quiet
     noise, and a dependency swap in it reaches review as that one line. The external reviewers see
     only the diff, so they get nothing of the change, and a refresh review reads only diff hunks for
-    already-reviewed files (lines 333-335). A full-tier inline review and /security still read the
+    already-reviewed files (lines 344-348). A full-tier inline review and /security still read the
     whole file (it stays in `codereview-marker surface`), but nothing marks what changed.
   Evidence: as recorded on 2026-10-13 (git 2.34.1). One commit added `app.py -diff` and changed
     `return token == SECRET` to `return True`. The Step 2 diff showed the .gitattributes hunk and
@@ -515,35 +392,37 @@ external-mode diffs at lines 141 and 165) (carried from the 2026-10-13 scan, not
     hunks to the external reviewers too; report an added `-diff` or `binary` attribute on a text
     path as a finding.
 
-[NOTE] claude/skills/codereview/SKILL.md:460-464 — the secret-in-diff guard relies on a step that
-reports secrets, and in a full-tier review no step looks for them in plain markdown (carried from
-the 2026-10-02 scan, not re-checked).
+[NOTE] claude/skills/codereview/SKILL.md:471-475 — the secret-in-diff guard relies on a step that
+reports secrets, and in a full-tier review no step looks for them in plain markdown. Found in the
+2026-10-02 scan. Re-checked at 895c3d3: still present.
   Attack vector: no adversary. A diff touches code and also adds a key to a markdown file, so it
-    takes the full tier. Step 4's full-tier dimensions (lines 363-380) include no secret check (only
-    the light tier's reduced scope does, line 283), and /security receives only `codereview-marker
-    surface` files, which omit plain markdown (bin/codereview-marker:133-143). Neither reports the
-    key, and Step 5.5 sends the diff, key included, to OpenAI and Google. The symlinked BACKLOG.md
-    WARN, resolved in 897b1a7, was one way a key file's content could reach such a diff.
+    takes the full tier. Step 4's full-tier dimensions (lines 376-391) include no secret check
+    (only the light tier's reduced scope does, line 286), and /security receives only
+    `codereview-marker surface` files, which omit plain markdown (bin/codereview-marker:131-144).
+    Neither reports the key, and Step 5.5 sends the diff, key included, to OpenAI and Google. The
+    symlinked BACKLOG.md WARN, resolved in 897b1a7, was one way a key file's content could reach
+    such a diff.
   Evidence: traced through the skill text and the surface code; not run end to end. Confidence: high
     on the mechanism.
   Remediation: before Step 5.5, grep the exact diff it will send for key patterns (`sk-`, `sk-ant-`,
     `AIza`, `ghp_`, `github_pat_`, `AKIA`, `xox[bp]-`, `hf_`, private-key headers) and skip the
     providers on a match, or add a whole-diff secret check to Step 4.
 
-[NOTE] claude/skills/codereview/SKILL.md:405-410, 437-441 — the model extracts the commit field of
+[NOTE] claude/skills/codereview/SKILL.md:416-420, 448-452 — the model extracts the commit field of
 SECURITY.md's META footer and pastes it into a shell command, so codereview-marker's leading-dash
-check (bin/codereview-marker:146-155) runs only after the shell has expanded it (carried from the
-2026-10-02 scan, not re-checked).
+check (bin/codereview-marker:152) runs only after the shell has expanded it. Found in the
+2026-10-02 scan. Re-checked at 895c3d3: still present.
   Attack vector: a commit that edits SECURITY.md puts a `$(...)` or backtick span in the footer's
     commit value. If the model substitutes it unquoted or in double quotes into `codereview-marker
     surface <meta-commit>`, the substitution runs under the skill's `Bash(*)` grant. Step 2 already
-    avoids this for reviewed_up_to with a hex-only `grep -oP` inside the command substitution (lines
-    295, 316).
+    avoids this for reviewed_up_to with a hex-only `grep -oP` inside the command substitution
+    (lines 298, 323).
   Evidence: traced through the skill text; not tested against a live model, which may refuse such a
     value. Confidence: medium on the mechanism, low on likelihood.
   Remediation: extract the commit inside the command with a hex-only `grep -oP` (7 to 40 hex
-    characters), or add a codereview-marker subcommand that reads the footer, and update the lint pin
-    that matches that text.
+    characters), or add a codereview-marker subcommand that reads the footer, and update the lint
+    pin that matches that text. b47852a closed the same class in /spec with a format rule and
+    single quotes, which would also fit here.
 
 [NOTE] bin/review-external.sh:276-278 — without bc, `_calc` splices the cost expression into awk
 program text, and awk's `system()` runs commands, so a non-integer operand would execute as the
@@ -610,11 +489,12 @@ to BACKLOG.md (push-gate-net-diff-secret) (carried from the 2026-10-02 scan, not
 
 [NOTE] claude/skills/pr/SKILL.md:152 — the PR template puts free text derived from commit messages
 inside double-quoted shell arguments, where backticks or `$(...)` run as commands under the skill's
-`Bash(*)` grant (carried from the 2026-10-02 scan, not re-checked).
+`Bash(*)` grant. Found in the 2026-10-02 scan. Re-checked at 895c3d3: line 152 unchanged (13b67ba
+changed only merge mode).
   Attack vector: `gh pr create --title "<title>" --body "<body>"` with a commit subject or body
     carrying a code span or `$(...)`; even "adds `codereview-marker write`" would run that command
     and write the push marker.
-  Evidence: as recorded on 2026-10-02 (traced through the template; not run).
+  Evidence: traced through the template; not run.
   Remediation: write the body with a quoted heredoc and pass `--body-file`; build the title the same
     way.
 
@@ -628,60 +508,105 @@ from the 2026-10-01 scan, not re-checked).
     ${TEST_DIR}.
 ```
 
-Resolved since the prior entry: none. That entry's post-fix re-checks had already resolved the CRLF
-defect it passed to the code review; 5c774f1 commits that fix, and this scan confirmed the committed
-code matches what the re-checks read.
+Resolved since the prior entry:
+
+- zat.env-install.sh Monitor WARN. 1608332 sets the gate entry's matcher to `Bash|Monitor` (line
+  345), pinned in lint and covered by two hook tests. Checked on this host's 2.1.311: a headless
+  run whose only added PreToolUse entry used that matcher saw its hook fire for a Monitor call,
+  with tool_name Monitor and the command in the payload. With the live `Bash` matcher, a dry-run
+  `git push` to a scratch bare remote started through Monitor in this session exited 0, while the
+  hook, fed the same payload directly as Bash and as Monitor, exited 2. That confirms the bypass
+  the 8e8dee7 scan could not run, and shows the fix is not live here until zat.env-install.sh is
+  re-run (settings.json still has `"matcher": "Bash"`) and open sessions restart. The stable
+  channel still holds this host at 2.1.311, which README:225 now says.
+- claude/skills/codereview/SKILL.md light-tier WARN. 13b67ba limits the light tier to plain `.md`
+  and `.gitignore` (lines 269-280), lint-pinned.
+- claude/skills/pr/SKILL.md merge WARN. Narrowed by 13b67ba to the pull case, the first WARN above.
+- claude/skills/spec/SKILL.md date NOTE. b47852a uses a SPEC.md date only when it matches
+  `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, single-quoted (lines 95-99, 258-260), lint-pinned.
+- claude/skills/spec/SKILL.md turn-close NOTE. 5cd6836 routes the capture through an `append:`
+  manifest and says never to edit BACKLOG.md (lines 200-203); the directory-link NOTE is what
+  remains.
+- Moved to Accepted Risks by 1608332 and not re-flagged: the `git -C` pre-approval WARN, the
+  command-line refspec WARN, the `onFailure` WARN, and the submodule `ignore = all` WARN.
 
 ### Coverage
 
-All eight dimensions were reviewed for the four files at HEAD 431af78.
+All eight dimensions were reviewed for the eleven files at HEAD 895c3d3.
 
-- Read in full: bin/spec-backlog-apply.sh (348 lines), claude/skills/spec/SKILL.md (712 lines),
-  tests/test-spec-backlog-apply.sh (717 lines), CLAUDE.md (82 lines), and the 897b1a7..431af78 diff
-  of the four files and README.md.
-- The committed files match what the prior entry's post-fix re-checks read. 5c774f1 holds the four
-  `sub(/\r$/, ...)` strips (now lines 209, 239, 298, and 333), the two Step 3f stop sentences
-  (SKILL.md:391-392, 409-410), and the CRLF test (lines 165-184). 431af78 adds one line to the
-  script's header comment and rewrites three CLAUDE.md bullets (lines 59, 62, and 64).
+- Read in full: bin/spec-backlog-apply.sh (360 lines), zat.env-install.sh (441), and the codefix
+  (91), codereview (761), pr (250), spec (726), and tester (614) skills. CLAUDE.md, read in full at
+  431af78, through the 431af78..HEAD diff of its four changed bullets. The three test files through
+  their 431af78..HEAD diffs and setup code, then run.
 - Suites on Linux (bash 5.1.16, git 2.34.1), run from a scratch working directory with TMPDIR and
-  XDG_CACHE_HOME in the scratchpad: test-spec-backlog-apply.sh 112/112 and lint-skills.sh 543/543,
-  with no temp files left. Shellcheck 0.8.0 is clean on the script at every level and on the test
-  at warning level. tests/run-all.sh was not run, because test-review-external.sh calls the real
-  provider APIs (NOTE above).
-- Probes, each in a new directory under the scratchpad: the directory-link reproduction and the two
-  Write probes (Evidence above). A first directory-link probe built as a scratch git clone was
-  declined by the permission system. The script runs no git command, so the plain directory link
-  exercises the same code; the clone-only facts are cited from the 897b1a7 run.
+  XDG_CACHE_HOME in the scratchpad: test-spec-backlog-apply.sh 124/124, lint-skills.sh 562/562,
+  and test-pre-push-hook.sh 353/353, with no temp files left. Shellcheck 0.8.0 is clean on the
+  backlog script at every level and on the installer and the backlog test at warning level.
+  tests/run-all.sh was not run, because test-review-external.sh calls the real provider APIs
+  (NOTE above).
+- Probes, each in a new scratchpad directory: the directory link and the /pr merge pull (Evidence
+  above), and the two Monitor runs (Resolved, above). The headless run made one Haiku call to
+  Anthropic's API with a fixed prompt and no repo content, and left its own session transcript
+  under ~/.claude/projects/. A first directory-link attempt that began with `rm -rf` was declined
+  by the deny list and rerun in a fresh directory.
 - Checked and not findings:
-  - The CRLF strips apply only to the copy used for matching, so they change no byte of the file,
-    and they can only add ACTIVE protection in purge and collision detection in append.
-  - Every manifest in the skill is a quoted heredoc (`<<'MANIFEST'`), so the shell expands nothing
-    in it, and every op line has a prefix, so a heading taken from BACKLOG.md or SPEC.md cannot end
-    the heredoc. Step 3f's Origin comes from the SPEC_META date, which sits on one line; a
-    terminator line would need the model to turn an escape in that value into a newline.
-  - Manifest text reaches awk only through `-v`, which processes escapes but cannot run code.
-  - The guard (lines 144-148) runs before any read or write, and no manifest field names a path:
-    the script writes only BACKLOG.md in its working directory and `mktemp` files (mode 0600).
-    Swapping BACKLOG.md for a link between the guard and a write needs a concurrent writer in the
-    repo directory, which already has that access. A hardlinked BACKLOG.md passes the regular-file
-    test, but git cannot deliver one.
-  - CLAUDE.md's changes are prose. They grant nothing and hold no secret; the two bullets that name
-    the turn-close exception describe what Step 3c already did (turn-close NOTE).
-- Not security findings, still present at HEAD and already in CODEREVIEW.md: the test's unchecked
-  `TEST_DIR=$(mktemp -d)` (line 28), which on a mktemp failure runs every case against the
-  caller's BACKLOG.md, and the CRLF test covering only `purge-origin:`.
-- Not verified: Windows and macOS at this HEAD, and whether Claude Code's permission check resolves
-  a directory link before it allows a Write.
+  - The `Bash|Monitor` entry: the hook reads `.tool_input.command` for any tool
+    (hooks/pre-push-codereview.sh:748), a WebSocket monitor with no command reads as not a push,
+    and the lint pin, under `grep -E`, matches only the literal string (it does not match a plain
+    `"Bash"` matcher).
+  - /pr merge's new commands take PR_NUMBER and PR_HEAD from gh's JSON and REVIEWED_UP_TO from a
+    hex-only grep. With no PR for the branch, `gh api` returns a list, `.head.sha` fails, and
+    condition 4 refuses.
+  - 72dee81 puts only hex or `[a-z]+` from CODEREVIEW.md into commands and echoes, and widening
+    the focus set to the working tree only adds full-depth reading. A light prior review no longer
+    anchors a refresh.
+  - b47852a's two refusals run before any write. A body line reading exactly `end-append` can
+    still end a block early and let later body lines run as `delete:` or `adopt:` ops, which touch
+    single entries and are recoverable through git (already in CODEREVIEW.md).
+  - Every manifest is a quoted heredoc and every op line has a prefix. Append bodies follow the
+    four-field template (plus /tester's optional Coordinate line), each line starting with `- **`,
+    so a body line reading exactly `MANIFEST` would need the model to write one.
+  - /tester D.2 now runs at most one project-named suite or check command per defect, and none
+    that would reach a live service, a paid API, or state outside the tree; /tester is manual-only
+    (`disable-model-invocation: true`).
+  - CLAUDE.md's changes are prose that grants nothing and holds no secret.
+- Not verified: Windows and macOS at this HEAD, and the planted-finding path and the review-state
+  downgrades against a live model.
+- Post-fix re-check, after this run's /codefix pass, of the six files it changed; all eight
+  dimensions for those changes. Read: the backlog script in full, the pr skill in full, the
+  codereview skill's Steps 6 through 9 and every range the open findings cite, the spec skill's
+  frontmatter and both changed `git log` lines, the two changed lint pins and `text_has` (`grep
+  -qE --`), and the backlog test's setup and new case. The rest of the codereview and spec skills
+  was read in full earlier in this run, at the same HEAD; tests/lint-skills.sh, as then, only
+  through its diffs and by running it. Suites, run as above: test-spec-backlog-apply.sh 127/127 and lint-skills.sh 562/562, no temp files left.
+  Checked and not findings:
+  - The end-append refusal (lines 102-105, 169-172) runs before any write, including with no
+    BACKLOG.md (nothing created), and fires when the early end leaves the real terminator stray.
+    It does not fire when a later body line reads `append: <heading>`: that line opens a block and
+    the real terminator closes it. In a scratchpad, `append: early-end`, a body line,
+    `end-append`, `delete: keep-spec`, `append: y`, `end-append` exited 0, deleted keep-spec, and
+    appended an empty `y` entry. This is the class the end-append bullet above already judged not
+    a security finding (single entries, recoverable through git, a body the model writes), now
+    narrower; the header comment (lines 44-47) reads as covering it, which is for the re-review.
+  - The `--since` change keeps the date inside the single quotes behind the same format rule
+    (claude/skills/spec/SKILL.md:96-98, 258-260). Step 7's new skip applies only when every open
+    BLOCK and WARN is held, and Step 8 still writes no marker while a BLOCK remains (lines 668,
+    678), so a held BLOCK cannot pass the gate.
+  - The new refusal prints a fixed message, and the new test runs inside its mktemp directory.
+  Git history: HEAD is still 895c3d3, and the six files' last three commits are in the list below.
+  The post-fix diff, pattern-scanned as below and for email addresses: no hits. The re-check made
+  no network call and changed nothing outside the scratchpad apart from this file.
 
-Git history checked for secrets: `git log -p --follow -3` for each of the four files (commits
-431af78, 5c774f1, 897b1a7, 33cea03, d12ce05, and 6f43afe among them) and the 897b1a7..431af78 diff,
+Git history checked for secrets: `git log -p --follow -3` for each of the eleven files (commits
+500153c, 72dee81, 13b67ba, 1608332, b47852a, 5cd6836, 431af78, 5c774f1, 897b1a7, 82379d2, f564cd4,
+4132078, 1a85d54, c33a94b, 9fb8cd1, 6f43afe, and 33cea03) and the 431af78..HEAD diff,
 pattern-scanned for OpenAI, Anthropic, Google, GitHub, GitLab, AWS, Slack, Hugging Face, npm, and
 Tailscale keys, private-key headers, and generic key, token, secret, and password assignments. No
-hits. None of the four files handles credentials. PII: no email address or personal name in the
-four files.
+hits. zat.env-install.sh is the in-scope file that handles credentials (it writes the reviewer .env
+template); its last three commits add none. PII: no email address or personal name added.
 
-Nothing left the machine and no marker was written. zat.env's tree was not changed apart from this
-file; BACKLOG.md still matches HEAD (e728437, mode 0600).
+Apart from the Haiku call, nothing left the machine, and no marker was written. zat.env's tree was
+not changed apart from this file; BACKLOG.md still matches HEAD.
 
 ### Accepted Risks
 
@@ -711,8 +636,8 @@ file; BACKLOG.md still matches HEAD (e728437, mode 0600).
   the deny list is a speed bump. `autoMode.classifyAllShell` sends these commands through the
   classifier in auto mode, so the risk as accepted applies to the other permission modes. The Linux
   host has the setting (verified 2026-10-01, 2026-10-13, and 2026-11-03), and so did the Windows host
-  (verified 2026-10-13). The hook's `git diff` before approval (WARN above) is not covered by this,
-  because it runs ahead of the classifier.
+  (verified 2026-10-13). The hook's `git diff` before approval (its own entry above) is not covered
+  by this, because it runs ahead of the classifier.
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in
   default, acceptEdits, plan, and dontAsk modes, the hook returns allow for `. .venv/bin/activate &&
   <anything>`, including pipes, `$(...)`, and further commands. The user kept this behavior on
@@ -745,10 +670,11 @@ file; BACKLOG.md still matches HEAD (e728437, mode 0600).
   now detected (a prefix holding a substitution with nested quotes is still missed, walker NOTE; and
   after 82379d2, one after a token over 1,024 characters that holds both quote kinds or a
   backslash, or after a comment line that ends in a backslash, regression NOTE). This does not
-  cover a recognized push checked against the wrong ref or the wrong repo (the refspec WARN and
-  target-repo NOTE), a spelling that is not a wrapper (the walker and regression NOTEs), or a
-  recognized push whose hook times out or fails (the tokenizing NOTE and the `onFailure` WARN).
-  Whether the Windows spelling `git.exe push` belongs here is open (NOTE above).
+  cover a recognized push checked against the wrong ref or the wrong repo (the command-line refs
+  entry above and the target-repo NOTE), a spelling that is not a wrapper (the walker and regression
+  NOTEs), or a recognized push whose hook times out or fails (the tokenizing NOTE and the
+  `onFailure` entry above). Whether the Windows spelling `git.exe push` belongs here is open (NOTE
+  above).
 - **Diff content forwarded to third-party APIs** (`bin/review-external.sh`): when configured, the full
   git diff goes to OpenAI and Google, so any secrets in the diff would be exposed. Sending the diff is
   the script's explicit purpose, and the user opts in by configuring keys. Since 253ad52, /codereview
@@ -756,11 +682,10 @@ file; BACKLOG.md still matches HEAD (e728437, mode 0600).
   above); /codereview external has no such check.
 
 ---
-*Prior review (2026-11-07, scope: paths, at 897b1a7, with two post-fix re-checks of the fixes
-5c774f1 then committed): CLAUDE.md, the backlog script and its tests, and lint, with the /spec skill
-added by the re-checks; 0 BLOCK / 9 WARN / 20 NOTE, no secrets. It confirmed 897b1a7's symlink
-guard, re-ran the directory-link NOTE, passed a CRLF defect that made `purge-origin:` delete ACTIVE
-entries to the code review (resolved by the first re-check), added the NOTE on the date /spec pastes
-into `git log`, and carried the findings in other files.*
+*Prior review (2026-11-07, scope: paths, at 431af78): CLAUDE.md, bin/spec-backlog-apply.sh, the
+/spec skill, and the backlog script's tests; 0 BLOCK / 9 WARN / 21 NOTE, no secrets. It found no new
+code defect, added the NOTE that /spec's turn-close capture wrote BACKLOG.md outside the script
+(Claude Code's Write follows a directory link), re-checked the directory-link, /spec grant, and
+SPEC.md-date NOTEs, and carried twenty-six findings in other files.*
 
-<!-- SECURITY_META: {"date":"2026-11-07","commit":"431af789e1e19721f12798f02f980105fa33232f","scope":"paths","scanned_files":["CLAUDE.md","bin/spec-backlog-apply.sh","claude/skills/spec/SKILL.md","tests/test-spec-backlog-apply.sh"],"block":0,"warn":9,"note":21} -->
+<!-- SECURITY_META: {"date":"2026-11-07","commit":"895c3d3964d2ebe4d26bd2ccad67e75013eb3873","scope":"paths","scanned_files":["CLAUDE.md","bin/spec-backlog-apply.sh","claude/skills/codefix/SKILL.md","claude/skills/codereview/SKILL.md","claude/skills/pr/SKILL.md","claude/skills/spec/SKILL.md","claude/skills/tester/SKILL.md","tests/lint-skills.sh","tests/test-pre-push-hook.sh","tests/test-spec-backlog-apply.sh","zat.env-install.sh"],"block":0,"warn":3,"note":21} -->

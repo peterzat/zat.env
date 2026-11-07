@@ -1,62 +1,68 @@
-## Review — 2026-11-07 (commit: 431af78)
+## Review — 2026-11-07 (commit: 895c3d3)
 
-**Summary:** Refresh review of 431af78, the one commit not on origin/main. It changes only documentation and a script header comment: they now name every `spec-backlog-apply.sh` caller and the one BACKLOG.md write that skips the script, as two NOTEs from the 897b1a7 review asked. No behavior changes.
-- **Scope.** The push diff against origin/main is CLAUDE.md, README.md, and bin/spec-backlog-apply.sh (comment lines only). 5c774f1, which committed the 897b1a7 review's fixes, is already on origin/main. Its files (claude/skills/spec/SKILL.md, tests/test-spec-backlog-apply.sh) were read only to check the new text's claims.
-- **Verified.** Every caller the new text names exists: Step 3f append and clear (spec SKILL.md:379, 403), Step 3g (437), Step 4 adoption (553), and /tester design D.6 (tester SKILL.md:551). The Step 3c turn-close template (spec SKILL.md:177-195) is the only BACKLOG.md write a skill directs outside the script. The four-field template sits in Step 3c, the Step 3f append manifest, and the Format section, which matches the lint pin at tests/lint-skills.sh:792-799.
-- **Security.** /security scanned the four files changed since its last scan (SECURITY_META at 897b1a7). It found no BLOCK or WARN, one new NOTE (merged into the turn-close NOTE below), and no secrets. SECURITY.md is updated and uncommitted.
-- **Tests.** tests/run-all.sh: 1168/1168 across 6 suites. There was no fix loop, so the suite was not re-run.
-- **Uncommitted review files.** SECURITY.md and CODEREVIEW.md are uncommitted. The push gate excludes them, so they do not block the push.
+**Summary:** Refresh review of the seven commits on main not on origin/main (5cd6836 through 895c3d3). The focus set equals the full set (12 files), so every file got full-depth review. The changes route the /spec turn-close capture through `spec-backlog-apply.sh`, make `clear` refuse to run beside other ops, gate the Monitor tool, narrow the light review tier, tighten refresh detection, add a PR-head check to `/pr merge`, send findings outside the diff to /codefix, and record v1.6 in README. One /codefix cycle fixed four WARNs, uncommitted in the working tree; three WARNs remain, each needing a user decision.
+- **Security.** /security scanned the 11 surface files changed since its last scan (431af78): 0 BLOCK, 3 WARN, 20 NOTE, no secrets. Its post-fix re-check of the six files /codefix changed added one NOTE (21 total). SECURITY.md is updated and uncommitted.
+- **Tests.** tests/run-all.sh: 1201/1201 before the fixes, 1204/1204 after (three new checks for the stray `end-append` refusal).
+- **Act now (operational, not a code finding).** The Monitor gate takes effect only after re-running `zat.env-install.sh` and restarting open sessions. /security found the live `~/.claude/settings.json` still has `"matcher": "Bash"` and the CLI at 2.1.311, and a dry-run push through Monitor in this session exited 0. A headless 2.1.311 run with the new `Bash|Monitor` matcher did fire the hook.
+- **Uncommitted.** The four fixes, CODEREVIEW.md, and SECURITY.md are uncommitted. The push gate refuses a push while tracked files other than the review files have uncommitted changes, so commit the fixes before pushing.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 5 findings, 5 kept after Step 6. One merged into the carried turn-close NOTE; the other four merged into the two new NOTEs.
+`/code-review high`: 9 findings, 9 kept after Step 6. Three merged with this review's own findings, one merged with /security's /pr merge WARN, five new (one WARN, four NOTEs).
 
 ### Findings
 
-No BLOCK findings. No new WARN findings.
+No BLOCK findings. Four WARNs found this run were fixed by /codefix (see Fixes Applied).
 
-New this run:
+Open this run:
 
-[NOTE] claude/skills/spec/SKILL.md:658, bin/spec-backlog-apply.sh:4, tests/lint-skills.sh:883-887 — (also claude-code for the script and lint lines) Three caller or op descriptions the cleanup missed:
-  - The skill's own Manifest format paragraph says the manifest is piped "by Step 3f, Step 3g Step 2, and `/tester design`". It leaves out Step 4's `adopt:` call (SKILL.md:553).
-  - The script header's first line still says "Apply a BACKLOG sweep manifest", above the new list of callers that are not the sweep. README:696 now says "Apply a BACKLOG.md manifest".
-  - The lint section comment says the script "parses ops (`delete:` / `adopt:`)" and leaves out `clear`, `purge-origin:`, and `append:`.
-  These are comments and prose only; every op has its own lint pins and tests. Confidence: high.
-  Suggested fix: Add Step 4 to SKILL.md:658, say "BACKLOG.md manifest" on the script's line 4, and list all five ops in the lint comment.
+[WARN] claude/skills/pr/SKILL.md:183-201, README.md:466-468, 834 — (also claude-code, also security; carried and narrowed) Requires a user decision; not for /codefix. 13b67ba's condition 4 refuses a PR whose GitHub head differs from local HEAD, but the gate still merges commits no review covered in two cases, and README and the skill's rationale overstate it ("a commit added on GitHub after the review cannot merge with it", "Local commits reach the PR through the pre-push gate"):
+  - A commit added on GitHub (a suggestion, a bot, a collaborator) that the user then pulls: PR_HEAD equals HEAD, and REVIEWED_UP_TO is still an ancestor. A fresh /codereview does not help, because the commit is already upstream and the review diff is empty (security reproduced this with the skill's own commands).
+  - A commit pushed through `codereview-skip` after the last review (claude-code).
+  Evidence: condition 3 accepts any ancestor of HEAD; condition 4 compares only the remote and local heads. Confidence: high.
+  The choice: requiring REVIEWED_UP_TO to equal HEAD breaks the normal flow, where /codefix's fixes and the review files are committed after the review. Recording a hash of the reviewed changes in REVIEW_META and comparing it at merge time (security's suggestion) closes both cases but adds a REVIEW_META field and a /pr contract. Narrowing the README and skill wording to what condition 4 catches is the third option.
 
-[NOTE] README.md:855, CLAUDE.md:62 — (claude-code) README's Done (v1.4) bullet still says "Both `/spec` and `/tester design` mutate BACKLOG.md exclusively via this script". That contradicts the exception now named at README:323 and CLAUDE.md:59, 62. The bullet is release history, so it can stay as a record of v1.4.
-  Separately, CLAUDE.md:62 opens with an unscoped "All BACKLOG.md mutations flow through the script", although user hand-edits are also allowed (README:35, spec SKILL.md:357, 572). The clause that follows scopes the rule to "from inside the skills", so a misreading is unlikely.
-  Confidence: high on the text, low that either one misleads.
-  Suggested fix: Optional. Leave the release bullet as history or add "(except the turn-close capture)", and start CLAUDE.md:62's sentence with "All skill-driven BACKLOG.md mutations".
+[NOTE] bin/spec-backlog-apply.sh:81-147 — (security post-fix re-check, also this run's re-review) Requires a user decision. Residue of this run's `end-append` WARN after the fix. The new refusal fires only when an early `end-append` leaves the real terminator unmatched. If a later body line reads `append: <heading>`, it opens a new block, the real terminator closes it, and the lines between still run as ops. Security reproduced it: `append: early-end` / body / `end-append` / `delete: keep-spec` / `append: y` / `end-append` exited 0, deleted keep-spec, and appended an empty `y`. The header comment at 44-49 reads as if this case is covered. Confidence: high on the mechanism, very low on occurrence (the body has to quote a manifest with a later `append:`).
+  Suggested fix: Ops can legitimately follow an `end-append`, so position cannot tell a quoted op from a real one. A full fix needs a format change, such as a terminator that names its block (`end-append: <heading>`), which every manifest writer in /spec and /tester would adopt. Otherwise, narrow the header comment to the case the refusal covers.
 
-[NOTE] claude/skills/spec/SKILL.md:177-195, CLAUDE.md:59, 62 — (also claude-code, also security; carried and extended) The Step 3c turn-close capture still tells the conversation "I'll create BACKLOG.md with a `# Backlog` header if it doesn't exist" and never mentions the script. 431af78 documents this write as the one exception rather than routing it through `append:`. The write therefore skips two things the script does:
-  - The same-name check. A duplicate `### <name>` heading can land, and a later `delete:` or `adopt:` then acts on the first copy (claude-code).
-  - The symlink refusal. /security extended this case on Claude Code 2.1.311. Write refuses a symlinked BACKLOG.md, but its error tells the agent to write to the target instead. Write follows a directory link: `repo/app/BACKLOG.md`, with `app` linking outside the repo, created the file outside. A shell append follows either kind of link. Step 3f forbids that fallback; the turn-close text does not.
-  Confidence: high on the tool behavior, low on occurrence, since it needs a hostile repo and a poor choice after a refusal.
-  Suggested fix: Have the capture append each entry with an `append:` manifest, then drop the exception from CLAUDE.md:59, 62 and README:323. The directory-link check suggested for the script (`git rev-parse --show-prefix` must succeed and print nothing) would then cover every BACKLOG.md write.
+[NOTE] claude/skills/pr/SKILL.md:222-230 — (security post-fix re-check) This host has gh 2.4.0 (Ubuntu 22.04's package), which has no `--match-head-commit`, so the skill skips the flag and the race between the head check and `gh pr merge` stays open here. hw-bootstrap.sh installs gh from GitHub's repo only when none is present.
+  Suggested fix: When the flag is missing, merge through the REST API, which checks the head on any gh version: `gh api -X PUT "repos/{owner}/{repo}/pulls/${PR_NUMBER}/merge" -f merge_method=squash -f sha="$(git rev-parse HEAD)"`. Or stop and ask the user to upgrade gh.
 
-Resolved by 431af78:
-- The 897b1a7 review's stale-lists NOTE. The script header, README:696, and CLAUDE.md's Tester/spec contract (1) now name every caller and all three template sites.
-- The CLAUDE.md half of the turn-close NOTE. CLAUDE.md:59 and 62 now name the exception, so CLAUDE.md and README:323 agree.
+[NOTE] claude/skills/spec/SKILL.md:707-712, tests/lint-skills.sh:984-987 — (re-review of the fix) The Format rules list the missing-`end-append` and empty-heading errors but not the new stray-`end-append` refusal, and lint pins the other two refusal messages but not this one. The behavioral test covers it, and a skill that sees the error stops and reports it.
+  Suggested fix: Optional. Add the refusal to the Format rules and a `has` pin on `end-append outside an append block`.
 
-Dropped:
-- The bundled-commit WARN on 33cea03. The commit is on origin/main, so splitting it would take a force-push, and pushing it settled the decision the WARN asked for.
+[NOTE] bin/spec-backlog-apply.sh:148, 157-160 — (claude-code) The clear-only guard counts only ops that parsed. A malformed op the parser drops (`adopt: foo|2026-05-01` without spaces around `|`, an empty `delete:`, a typo such as `delet: x`) does not count, so a stray `clear` beside only such lines still empties the register. It needs two mistakes in one manifest. Confidence: high on the mechanism, low on occurrence.
+  Suggested fix: Refuse clear when any non-blank line other than `clear` sits outside an append block. The Format rules say unknown lines are ignored, so this narrows that rule for clear manifests only.
 
-Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" in them means that review. Since then, bin/spec-backlog-apply.sh has changed only in its header comment, and claude/skills/spec/SKILL.md and tests/test-spec-backlog-apply.sh only by the fixes that review recorded.
+[NOTE] claude/skills/codereview/SKILL.md:566-572 — (claude-code, also security) Requires a user decision. Sending findings outside the diff to /codefix (500153c, a deliberate choice) has two costs. A fix in a file the push does not touch bundles an unrelated change, against global-claude.md's "change only what is necessary" and Step 4's mixed-concern check (claude-code). And a carried finding's suggested fix is repo content (the prior CODEREVIEW.md entry, or a SECURITY.md finding carried without re-check), so a commit by someone else could plant a fix that lands outside its visible diff, with only the post-fix /security re-check and the re-review as filters (security).
+  Suggested fix: Send a carried finding to /codefix only after this run confirms it against the code, with a fix the run derives itself.
 
-[NOTE] tests/test-spec-backlog-apply.sh:165-184, bin/spec-backlog-apply.sh:239 — (security) The CRLF test covers only `purge-origin:`; with the `\r` strip removed from delete, adopt, or the append check, every test still passes. A regression there shows as a MISS or a duplicate heading, not a silent loss. Separately, `adopt:` on a CRLF file rewrites its heading with an LF ending, leaving one line that differs from the rest (cosmetic; git's autocrlf normalizes it on commit).
-  Suggested fix: Optional. Add one CRLF case each for delete, adopt, and the append collision.
+[NOTE] claude/skills/spec/SKILL.md:258-260 — (claude-code) Step 3d's fallback for an invalid SPEC_META date, "the commits since SPEC.md last changed", usually starts after the turn's work, because evolve mode commits criterion check-offs to SPEC.md, so the proposal sees little or no history. It applies only when the date fails the format check.
+  Suggested fix: Fall back to the commits since the SPEC.md commit that introduced the current entry, or skip the history and say so.
 
-[NOTE] tests/test-spec-backlog-apply.sh:28 — (security, pre-existing since ba621cf) `TEST_DIR=$(mktemp -d)` is unchecked and the suite does not run with `set -e`. If `mktemp` fails, `pushd ""` succeeds without moving, and every case runs against the caller's BACKLOG.md, which under tests/run-all.sh is usually zat.env's own. /security's probe with TMPDIR pointing at a missing directory added six fixture entries to a tracked copy and failed 78 of 105 checks with no summary line.
-  Suggested fix: `TEST_DIR=$(mktemp -d) || exit 1`.
+[NOTE] claude/skills/pr/SKILL.md:186-187 — (claude-code) PR_HEAD takes two gh calls; `gh pr view --json headRefOid --jq .headRefOid` returns the same SHA in one. When `gh pr view` fails, PR_NUMBER is empty and the second call reports a jq error rather than "no PR". The check still fails closed. The lint pin at tests/lint-skills.sh:101 fixes the longer form.
+  Suggested fix: Optional. Use `headRefOid` and update the pin.
 
-[NOTE] claude/skills/spec/SKILL.md:95-96, 250 — (security, new this run; already-reviewed file) The skill has the model read a date from SPEC.md and paste it into a `git log` command. Nothing checks the date's format or says how to quote it, so a cloned repo's SPEC.md with `$(...)` in its proposal date could run a command under /spec's `Bash(*)`. Confidence: medium on the mechanism, low that a model would paste such a value.
-  Suggested fix: Extract the date inside the command with a strict `[0-9]{4}-[0-9]{2}-[0-9]{2}` pattern; SECURITY.md has a tested version.
+[NOTE] bin/spec-backlog-apply.sh:11-20, claude/skills/spec/SKILL.md:672-680 — The script's "Invocation:" example and the skill's Manifest format block list `clear` together with every other op, a manifest the script now refuses. The rules under each say clear runs alone.
+  Suggested fix: Optional. Show `clear` as its own one-line manifest in both.
 
-[NOTE] bin/spec-backlog-apply.sh:93-96, 121-130 — (claude-code, also security; carried and extended) A bare `clear` line is a destructive op in every manifest, and it runs first, while the Format rules say other lines are ignored. A stray `clear` in a Step 3g or `/tester design` manifest would remove every entry, ACTIVE ones included. Two ways it can arrive from inside an entry body: a body line reading exactly `end-append` ends the block early (security), and an `append:` with an empty heading never enters the block, so its body lines, a `clear` among them, are parsed as ops and its `end-append` is silently ignored (claude-code, new this run). Recoverable through git when BACKLOG.md is committed. Confidence: low on occurrence.
-  Suggested fix: Refuse a manifest that combines `clear` with any other op, since only `/spec backlog clear` sends it, and make an `append:` with an empty heading an error.
+[NOTE] README.md:808, 826 — README says "v1.6 is the most recent tag" and adds a Done (v1.6) section, but no v1.6 tag exists locally or on origin. It is correct once the tag is cut. Confidence: low that it matters.
+  Suggested fix: None if the tag follows this push.
+
+[NOTE] bin/spec-backlog-apply.sh:254, 354 — (security, carried from the 897b1a7 review) On a CRLF BACKLOG.md, `adopt:` rewrites the heading with an LF ending and `append:` adds LF-only lines, leaving mixed endings. Matching is unaffected, and b47852a's CRLF tests now cover delete, adopt, and the append check. Cosmetic.
+  Suggested fix: Optional. Detect a CR on the first line and write CRLF to match.
+
+Resolved by this push:
+- The Monitor WARN (zat.env-install.sh): 1608332 registers the gate as `Bash|Monitor`, and README says the stable channel can downgrade an install. Pending the reinstall in the Summary.
+- The light-tier WARN: 13b67ba limits the light tier to plain `.md` and `.gitignore`.
+- The /pr merge WARN: narrowed by 13b67ba to the WARN above.
+- The 431af78 review's three NOTEs: caller lists (b47852a), CLAUDE.md:62's scope, and the turn-close capture, which now appends through the script (5cd6836).
+- The 897b1a7 review's NOTEs on the unchecked `mktemp`, SPEC.md dates in `git log`, the stray `clear` and the empty `append:` heading (the residue is the `end-append` and clear-guard NOTEs above), the tester role and D.2's bound, `propose` routing, `/spec new` in the escape hatch, the TESTER_D7 range, and the CRLF test gap.
+- The four gate WARNs 1608332 moved to Accepted Risks. They are listed there and not re-reported.
+
+Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" in them means that review. Line numbers may have shifted.
 
 [NOTE] bin/spec-backlog-apply.sh:159, 176-178, 203, 232, 288, 324, claude/skills/spec/SKILL.md:403-405, 571 — (also claude-code, also security; carried and extended) Fence tracking differs from what a markdown renderer shows in these cases:
   - A `~~~` or indented fence holding a `### ` example truncates the header at `clear`. Every line starting with three backticks toggles the state, so a four-backtick fence holding a three-backtick one closes early, and `clear` reports 2 entries and cuts the header inside the fence (claude-code, reproduced by the built-in).
@@ -76,43 +82,7 @@ Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" i
 [NOTE] bin/spec-backlog-apply.sh:175, 186 — (also claude-code, carried) `clear` writes through `mktemp` and `mv`, so BACKLOG.md becomes 0600. The delete, adopt, and purge paths already did this; git does not track the read bits.
   Suggested fix: Optional. `cat "$tmp" > "$BACKLOG"` keeps the mode.
 
-[NOTE] claude/skills/tester/SKILL.md:18, 313 — (claude-code) The role statement says the tester's job is "not to write, run, or review individual tests", while D.2 (33cea03) says to confirm each "What fails today" item "by running or reproducing it", with no stated limit on what may be run. A literal reading either skips the confirmation or runs suites and live checks under Bash(*). Confidence: low that it changes behavior.
-  Suggested fix: Scope the role sentence to audit mode, or bound D.2's confirmation (one run of the named command, no live services).
-
-[NOTE] claude/skills/spec/SKILL.md:83-84, 89, 245-246 — (claude-code, carried) `propose` with no SPEC.md "falls through to interview mode", but the interview branch now requires empty arguments, so a literal reading continues to the direct-mode branch with "propose" as the brief. Confidence: low.
-  Suggested fix: Name the step: "route to interview mode (Step 3a)".
-
-[NOTE] claude/skills/spec/SKILL.md:91-93, 138-151 — (claude-code, carried) A vague brief in a project's first `/spec` used to get the interview's questions and now stops at the escape hatch, which points only to plan mode.
-  Suggested fix: Mention `/spec new` in the escape-hatch message as the alternative to plan mode.
-
-[NOTE] tests/lint-skills.sh:1779 — (claude-code, carried) `TESTER_D7` runs from `### Step D.7:` to the end of the file. D.7 is the last section today, so the pins are exact. A section added after it would let the D.7 phrases pass from elsewhere.
-  Suggested fix: Optional. End the range at the next `^#{2,3} ` heading.
-
-Carried forward from the 2026-11-03 review. The files they cite are unchanged since 82379d2, which committed that review's fixes, so neither this run nor the 2026-11-07 d12ce05 review re-checked them beyond the probes /security re-ran. Hook line numbers are as that review recorded them (f564cd4 numbering, shifted by up to about 75 lines in 82379d2).
-
-[WARN] (carried forward) zat.env-install.sh:213, 336-345 — (security) Requires a user decision; not for /codefix. Seeding `autoUpdatesChannel` to stable rolled this host's CLI back from 2.1.317 to 2.1.311, which predates a hook fix, and the installer registers no Monitor entry. New with 4132078. The 2.1.314 changelog reads "Fixed hooks matching Bash not running on shell commands started by the Monitor tool", so a new session on 2.1.311 likely runs a push through Monitor ungated, with no unusual spelling.
-  Evidence: re-checked this run: `~/.local/bin/claude` still resolves to versions/2.1.311, and settings.json has `autoUpdatesChannel: "stable"` and `minimumVersion: null`. Not reproduced on 2.1.311 (the prior run's probes stopped at the spend limit). Confidence: high on the rollback, medium on the bypass.
-  Suggested fix: Seed `minimumVersion` to 2.1.314 or later beside the channel, or add a `"matcher": "Monitor"` gate entry and pin it in lint after checking that two matching entries do not run the hook twice and burn a skip marker. Say in README's settings bullet that the setting can downgrade an install.
-
-[WARN] (carried forward) hooks/pre-push-codereview.sh:408-446, 692, 706, 789 — (also security) Requires a user decision; not for /codefix. Following `git -C <path>` makes the hook run `git diff` in a directory named by the command before the command is approved, and that repo's config names what `git diff` executes. New with 49ecf37. f564cd4 narrows it only in that a `-C` inside a quoted or substituted `-c` value no longer moves the hook.
-  Evidence: /security at f564cd4: a target whose .git/config sets `core.fsmonitor` and `diff.external` ran the payload 3 times while the hook exited 2, and a clone-delivered bare-repo layout with `core.worktree = .` ran it twice. An approved `git -C <dir> diff` runs the same payload, so what is lost is the approval step for this one command in auto mode. Confidence: high on the mechanism, low on how often an agent is steered there.
-  Suggested fix: Refuse a `-C` target whose toplevel is not the session's. To also close the cwd route, pass `--no-ext-diff --no-textconv` and config overrides in bin/codereview-marker and refuse a repo whose local config defines `filter.*`.
-
-[WARN] (carried forward) hooks/pre-push-codereview.sh:451-457, 466-540 — (also claude-code, security) Requires a user decision; not for /codefix. The gate judges only refs spelled on the command line and counts any remote-tracking ref as already gated, so these still send unreviewed commits: fetched refs (`git push origin origin/contrib:main`, `fork/evil:refs/heads/main`, and a tag on such a commit), a branch tracking a local upstream, config-chosen refs (`remote.origin.push`, `push.default=matching`, through config, `-c`, or `GIT_CONFIG_COUNT`), `git push origin HEAD~1:main` under a valid marker, git's abbreviated options (`--al`, `--mir`, `--ta`, which /security's real run used to send a tag on an unreviewed commit) and `--repo=`, `git push --repo -d origin feature:main` and `--rep -d`, where git takes `-d` as `--repo`'s value but the hook reads a delete (security, real run; open in every version), `--mirror` with a non-tag ref on a tree, and `--recurse-submodules=on-demand`. The `&>` and `-o` cases are in the WARN above.
-  Evidence: real pushes by /security to scratch remotes; the built-in reproduced `git -c remote.origin.push=refs/heads/feature:refs/heads/main push`, `git -c push.default=matching push`, and `git push origin fork/pr1:main`. Confidence: high on the mechanism, medium on frequency for fetched branches.
-  Suggested fix: Count a commit as gated only when the pushed remote's tracking ref for the destination has it, and refuse a push with no refspec when config chooses the refs; or move to a git-native pre-push hook (core.hooksPath), which receives the exact refs and would close most gate findings together, but also fires on terminal pushes and overrides per-repo hooks.
-
-[WARN] (carried forward) zat.env-install.sh:331-346 — (security) Requires a user decision; not for /codefix. A hook that times out, crashes, or cannot start does not block the tool call, and neither gate entry sets `"onFailure": "block"`. An unreadable marker makes `cat` at hooks/pre-push-codereview.sh:822 exit 1, and a long command outlasts the 30 s timeout (the scanner WARN above makes that far easier). Since 1a85d54 the hook runs on every shell command, so `block` would refuse every shell command while the script is missing, including the ones needed to fix it.
-  Suggested fix: An EXIT trap, set once a push is recognized, can turn a crash into a refusal without that cost. Add `"onFailure": "block"` only if the every-command cost is acceptable.
-
-[WARN] (carried forward) bin/codereview-marker:156, 167, 173, 177 — (security) Requires a user decision; not for /codefix. A submodule with `ignore = all` hides its pointer changes from `git diff`, so the marker hash, the uncommitted check, the security surface, and the review diff all miss them (carried, not re-checked).
-  Suggested fix: Add `--ignore-submodules=dirty` to the script's diffs and the codereview skill's review diffs.
-
-[WARN] (carried forward) claude/skills/pr/SKILL.md:184-191, 217 — (security) Requires a user decision; not for /codefix. /pr merge accepts a review of any ancestor of local HEAD and never compares the remote PR head with local HEAD (carried, not re-checked).
-  Suggested fix: Require no non-review-file change since `reviewed_up_to` and a remote head equal to local HEAD.
-
-[WARN] (carried forward) claude/skills/codereview/SKILL.md:269-277 — (security) Requires a user decision; not for /codefix. The light tier still treats `.txt` and `.gitconfig` as plain documentation, so a diff limited to `gitconfig/aliases.gitconfig` or a downstream `requirements*.txt` or `CMakeLists.txt` skips /security, tests, and external reviewers (carried, not re-checked).
-  Suggested fix: Drop `.txt` and `.gitconfig` from the light tier, and update README and the lint pin.
+Carried forward from the 2026-11-03 review, verbatim. zat.env-install.sh and claude/skills/codereview/SKILL.md changed in this push, so line numbers there have shifted. /security re-checked the review-files WARN and four NOTEs (the /spec tool grant, the installer's settings.json mode, three codereview prompt NOTEs, /pr create quoting) this run; the rest were not re-checked.
 
 [WARN] (carried forward) claude/skills/codereview/SKILL.md:203-209, 287-337, 402-425, 555-561 — (security) Requires a user decision; not for /codefix. CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files (carried, not re-checked).
   Suggested fix: Take the full tier and read prior META from the base when a commit not authored by the operator touched the review files.
@@ -329,7 +299,11 @@ Carried forward from the 2026-11-03 review. The files they cite are unchanged si
 
 ### Fixes Applied
 
-None.
+One /codefix cycle, uncommitted in the working tree:
+- [WARN] claude/skills/spec/SKILL.md:96, 258, tests/lint-skills.sh:899, 904 — (claude-code) `git log --since='YYYY-MM-DD'` read the date at the current time of day, so commits made earlier that day were left out (reproduced: 0 commits against 13 at midnight). Both sites now use `--since='YYYY-MM-DD 00:00'`, and both lint pins match.
+- [WARN] claude/skills/codereview/SKILL.md:608-612, 656-659 — (also claude-code) Step 7 now invokes /codefix, and starts another cycle, only when a BLOCK or WARN not marked `Requires a user decision; not for /codefix.` is open, so held findings no longer run up to three no-op cycles.
+- [WARN] claude/skills/pr/SKILL.md:222-230 — (also claude-code) The `--match-head-commit` instruction now comes before the merge block and says to add the flag to the `gh pr merge` line before `git checkout main`.
+- [WARN] bin/spec-backlog-apply.sh:43-49, 81, 102-105, 169-172, tests/test-spec-backlog-apply.sh:547-570 — (also claude-code, also security) A manifest with an `end-append` line outside an append block is refused (exit 1, nothing changed), which catches a body line that ended its block early when the real terminator follows. Three new checks cover it. The case where a later body line opens a new `append:` block is the residual NOTE above.
 
 ### Accepted Risks
 
@@ -345,6 +319,6 @@ None.
 
 
 ---
-*Prior review (2026-11-07, commit 897b1a7): Refresh review of 897b1a7. Two /codefix cycles fixed two WARNs (Step 3f had no stop rule for a script error; CRLF headings defeated the ACTIVE carve-out) and made the CRLF test portable to macOS, committed in 5c774f1. It left 0 BLOCK / 10 WARN / 80 NOTE, all needing a user decision or informational.*
+*Prior review (2026-11-07, commit 431af78): Refresh review of 431af78, which changed only documentation and a script comment. No fix loop ran. It left 0 BLOCK / 9 WARN / 81 NOTE, all needing a user decision or informational; its three new NOTEs are resolved by this push.*
 
-<!-- REVIEW_META: {"date":"2026-11-07","commit":"431af78","reviewed_up_to":"431af789e1e19721f12798f02f980105fa33232f","base":"origin/main","tier":"refresh","block":0,"warn":9,"note":81} -->
+<!-- REVIEW_META: {"date":"2026-11-07","commit":"895c3d3","reviewed_up_to":"895c3d3964d2ebe4d26bd2ccad67e75013eb3873","base":"origin/main","tier":"refresh","block":0,"warn":3,"note":80} -->

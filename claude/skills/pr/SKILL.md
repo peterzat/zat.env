@@ -194,8 +194,11 @@ The review gate passes if ALL of these hold:
 4. `PR_HEAD` equals `git rev-parse HEAD`. `gh pr merge` merges the remote
    head, and the review covers only the local branch, so a commit that
    reached the PR some other way (a suggestion applied on GitHub, a bot, a
-   collaborator) would otherwise merge unreviewed. Local commits reach the
-   PR through the pre-push gate.
+   collaborator) and is not in the local branch would otherwise merge
+   unreviewed. This check does not catch such a commit once it has been
+   pulled into the local branch, or a commit pushed with `codereview-skip`:
+   condition 3 still holds for both. After pulling PR changes, run
+   `/codereview` before merging.
 
 If any condition fails, report that `/codereview` must be run first and stop.
 Do not merge without a passing review.
@@ -219,16 +222,15 @@ Block the merge and report the reason if any of these hold:
 If no CI checks are configured, that is not a blocker (many repos have none).
 If `reviewDecision` is empty or `APPROVED`, proceed.
 
-If all checks pass:
+If all checks pass, merge. First, if `gh pr merge --help` lists
+`--match-head-commit`, add `--match-head-commit "$(git rev-parse HEAD)"` to
+the `gh pr merge` line below, before running `git checkout main`, so GitHub
+refuses the merge when a commit lands between the check above and the merge.
 ```bash
 gh pr merge --squash --delete-branch
 git checkout main
 git pull
 ```
-
-If `gh pr merge --help` lists `--match-head-commit`, add
-`--match-head-commit "$(git rev-parse HEAD)"`, so GitHub refuses the merge
-when a commit lands between the check above and the merge.
 
 Report that the PR was merged and the branch was cleaned up.
 

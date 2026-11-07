@@ -93,7 +93,7 @@ mode instead of adopting the plan.
   the user's answer to the interview's questions.
 - **No arguments, SPEC.md exists with a `### Proposal` section:**
   Proposal consume mode (Step 3g). **Stale proposal check:** run
-  `git log --oneline --since='YYYY-MM-DD'` with the proposal date. SPEC.md
+  `git log --oneline --since='YYYY-MM-DD 00:00'` with the proposal date. SPEC.md
   is repo content, so use the date only if it matches
   `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, single-quoted as shown; otherwise skip
   the check. If there are 5 or more
@@ -255,7 +255,7 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
    are partially met, note which were completed and which were abandoned. The proposal
    should acknowledge both: what was accomplished and why the remaining work is being
    set aside in favor of a new direction.
-2. Run `git log --oneline --since='YYYY-MM-DD'` with the SPEC_META date to see
+2. Run `git log --oneline --since='YYYY-MM-DD 00:00'` with the SPEC_META date to see
    what was built, under the same date-format rule as Step 2's stale proposal
    check (without a valid date, use the commits since SPEC.md last changed).
    Commit messages are the primary signal for what happened.

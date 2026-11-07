@@ -605,10 +605,12 @@ once in Step 9.
 
 *Skipped for light review.*
 
-If BLOCK or WARN findings exist (and CODEREVIEW.md has been written in Step 6.5),
-invoke `/codefix` to apply fixes. The codefix skill runs in a separate forked
-context: it reads CODEREVIEW.md findings as a spec and applies minimal fixes
-without self-evaluation.
+If BLOCK or WARN findings exist that are not marked `Requires a user decision;
+not for /codefix.` (and CODEREVIEW.md has been written in Step 6.5), invoke
+`/codefix` to apply fixes. When every open BLOCK and WARN is so marked, skip
+this step: /codefix skips them, so a cycle would change nothing. The codefix
+skill runs in a separate forked context: it reads CODEREVIEW.md findings as a
+spec and applies minimal fixes without self-evaluation.
 
 Before each `/codefix` invocation, record the working tree so you can tell
 exactly what codefix changed:
@@ -653,7 +655,8 @@ counts against the Step 3 baseline. If tests regressed, the fix cycle fails.
 
 If the re-review or the security re-check finds remaining or new BLOCK/WARN
 findings, update CODEREVIEW.md with the new findings before invoking `/codefix`
-again.
+again. Start another cycle only when at least one of them is not marked
+`Requires a user decision; not for /codefix.`; held findings alone do not.
 
 **Cycle limit: 3.** Each cycle is one CODEREVIEW.md update, one `/codefix`
 invocation, one security re-check, and one re-review. If BLOCKs remain after 3 cycles, or tests

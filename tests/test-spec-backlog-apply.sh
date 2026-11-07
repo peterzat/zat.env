@@ -546,6 +546,31 @@ done
 
 # ============================================================
 echo ""
+echo "==> append: a body line 'end-append' ending the block early is refused"
+# ============================================================
+
+# The body lines after the early end-append would otherwise run as ops:
+# here the delete would remove keep-spec and the real end-append would be
+# ignored.
+fixture_standard "${BACKLOG}"
+cp "${BACKLOG}" "${TEST_DIR}/before.md"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append: early-end
+- **One-line description:** body that quotes a manifest.
+end-append
+delete: keep-spec
+end-append
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 1 ]]; then pass "stray end-append: exit 1"; else fail "stray end-append: expected exit 1, got ${EC}"; fi
+if cmp -s "${BACKLOG}" "${TEST_DIR}/before.md"; then pass "stray end-append: BACKLOG.md unchanged"; else fail "stray end-append: BACKLOG.md changed"; fi
+if echo "${OUT}" | grep -q "end-append outside an append block"; then pass "stray end-append: error names the rule"; else fail "stray end-append: missing error: ${OUT}"; fi
+
+# ============================================================
+echo ""
 echo "==> append: a body line 'clear' is body, not an op"
 # ============================================================
 
