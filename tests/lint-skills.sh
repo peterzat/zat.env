@@ -1133,6 +1133,14 @@ hasnt "${SKILLS}/tester/SKILL.md" "out loud" \
 echo ""
 echo "==> Codefix constraints"
 
+# Auto-fix scope: a finding outside the diff is fixed like any other; only
+# a real choice is held for the user, by a marker both skills spell the same.
+has "${SKILLS}/codereview/SKILL.md" 'gets fixed like any other when its' \
+  "codereview: being outside the diff is not by itself a user decision"
+has "${SKILLS}/codereview/SKILL.md" '`Requires a user decision; not for /codefix.`' \
+  "codereview: names the marker that holds a finding for the user"
+has "${SKILLS}/codefix/SKILL.md" '`Requires a user decision; not for /codefix.`' \
+  "codefix: skips findings held for the user by the same marker"
 has "${SKILLS}/codefix/SKILL.md" "One fix at a time" \
   "codefix: one-fix-at-a-time constraint"
 has "${SKILLS}/codefix/SKILL.md" "No self-evaluation" \

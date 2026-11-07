@@ -34,6 +34,8 @@ enough; a separate reviewer will do that.
 
 Read `CODEREVIEW.md` from the project root. Extract all BLOCK and WARN findings.
 Ignore NOTE findings (they are informational and should not be auto-fixed).
+Skip any finding marked `Requires a user decision; not for /codefix.` and list
+it under Skipped with that reason.
 
 For each finding, note:
 - Severity (BLOCK or WARN)

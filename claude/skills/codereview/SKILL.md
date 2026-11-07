@@ -563,6 +563,14 @@ Classify every finding:
 - **NOTE** — Informational only. Optional improvements, alternative approaches to
   consider, and findings you are not confident in. Do not auto-fix these.
 
+Every BLOCK and WARN goes to `/codefix` in Step 7 unless its fix needs a choice
+only the user can make: two reasonable fixes with different trade-offs, a change
+to behavior or policy someone chose, or undoing an accepted risk. Mark those
+`Requires a user decision; not for /codefix.` and name the choice. Being outside
+the diff is not by itself such a choice: a finding in a file this push does not
+change, or one carried from an earlier review, gets fixed like any other when its
+suggested fix is concrete.
+
 Classify the built-in review's `(claude-code)` findings from Step 5.6 with the same
 definitions. Drop any that are about style or writing conventions (No style
 policing) or about the review-output files (CODEREVIEW.md, SECURITY.md, TESTING.md,
