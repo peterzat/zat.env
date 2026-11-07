@@ -112,8 +112,15 @@ a canonical git range:
   - "between X and Y" / "from X to Y" → `X..Y`
   - "last N commits" → `HEAD~N..HEAD`
 
-Validate every named ref with `git rev-parse <ref> >/dev/null 2>&1`
-before continuing. On failure, stop with:
+Validate every ref the argument names (not the empty tree the default can
+resolve to) before continuing:
+
+```bash
+git rev-parse --verify --quiet --end-of-options "<ref>^{commit}" >/dev/null
+```
+
+`--end-of-options` makes git read a value starting with `-` as a revision,
+which fails, instead of an option. On failure, stop with:
 
 > Cannot resolve `<ref>`. Run /codereview external with a valid git ref
 > or range.
@@ -138,8 +145,11 @@ specific.
 Compute the diff with the standard exclusions, identical to Step 5.5:
 
 ```bash
-git diff <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
+git diff --end-of-options <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
 ```
+
+`--end-of-options` keeps a range such as `--output=<path>` from reaching git
+as an option, which would write the diff to that path.
 
 If empty, stop with:
 
@@ -162,7 +172,7 @@ differs from the branch's upstream):
 
 ```bash
 COST_LOG=$(mktemp /tmp/.claude-external-cost-XXXXXX)
-EXTERNAL_FINDINGS=$(git diff <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh --range "<range>" 2>"${COST_LOG}")
+EXTERNAL_FINDINGS=$(git diff --end-of-options <range> -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md' | review-external.sh --range "<range>" 2>"${COST_LOG}")
 EXTERNAL_COST=$(cat "${COST_LOG}" 2>/dev/null)
 rm -f "${COST_LOG}"
 ```

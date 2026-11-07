@@ -1361,6 +1361,24 @@ else
   printf '  FAIL codereview: cannot check Step E.4 invocation without External-Only Mode bounds\n'
 fi
 
+# The range reaches git in E.2, E.3, and E.4, but the script's leading-dash
+# refusal covers only E.4's --range. A range such as --output=<path> made
+# E.3's `git diff` write the diff to that path, and rev-parse echoed it as
+# valid. --end-of-options makes git read it as a revision, which fails.
+CR_EXTMODE_BODY=$(sed -n "${CR_EXTMODE_START:-1},${CR_EXTMODE_END:-1}p" "${CR_SKILL}")
+if [[ $(printf '%s\n' "${CR_EXTMODE_BODY}" | grep -c 'git diff --end-of-options <range> --') -ge 2 ]]; then
+  pass "codereview: Steps E.3 and E.4 pass the range after --end-of-options"
+else
+  fail "codereview: Steps E.3 and E.4 pass the range after --end-of-options"
+fi
+text_has "${CR_EXTMODE_BODY}" 'git rev-parse --verify --quiet --end-of-options "<ref>\^\{commit\}"' \
+  "codereview: Step E.2 validates refs with rev-parse --verify --end-of-options"
+if printf '%s\n' "${CR_EXTMODE_BODY}" | grep -qE 'git diff <range>'; then
+  fail "codereview: no External-Only Mode git diff takes the range without --end-of-options"
+else
+  pass "codereview: no External-Only Mode git diff takes the range without --end-of-options"
+fi
+
 # (d) External-Only Mode body does NOT contain `codereview-marker write`
 # (no marker write in external mode) or `/codefix` invocation (no fix loop).
 if [[ -n "${CR_EXTMODE_START}" ]] && [[ -n "${CR_EXTMODE_END}" ]]; then

@@ -12,7 +12,7 @@ Blocks `git push` commands unless `/codereview` has been run and passed on the
 current diff.
 
 **How it works:**
-1. The `PreToolUse` hook fires on every shell command and passes through anything that is not a push. It has no `if` filter: the docs call that filter best-effort and do not say how it treats a multi-line command, so the hook decides for itself. A second entry covers Claude Code's PowerShell tool. zat.env turns that tool off on Windows, so the entry is a backstop for when it comes back on; Linux and macOS have no PowerShell tool unless one is opted into
+1. The `PreToolUse` hook fires on every shell command and passes through anything that is not a push. It has no `if` filter: the docs call that filter best-effort and do not say how it treats a multi-line command, so the hook decides for itself. The entry's matcher is `Bash|Monitor`: the Monitor tool runs its `command` in a shell too, and Claude Code before 2.1.314 ran no Bash-matcher hooks for it. One entry for both keeps the hook to one run per Monitor command on later versions, which do run Bash hooks for Monitor; two entries could run it twice and spend the skip marker on the first. A second entry covers Claude Code's PowerShell tool. zat.env turns that tool off on Windows, so the entry is a backstop for when it comes back on; Linux and macOS have no PowerShell tool unless one is opted into
 2. The hook resolves the marker path via `codereview-marker path` (single source of truth). Markers live under `${XDG_CACHE_HOME:-${HOME}/.cache}/claude-codereview/marker-<project-hash>` (per-user, mode 0700)
 3. The marker contains the diff hash (SHA-256, 16 chars) from the passing review
 4. If the marker exists and the diff hash matches the current diff → push allowed
