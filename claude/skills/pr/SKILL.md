@@ -197,10 +197,17 @@ The review gate passes if ALL of these hold:
    collaborator) and is not in the local branch would otherwise merge
    unreviewed. This check does not catch such a commit once it has been
    pulled into the local branch, or a commit pushed with `codereview-skip`:
-   condition 3 still holds for both. After pulling PR changes, run
-   `/codereview` before merging.
+   condition 3 still holds for both. `/codereview` reviews only what is not
+   yet on the upstream, so it does not review pulled PR changes. After
+   pulling them, read `git log -p "${REVIEWED_UP_TO}..HEAD"` (or run
+   `/codereview external "${REVIEWED_UP_TO}"` where external reviewers are
+   configured) before merging.
 
-If any condition fails, report that `/codereview` must be run first and stop.
+If condition 1, 2, or 3 fails, report that `/codereview` must be run first
+and stop. If condition 4 fails, report which way the heads differ and stop:
+if `git merge-base --is-ancestor "${PR_HEAD}" HEAD` holds, local HEAD is
+ahead of the PR, so push first; otherwise the PR has commits the local
+branch lacks, so pull them and review them as condition 4 describes.
 Do not merge without a passing review.
 
 **Verify GitHub merge readiness.** After the local gate passes, check the PR's remote state:

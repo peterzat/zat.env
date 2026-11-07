@@ -896,7 +896,7 @@ text_has "${SPEC_S2}" 'Direct spec mode \(Step 3b\),' \
 # SPEC.md dates reach a git log command. SPEC.md is repo content, so a
 # date carrying $(...) would run under /spec's Bash(*) without the format
 # rule and the single quotes.
-text_has "${SPEC_S2}" "--since='YYYY-MM-DD 00:00'" \
+text_has "${SPEC_S2}" "--since='YYYY-MM-DD 23:59:59'" \
   "spec: Step 2 stale-proposal check single-quotes the date"
 text_has "${SPEC_S2}" '\^\[0-9\]\{4\}-\[0-9\]\{2\}-\[0-9\]\{2\}\$' \
   "spec: Step 2 uses the proposal date only when it matches the date format"
@@ -1831,7 +1831,7 @@ fi
 TESTER_D2=$(awk '/^### Step D\.2:/{p=1} /^### Step D\.3:/{p=0} p' "${TESTER}")
 TESTER_D3=$(awk '/^### Step D\.3:/{p=1} /^### Step D\.4:/{p=0} p' "${TESTER}")
 TESTER_D5=$(awk '/^### Step D\.5:/{p=1} /^### Step D\.5\.5:/{p=0} p' "${TESTER}")
-TESTER_D7=$(awk '/^### Step D\.7:/{p=1; print; next} p && /^#{2,3} /{p=0} p' "${TESTER}")
+TESTER_D7=$(awk '/^### Step D\.7:/{p=1; print; next} p && /^###? /{p=0} p' "${TESTER}")
 text_has "${TESTER_D2}" 'What fails today' \
   "tester: D.2 looks for what fails today"
 text_has "${TESTER_D2}" 'one run of the' \
