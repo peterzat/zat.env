@@ -1,64 +1,84 @@
-## Review — 2026-11-07 (commit: d12ce05)
+## Review — 2026-11-07 (commit: 897b1a7)
 
-**Summary:** Refresh review of 33cea03 and d12ce05, the two unpushed commits.
-- **What they change.** /tester design reports what fails today as defects instead of rollout entries, and D.3 asks what each recorded result is evidence about. /spec Steps 3a, 3b, and 3e mark the BACKLOG entries a new spec takes on as ACTIVE. /spec backlog mode goes through `spec-backlog-apply.sh`, with a new `clear` op that keeps the header. /spec with a brief and no SPEC.md now reaches direct mode. The template's description field gets a label.
-- **Scope.** Every file in the diff was in the focus set; there was no already-reviewed set. 82379d2, which committed the prior review's fixes, is already on origin/main and outside this diff.
-- **Fix loop.** Two /codefix cycles. Cycle 1 fixed three WARNs: the template lint threshold, the symlinked BACKLOG.md (security), and fence handling across ops. Its fence change added a BLOCK, where one unclosed fence in an entry body made `delete:` and `purge-origin:` silently remove every later entry, ACTIVE ones included. Cycle 2 fixed it by tracking fences only above the first entry. /security re-checked both cycles; its second re-check fuzzed 7,500 files and manifests against a reference model with no ACTIVE heading lost.
-- **What is left.** One new WARN that needs a user decision (the bundled commit), the nine carried WARNs, and NOTEs.
-- **Tests.** tests/run-all.sh went from 1133/1133 to 1164/1164 across 6 suites. Shellcheck at warning level is clean.
-- **Commit before pushing.** The fixes are uncommitted in bin/spec-backlog-apply.sh, tests/test-spec-backlog-apply.sh, tests/lint-skills.sh, tests/README.md, and CLAUDE.md, so the push gate refuses a push until they are committed. CODEREVIEW.md and SECURITY.md are uncommitted too.
+**Summary:** Refresh review of 897b1a7, which commits the prior review's fixes: bin/spec-backlog-apply.sh refuses a symlinked or non-regular BACKLOG.md and tracks fences only above the first entry in every op, lint requires the four-field template at all three /spec sites, and README names the turn-close direct write.
+- **Scope.** Focus set: CLAUDE.md, README.md, bin/spec-backlog-apply.sh, tests/README.md, tests/lint-skills.sh, tests/test-spec-backlog-apply.sh. Already-reviewed set (33cea03 and d12ce05, checked for interactions only): BACKLOG.md, claude/skills/spec/SKILL.md, claude/skills/tester/SKILL.md.
+- **Verified.** The committed script matches what the prior fix loop and /security re-checks read. Probes confirm that a fenced `### ` or `## ` in the header is ignored by purge, delete, append, and clear, and that an unclosed fence in an entry body no longer hides later entries.
+- **Fix loop.** Two /codefix cycles. Cycle 1 fixed two WARNs: Step 3f had no stop rule for a script error (the new symlink refusal's main path), and a CRLF BACKLOG.md made `purge-origin:` remove ACTIVE entries (pre-existing since origin/main). Cycle 2 made cycle 1's CRLF test portable to macOS. /security re-checked both cycles and found nothing new in the fixes.
+- **What is left.** The bundled-commit WARN on 33cea03 (user decision), the nine carried WARNs, and NOTEs.
+- **Tests.** tests/run-all.sh went from 1164/1164 to 1168/1168 across 6 suites.
+- **Commit before pushing.** The fixes are uncommitted in bin/spec-backlog-apply.sh, claude/skills/spec/SKILL.md, and tests/test-spec-backlog-apply.sh, so the gate refuses until they are committed. CODEREVIEW.md and SECURITY.md are uncommitted too.
+- **Incident.** One /security probe in the initial scan ran the script in zat.env's root after a failed `cd` and appended a `### probe` entry to the real BACKLOG.md. /security restored it at once; this run confirmed the blob matches HEAD (e728437). The file is mode 0600, as earlier `mv`-based runs already left it.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 10 findings, 9 kept after Step 6. One (fences across ops) became a WARN that cycle 1 fixed. Four merged into NOTEs this run also found (turn-close capture, fence and `## ` handling in `clear`, the 0600 mode), and four became new NOTEs. One was dropped as a writing-style point (the em-dash in the D.7 template).
+`/code-review high`: 9 findings, 8 kept after Step 6. One became part of the Step 3f WARN, five merged into NOTEs (two carried, one new), one became a new NOTE, and one (the em-dash in the D.7 template) was dropped as a writing-style point.
 
 ### Findings
 
 No BLOCK findings.
 
-Resolved in this run's fix loop (uncommitted):
-- **Template lint threshold.** The four-field template lint now requires each field 3 times in /spec, since Step 3f added a third copy, and CLAUDE.md's "BACKLOG.md prompt contracts" bullet names Step 3f (tests/lint-skills.sh:792-802, CLAUDE.md:61).
-- **Symlinked BACKLOG.md** (security). The script refuses a BACKLOG.md that is a symlink, live or dangling, or not a regular file, before any read or write, with tests and a lint pin (bin/spec-backlog-apply.sh:143-147). /security confirmed the original attack is refused.
-- **Fenced headings across ops** (also claude-code). `delete:`, `adopt:`, `purge-origin:`, the `append:` collision check, and `count_entries` no longer read a fenced `### ` in the header as an entry, so a header with a fenced format example survives `/tester design`.
-- **Cycle 1's unclosed-fence data loss** (BLOCK, also security). Fences are tracked only above the first entry, so an entry body cannot hide the entries after it. Tests cover `delete:`, `purge-origin:` (ACTIVE kept), `adopt:`, and the `append:` collision.
+Resolved in this run's fix loop, cycle 1 (uncommitted):
+- **Step 3f error handling** (also claude-code). Step 3f's Append and Clear paths said nothing about a non-zero exit, though 897b1a7 added the symlink refusal and `/spec backlog` append is the path the prior security WARN named. Both now say to stop, report the output, and not edit or remove BACKLOG.md (claude/skills/spec/SKILL.md:391-392, 409-410).
+- **CRLF defeats the ACTIVE carve-out** (security, pre-existing since origin/main). On a CRLF BACKLOG.md, `purge-origin:` removed ACTIVE entries and the other ops missed headings. The script strips a trailing `\r` from the heading copy used for matching in delete, adopt, purge, and the append check, leaving the file's bytes alone (bin/spec-backlog-apply.sh:208, 238, 297, 332). /security confirmed each op, and `clear`, behaves on a CRLF file as on an LF one.
 
-[WARN] commit 33cea03 — Requires a user decision; not for /codefix. The commit bundles five independent changes: the /tester defects channel and D.3 evidence question, /spec Step 4 ACTIVE adoption, backlog mode through the script with the new `clear` op, the Step 2 routing change for a first-run brief, and the template label. They share a source (one round of zat-hermes feedback), and the message describes each. But the routing change and the tester defects channel are unrelated to each other and to the script, so none can be reverted alone. The repo's history is otherwise one concern per commit.
+Resolved in cycle 2 (uncommitted):
+- **CRLF test portability** (also security). Cycle 1's test built its fixture with `sed 's/$/\r/'`, which BSD sed on macOS reads as a plain `r`, so the test would fail falsely there. It now uses `awk '{ printf "%s\r\n", $0 }'`, as tests/test-pre-push-hook.sh:1426 does (tests/test-spec-backlog-apply.sh:173). /security's mutation check: removing the purge strip fails 2 checks, and a fixture without CRs fails 1.
+
+[WARN] (carried forward) commit 33cea03 — Requires a user decision; not for /codefix. The commit bundles five independent changes: the /tester defects channel and D.3 evidence question, /spec Step 4 ACTIVE adoption, backlog mode through the script with the new `clear` op, the Step 2 routing change for a first-run brief, and the template label. They share a source (one round of zat-hermes feedback), and the message describes each. But the routing change and the tester defects channel are unrelated to each other and to the script, so none can be reverted alone. The repo's history is otherwise one concern per commit.
   Evidence: `git show --stat 33cea03` and the commit message's five paragraphs. Confidence: high on the bundling. WARN rather than BLOCK because each piece has its own lint pins and the message separates them.
-  Suggested fix: Split it before publishing (reset to origin/main and re-commit by concern), or accept the bundle. The uncommitted fixes belong with the script change.
+  Suggested fix: Split it before publishing (reset to origin/main and re-commit by concern), or accept the bundle. 897b1a7 belongs with the script change.
 
-[NOTE] bin/spec-backlog-apply.sh:93-96 — (claude-code, also security) A bare `clear` line is now a destructive op in every manifest, and it runs first, while the Format rules still say other lines are ignored. A stray `clear` in a Step 3g or `/tester design` manifest would remove every entry, ACTIVE ones included, and the following `delete:` and `adopt:` ops would MISS. /security also found that an entry body line reading exactly `end-append` ends the block early, so a following `clear` line in the body runs as an op (the parser is unchanged, and the text is visible in the command). Recoverable through git when BACKLOG.md is committed. Confidence: low on occurrence.
-  Suggested fix: Refuse a manifest that combines `clear` with any other op, since only `/spec backlog clear` sends it.
+[NOTE] tests/test-spec-backlog-apply.sh:165-184, bin/spec-backlog-apply.sh:239 — (security) The CRLF test covers only `purge-origin:`; with the `\r` strip removed from delete, adopt, or the append check, every test still passes. A regression there shows as a MISS or a duplicate heading, not a silent loss. Separately, `adopt:` on a CRLF file rewrites its heading with an LF ending, leaving one line that differs from the rest (cosmetic; git's autocrlf normalizes it on commit).
+  Suggested fix: Optional. Add one CRLF case each for delete, adopt, and the append collision.
 
-[NOTE] bin/spec-backlog-apply.sh:158-186, claude/skills/spec/SKILL.md:403-405, 571 — (also claude-code, also security) What `clear` keeps differs from "everything above the first one" and "its header is kept" in these cases:
-  - A `~~~` or indented fence holding a `### ` example truncates the header there. This run lost the text after the example and left an unclosed `~~~`.
-  - An unclosed fence in the header hides every entry from every op: `clear` is a silent no-op (`CLEARED: 0 entries`, exit 0), `delete:` and `adopt:` MISS, and `append:` writes a duplicate heading. /security found that a `delete:` or `purge-origin:` can move an unclosed body fence into the header by removing every entry above it, with the same effect in later runs. No data is lost.
+[NOTE] tests/test-spec-backlog-apply.sh:28 — (security, pre-existing since ba621cf) `TEST_DIR=$(mktemp -d)` is unchecked and the suite does not run with `set -e`. If `mktemp` fails, `pushd ""` succeeds without moving, and every case runs against the caller's BACKLOG.md, which under tests/run-all.sh is usually zat.env's own. /security's probe with TMPDIR pointing at a missing directory added six fixture entries to a tracked copy and failed 78 of 105 checks with no summary line.
+  Suggested fix: `TEST_DIR=$(mktemp -d) || exit 1`.
+
+[NOTE] claude/skills/spec/SKILL.md:95-96, 250 — (security, new this run; already-reviewed file) The skill has the model read a date from SPEC.md and paste it into a `git log` command. Nothing checks the date's format or says how to quote it, so a cloned repo's SPEC.md with `$(...)` in its proposal date could run a command under /spec's `Bash(*)`. Confidence: medium on the mechanism, low that a model would paste such a value.
+  Suggested fix: Extract the date inside the command with a strict `[0-9]{4}-[0-9]{2}-[0-9]{2}` pattern; SECURITY.md has a tested version.
+
+[NOTE] bin/spec-backlog-apply.sh:93-96, 121-130 — (claude-code, also security; carried and extended) A bare `clear` line is a destructive op in every manifest, and it runs first, while the Format rules say other lines are ignored. A stray `clear` in a Step 3g or `/tester design` manifest would remove every entry, ACTIVE ones included. Two ways it can arrive from inside an entry body: a body line reading exactly `end-append` ends the block early (security), and an `append:` with an empty heading never enters the block, so its body lines, a `clear` among them, are parsed as ops and its `end-append` is silently ignored (claude-code, new this run). Recoverable through git when BACKLOG.md is committed. Confidence: low on occurrence.
+  Suggested fix: Refuse a manifest that combines `clear` with any other op, since only `/spec backlog clear` sends it, and make an `append:` with an empty heading an error.
+
+[NOTE] bin/spec-backlog-apply.sh:159, 176-178, 203, 232, 288, 324, claude/skills/spec/SKILL.md:403-405, 571 — (also claude-code, also security; carried and extended) Fence tracking differs from what a markdown renderer shows in these cases:
+  - A `~~~` or indented fence holding a `### ` example truncates the header at `clear`. Every line starting with three backticks toggles the state, so a four-backtick fence holding a three-backtick one closes early, and `clear` reports 2 entries and cuts the header inside the fence (claude-code, reproduced by the built-in).
+  - An unclosed fence in the header hides every entry from every op: `clear` is a silent no-op (`CLEARED: 0 entries`, exit 0), `delete:` and `adopt:` MISS, `purge-origin:` purges nothing, and `append:` writes a duplicate heading. Before 897b1a7, delete, adopt, purge, and the append check ignored fences, so for those four this is new (claude-code calls it a regression). A `delete:` or `purge-origin:` can move an unclosed body fence into the header by removing every entry above it (security). No data is lost, and the trailing `BACKLOG.md: 0 entries` line shows it.
   - A project's own `## ` line directly above the first entry is dropped as an empty theme subhead.
   - Notes under a later `## ` theme are dropped, while notes under the first theme are kept.
-  - Below the first entry, a fenced `### ` is a heading again, as at HEAD for every op except `count_entries`, which now counts it.
+  - Below the first entry, a fenced `### ` or `## ` is a heading again for every op, including `count_entries`, which at origin/main ignored it.
   The Format rules and the script comment describe the `## ` stripping; Step 3f and Step 5 do not.
-  Suggested fix: Say in Step 3f that empty `## ` lines above the first entry are dropped, treat `~~~` as a fence, and have the script warn when the header ends inside an open fence.
+  Suggested fix: Say in Step 3f that empty `## ` lines above the first entry are dropped, match a closing fence by the opener's character and length, treat `~~~` as a fence, and have the script warn when the header ends inside an open fence.
 
-[NOTE] claude/skills/spec/SKILL.md:180-192, README.md:323, bin/spec-backlog-apply.sh:6-8 — (also claude-code, also security) The turn-close capture in Step 3c still tells the main-thread agent "I'll create BACKLOG.md with a `# Backlog` header if it doesn't exist", with no instruction to use the script, so that write goes through Edit or Write. README now says every BACKLOG.md change "goes through `bin/spec-backlog-apply.sh`", and the script's symlink guard does not cover that path. An Edit append at the end does not remove a header, so the main impact is the bypassed collision check. The script's header comment still names only Step 3g and /tester design as callers.
-  Suggested fix: Have the capture prompt append each entry with an `append:` manifest (or `/spec backlog`), and update the script comment.
+[NOTE] tests/lint-skills.sh:951-965, bin/spec-backlog-apply.sh:159-329 — (also claude-code) The header-only fence rule is copied, with small variations, into six awk programs (count_entries, clear, delete, adopt, purge, append), and the lint pins count matches. The first pin counts `!fence && /^### /` against a threshold of 5, but the script has 7 matches (delete and adopt carry it twice), so removing the guard from two ops still passes; this run removed it from clear and the append check in a copy and the count was exactly 5. Its comment says "Five gated matches". The second pin (5 of 5) catches a removal but not which op lost it. The behavioral tests cover each op, so a regression would still fail the suite.
+  Suggested fix: Optional. Pin each op's guard by a line unique to it, or move the rule into one awk prelude (an `is_heading()` function) that each program includes.
 
-[NOTE] bin/spec-backlog-apply.sh:56, 143-147 — (security) The symlink guard checks only the last path component. Run from inside a tracked directory link (`cd app && spec-backlog-apply.sh`, with `app` linking outside the repo), the script creates and fills BACKLOG.md outside the repo. Every skill runs it from the project root, so the agent would have to be steered away from that, and the target directory must already exist and load files of any name. Neither such directory exists on this host.
+[NOTE] claude/skills/spec/SKILL.md:180-192, CLAUDE.md:60, 62 — (also claude-code, also security; carried, partly resolved) The turn-close capture in Step 3c still tells the main-thread agent "I'll create BACKLOG.md with a `# Backlog` header if it doesn't exist", with no instruction to use the script, so that write goes through Edit or Write and skips the symlink guard and the collision check. /security settled the symlink half this run: on this host's Claude Code (2.1.311), Edit and Write refuse to write through a symlink, live or dangling, so the capture cannot follow a symlinked BACKLOG.md; the skipped collision check stands. 897b1a7 resolved the README half: README:323 now names it as the one direct write. CLAUDE.md still says "All BACKLOG.md mutations by `/spec` and `/tester` still flow through `spec-backlog-apply.sh`" (line 60) and "All BACKLOG.md mutations flow through the script" (line 62), so the developer doc and README now disagree.
+  Suggested fix: Have the capture prompt append each entry with an `append:` manifest (or `/spec backlog`); otherwise name the exception in CLAUDE.md's two bullets.
+
+[NOTE] bin/spec-backlog-apply.sh:6-8, README.md:696, CLAUDE.md:63 — Stale lists left behind by 33cea03 and 897b1a7. The script's header comment names only Step 3g and /tester design as callers, and README's directory overview says "(used by /spec Step 3g)"; Steps 3f and 4 also call it. CLAUDE.md's Tester/spec contract (1) says the template is in `/spec` "Step 3c and BACKLOG.md Format section", while the BACKLOG.md prompt contracts bullet that 897b1a7 updated (line 61) and the lint pin now count three sites, Step 3f included.
+  Suggested fix: Update the three lists.
+
+[NOTE] bin/spec-backlog-apply.sh:56, 143-147 — (security, carried) The symlink guard checks only the last path component. Run from inside a tracked directory link (`cd app && spec-backlog-apply.sh`, with `app` linking outside the repo), the script creates and fills BACKLOG.md outside the repo. Every skill runs it from the project root. /security re-confirmed this run that `git rev-parse --show-prefix` fails (exit 128) in that case, so the suggested check would refuse it; it would not stop a run in another repo's root.
   Suggested fix: Refuse unless `git rev-parse --show-prefix` succeeds and prints nothing. That also blocks /spec outside a git repo, which needs a decision.
 
-[NOTE] claude/skills/spec/SKILL.md:83-84, 89, 245-246 — (claude-code) `propose` with no SPEC.md "falls through to interview mode", but the interview branch now requires empty arguments, so a literal reading continues to the direct-mode branch with "propose" as the brief. The explicit "interview mode" target makes that unlikely. Confidence: low.
-  Suggested fix: Name the step: "route to interview mode (Step 3a)".
-
-[NOTE] claude/skills/spec/SKILL.md:91-93, 138-151 — (claude-code) A vague brief in a project's first `/spec` (the escape hatch's own "add auth" example) used to get the interview's questions and now stops at the escape hatch, which points only to plan mode. 33cea03 intends direct mode for specific briefs; the vague case is a side effect.
-  Suggested fix: Mention `/spec new` in the escape-hatch message as the alternative to plan mode.
-
-[NOTE] bin/spec-backlog-apply.sh:175, 186 — (also claude-code) `clear` writes through `mktemp` and `mv`, so BACKLOG.md becomes 0600 (this run: 644 before, 600 after). The delete, adopt, and purge paths already did this; git does not track the read bits.
+[NOTE] bin/spec-backlog-apply.sh:175, 186 — (also claude-code, carried) `clear` writes through `mktemp` and `mv`, so BACKLOG.md becomes 0600. The delete, adopt, and purge paths already did this; git does not track the read bits.
   Suggested fix: Optional. `cat "$tmp" > "$BACKLOG"` keeps the mode.
 
-[NOTE] tests/lint-skills.sh:1779 — (claude-code) `TESTER_D7` runs from `### Step D.7:` to the end of the file. D.7 is the last section today, so the pins are exact. A section added after it would let the D.7 phrases pass from elsewhere.
+[NOTE] claude/skills/tester/SKILL.md:18, 313 — (claude-code) The role statement says the tester's job is "not to write, run, or review individual tests", while D.2 (33cea03) says to confirm each "What fails today" item "by running or reproducing it", with no stated limit on what may be run. A literal reading either skips the confirmation or runs suites and live checks under Bash(*). Confidence: low that it changes behavior.
+  Suggested fix: Scope the role sentence to audit mode, or bound D.2's confirmation (one run of the named command, no live services).
+
+[NOTE] claude/skills/spec/SKILL.md:83-84, 89, 245-246 — (claude-code, carried) `propose` with no SPEC.md "falls through to interview mode", but the interview branch now requires empty arguments, so a literal reading continues to the direct-mode branch with "propose" as the brief. Confidence: low.
+  Suggested fix: Name the step: "route to interview mode (Step 3a)".
+
+[NOTE] claude/skills/spec/SKILL.md:91-93, 138-151 — (claude-code, carried) A vague brief in a project's first `/spec` used to get the interview's questions and now stops at the escape hatch, which points only to plan mode.
+  Suggested fix: Mention `/spec new` in the escape-hatch message as the alternative to plan mode.
+
+[NOTE] tests/lint-skills.sh:1779 — (claude-code, carried) `TESTER_D7` runs from `### Step D.7:` to the end of the file. D.7 is the last section today, so the pins are exact. A section added after it would let the D.7 phrases pass from elsewhere.
   Suggested fix: Optional. End the range at the next `^#{2,3} ` heading.
 
-Carried forward from the 2026-11-03 review. The files they cite are unchanged since 82379d2, which committed that review's fixes, so this run did not re-check them. /security re-ran at least one probe per carried security finding in hooks/pre-push-codereview.sh, and all are still present. Hook line numbers are as that review recorded them (f564cd4 numbering, shifted by up to about 75 lines in 82379d2).
+Carried forward from the 2026-11-03 review. The files they cite are unchanged since 82379d2, which committed that review's fixes, so neither this run nor the 2026-11-07 d12ce05 review re-checked them beyond the probes /security re-ran. Hook line numbers are as that review recorded them (f564cd4 numbering, shifted by up to about 75 lines in 82379d2).
 
 [WARN] (carried forward) zat.env-install.sh:213, 336-345 — (security) Requires a user decision; not for /codefix. Seeding `autoUpdatesChannel` to stable rolled this host's CLI back from 2.1.317 to 2.1.311, which predates a hook fix, and the installer registers no Monitor entry. New with 4132078. The 2.1.314 changelog reads "Fixed hooks matching Bash not running on shell commands started by the Monitor tool", so a new session on 2.1.311 likely runs a push through Monitor ungated, with no unusual spelling.
   Evidence: re-checked this run: `~/.local/bin/claude` still resolves to versions/2.1.311, and settings.json has `autoUpdatesChannel: "stable"` and `minimumVersion: null`. Not reproduced on 2.1.311 (the prior run's probes stopped at the spend limit). Confidence: high on the rollback, medium on the bypass.
@@ -300,12 +320,13 @@ Carried forward from the 2026-11-03 review. The files they cite are unchanged si
 ### Fixes Applied
 
 Cycle 1, applied by /codefix, uncommitted:
-- [WARN] tests/lint-skills.sh:792-802, CLAUDE.md:61 — The template field lint requires 3 copies in /spec; the CLAUDE.md bullet names the Step 3f copy.
-- [WARN] bin/spec-backlog-apply.sh:143-147 — (security) Refuses a symlinked (live or dangling) or non-regular BACKLOG.md before any read or write; tests for a live link, a dangling link, and a directory; lint pin.
-- [WARN] bin/spec-backlog-apply.sh — (also claude-code) `delete:`, `adopt:`, `purge-origin:`, and the `append:` collision check skip fenced `### ` lines; tests for each op with a fenced header example; lint pin. This added the cycle 2 BLOCK.
+- [WARN] claude/skills/spec/SKILL.md:391-392, 409-410 — (also claude-code) Step 3f's Append and Clear paths stop and report on a non-zero script exit and do not edit or remove BACKLOG.md.
+- [WARN] bin/spec-backlog-apply.sh:208, 238, 297, 332 — (security) Heading matches in delete, adopt, purge (ACTIVE test), and the append check strip a trailing `\r`; a CRLF purge test checks the ACTIVE entry survives with its CRLF.
 
 Cycle 2, applied by /codefix, uncommitted:
-- [BLOCK] bin/spec-backlog-apply.sh — (also security) Fences are tracked only above the first entry, in the four ops and `count_entries`, so an unclosed fence in an entry body no longer hides or deletes later entries; 10 tests on a stray-fence fixture; lint pin.
+- [WARN] tests/test-spec-backlog-apply.sh:173 — (also security) The CRLF fixture is built with awk instead of GNU-only `sed 's/$/\r/'`.
+
+### Accepted Risks
 
 ### Accepted Risks
 
@@ -317,6 +338,6 @@ Cycle 2, applied by /codefix, uncommitted:
 
 
 ---
-*Prior review (2026-11-03, commit f564cd4): Refresh review of f564cd4. Three /codefix cycles fixed its five WARNs, committed in 82379d2, and left 0 BLOCK / 9 WARN / 66 NOTE, all needing a user decision or informational.*
+*Prior review (2026-11-07, commit d12ce05): Refresh review of 33cea03 and d12ce05. Two /codefix cycles fixed three WARNs and a BLOCK the first cycle introduced (symlinked BACKLOG.md, fenced headings across ops, the template lint threshold), committed in 897b1a7, and left 0 BLOCK / 10 WARN / 74 NOTE, all needing a user decision or informational.*
 
-<!-- REVIEW_META: {"date":"2026-11-07","commit":"d12ce05","reviewed_up_to":"d12ce0592853aecfd10a0e4309b40a1c641bee36","base":"origin/main","tier":"refresh","block":0,"warn":10,"note":74} -->
+<!-- REVIEW_META: {"date":"2026-11-07","commit":"897b1a7","reviewed_up_to":"897b1a7e0d3a40ad05ed6b9176bed04fd524dace","base":"origin/main","tier":"refresh","block":0,"warn":10,"note":80} -->

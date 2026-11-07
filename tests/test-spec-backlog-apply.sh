@@ -15,6 +15,7 @@ set -uo pipefail
 #   - fenced ### lines are not entries for delete/adopt/purge/append
 #   - an unclosed fence in an entry body does not hide later entries
 #   - symlinked (live or dangling) or non-regular BACKLOG.md is refused
+#   - purge-origin: on a CRLF file keeps the ACTIVE entry
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"
@@ -160,6 +161,27 @@ echo "==> purge-origin: unrelated entries (non-matching prefix) preserved"
 
 if grep -q "^### keep-spec$" "${BACKLOG}"; then pass "purge-origin: spec-origin entry preserved"; else fail "purge-origin: spec-origin entry removed"; fi
 if grep -q "^### tester-minus-dash$" "${BACKLOG}"; then pass "purge-origin: hyphenated-origin entry preserved (prefix boundary)"; else fail "purge-origin: hyphenated-origin incorrectly matched"; fi
+
+# ============================================================
+echo ""
+echo "==> purge-origin: CRLF file keeps the ACTIVE entry"
+# ============================================================
+
+# Git for Windows checks out CRLF by default; a trailing CR used to stop the
+# ACTIVE annotation from matching, so purge-origin removed adopted work.
+fixture_standard "${BACKLOG}"
+awk '{ printf "%s\r\n", $0 }' "${BACKLOG}" > "${BACKLOG}.crlf" && mv "${BACKLOG}.crlf" "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+purge-origin: tester design
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "purge-origin CRLF: exit 0"; else fail "purge-origin CRLF: expected exit 0, got ${EC}"; fi
+if grep -q $'^### tester-active (ACTIVE in spec 2026-04-20)\r$' "${BACKLOG}"; then pass "purge-origin CRLF: ACTIVE entry preserved with its CRLF"; else fail "purge-origin CRLF: ACTIVE entry removed"; fi
+if ! echo "${OUT}" | grep -q "tester-active"; then pass "purge-origin CRLF: ACTIVE entry not listed as PURGED"; else fail "purge-origin CRLF: ACTIVE entry listed as PURGED"; fi
+if ! grep -q $'^### tester-one\r$' "${BACKLOG}"; then pass "purge-origin CRLF: non-ACTIVE entry still purged"; else fail "purge-origin CRLF: tester-one still present"; fi
 
 # ============================================================
 echo ""

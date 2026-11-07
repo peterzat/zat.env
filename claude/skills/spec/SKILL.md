@@ -388,6 +388,8 @@ Parse the argument after the `backlog` keyword. Dispatch:
    The script creates BACKLOG.md with the standard header if it is absent
    and adds the entry at the end. If it prints `SKIPPED:` (an entry with
    that short name exists), report the step 2 duplicate message instead.
+   If the script exits non-zero, stop and report its output; do not edit
+   or remove BACKLOG.md yourself.
 
 6. Confirm via Step 5.
 
@@ -404,7 +406,8 @@ Skips the overlap scan (see Steps 3a/3b/3e) and proposal generator; additive, na
 
    The script removes every entry and keeps everything above the first
    one, including notes a project put in the header. It prints
-   `CLEARED: N entries`.
+   `CLEARED: N entries`. If the script exits non-zero, stop and report
+   its output; do not edit or remove BACKLOG.md yourself.
 3. Confirm via Step 5, with N from the `CLEARED:` line.
 
 The clear path is deterministic and single-imperative; it does not read

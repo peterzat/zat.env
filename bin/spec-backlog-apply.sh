@@ -205,6 +205,7 @@ for target in ${deletes[@]+"${deletes[@]}"}; do
       if (!done && !fence && /^### /) {
         hdr=$0
         sub(/^### /, "", hdr)
+        sub(/\r$/, "", hdr)
         sub(/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/, "", hdr)
         if (hdr == t) { deleting=1; done=1; next }
       }
@@ -234,6 +235,7 @@ for i in ${adopt_headers[@]+"${!adopt_headers[@]}"}; do
       if (!done && !fence && /^### /) {
         hdr=$0
         sub(/^### /, "", hdr)
+        sub(/\r$/, "", hdr)
         sub(/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/, "", hdr)
         if (hdr == t) {
           print "### " t " (ACTIVE in spec " d ")"
@@ -292,6 +294,7 @@ for prefix in ${purge_prefixes[@]+"${purge_prefixes[@]}"}; do
       in_entry = 1
       entry_heading = $0
       sub(/^### /, "", entry_heading)
+      sub(/\r$/, "", entry_heading)
       if (entry_heading ~ / \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/) {
         has_active = 1
       }
@@ -326,6 +329,7 @@ for i in ${append_headers[@]+"${!append_headers[@]}"}; do
       body = 1
       h=$0
       sub(/^### /, "", h)
+      sub(/\r$/, "", h)
       sub(/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/, "", h)
       if (h == t) { found=1; exit }
     }
