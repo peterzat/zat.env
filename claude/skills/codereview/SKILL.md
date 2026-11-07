@@ -266,15 +266,18 @@ review of code you did not read.
 
 **Classify the review tier** based on the files changed:
 
-- **Light review**: the diff touches ONLY plain documentation files (`.md`, `.txt`,
-  `.gitignore`, `.gitconfig`). No code or configuration files are modified.
+- **Light review**: the diff touches ONLY plain markdown (`.md`) and `.gitignore`
+  files. No code or configuration files are modified.
   Configuration formats (`.json`, `.yaml`, `.yml`, `.toml`, `.cfg`, `.ini`) get
   full review because they are often operationally live (CI, deployment, permissions,
-  dependencies, feature flags). Markdown that instructs an agent is not plain
+  dependencies, feature flags). So do `.txt` and `.gitconfig`: `requirements.txt`
+  and `CMakeLists.txt` decide what gets installed and built, and a gitconfig can
+  set `core.fsmonitor`, `core.pager`, or a `!` alias that runs during ordinary git
+  use. Markdown that instructs an agent is not plain
   documentation: `SKILL.md`, `CLAUDE.md`, `AGENTS.md`, `global-claude.md`, and any
   `.md` under `.claude/` grant tools and steer what an agent runs, so they get full
   review. To check, run `codereview-marker surface`: the review is light only if
-  every file it prints is a `.txt`, `.gitignore`, or `.gitconfig` file.
+  every file it prints is a `.gitignore` file.
 - **Full review**: any code file is modified, or you are uncertain.
 
 If light review: skip Steps 3, 5, 5.5, 5.6, 6.5, and 7 (no test suite run, no

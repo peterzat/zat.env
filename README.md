@@ -346,7 +346,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Trigger:** Runs automatically before any `git push` (via the pre-push hook gate). Also invocable manually.
 
-**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md`, `.txt`, `.gitignore`, `.gitconfig`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live. So does markdown that instructs an agent (`SKILL.md`, `CLAUDE.md`, `AGENTS.md`, files under `.claude/`), because it grants tools and steers what the agent runs. Light review skips the test suite, security chain, external reviewers, and fix loop. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
+**Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md` and `.gitignore`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live, and so do `.txt` and `.gitconfig`, since `requirements.txt` decides what gets installed and a gitconfig can set a command git runs. So does markdown that instructs an agent (`SKILL.md`, `CLAUDE.md`, `AGENTS.md`, files under `.claude/`), because it grants tools and steers what the agent runs. Light review skips the test suite, security chain, external reviewers, and fix loop. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
 
 **Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0` and the reviewed commit is an ancestor of HEAD, the skill performs an incremental review scoped to files changed since the prior review. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
 
@@ -454,7 +454,8 @@ Five modes dispatched by argument:
 - `/pr status` -- show the current branch's PR state, CI checks, and merge readiness
 - `/pr <number>` -- inspect a specific PR and summarize review comments
 - `/pr merge` -- verify REVIEW_META in CODEREVIEW.md (block: 0, reviewed commit is ancestor
-  of HEAD), check GitHub merge readiness, then `gh pr merge --squash --delete-branch`
+  of HEAD) and that the PR's remote head is local HEAD, check GitHub merge readiness, then
+  `gh pr merge --squash --delete-branch`
 - `/pr list` -- list open PRs for the repo
 
 **Auto-composed PR descriptions.** The skill reads metadata footers from CODEREVIEW.md,
@@ -463,7 +464,9 @@ in the PR body. Review files written by other skills become the PR description w
 extra work.
 
 **Review gate on merge.** `/pr merge` verifies that CODEREVIEW.md shows a passing review
-(`block: 0`) covering the current code, then checks GitHub merge readiness: CI checks
+(`block: 0`) covering the current code and that the PR's head on GitHub is the local
+HEAD that review covered, so a commit added on GitHub after the review cannot merge with it.
+It then checks GitHub merge readiness: CI checks
 must pass, the PR must be mergeable (no conflicts), and no pending or change-requested
 reviews. A PR cannot be merged through this skill without passing both the review gate
 and remote checks.

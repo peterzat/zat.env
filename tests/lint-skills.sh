@@ -96,6 +96,12 @@ has "${SKILLS}/pr/SKILL.md" "REVIEW_REQUIRED" \
   "pr merge: blocks on REVIEW_REQUIRED"
 has "${SKILLS}/pr/SKILL.md" "CHANGES_REQUESTED" \
   "pr merge: blocks on CHANGES_REQUESTED"
+# The merge acts on the remote PR head, which the review never saw when a
+# commit reached the PR on GitHub after the last /codereview.
+has "${SKILLS}/pr/SKILL.md" 'pulls/\$\{PR_NUMBER\}" --jq \.head\.sha' \
+  "pr merge: reads the remote PR head"
+has "${SKILLS}/pr/SKILL.md" '`PR_HEAD` equals `git rev-parse HEAD`' \
+  "pr merge: refuses when the remote PR head is not the reviewed local HEAD"
 
 # --- Security chain coverage ---
 # Codereview must verify coverage before skipping /security.
@@ -208,6 +214,12 @@ has "${SKILLS}/codereview/SKILL.md" "refresh review.*compute.*file sets" \
 # Config format extensions (.json, .yaml etc.) get full review
 has "${SKILLS}/codereview/SKILL.md" 'json.*yaml.*toml' \
   "codereview: config formats get full review (not light)"
+# .txt and .gitconfig used to count as plain docs, so a diff limited to
+# requirements.txt or gitconfig/aliases.gitconfig skipped /security and tests.
+has "${SKILLS}/codereview/SKILL.md" 'ONLY plain markdown \(`\.md`\) and `\.gitignore`' \
+  "codereview: light tier is markdown and .gitignore only"
+has "${SKILLS}/codereview/SKILL.md" 'every file it prints is a `\.gitignore` file' \
+  "codereview: light-tier surface check admits only .gitignore"
 
 # --- Builder/verifier separation ---
 # Codereview must not have tools that modify source code.

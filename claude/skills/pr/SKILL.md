@@ -183,12 +183,19 @@ reading REVIEW_META from CODEREVIEW.md:
 ```bash
 REVIEW_BLOCKS=$(grep -oP '"block"\s*:\s*\K[0-9]+' CODEREVIEW.md 2>/dev/null)
 REVIEWED_UP_TO=$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)
+PR_NUMBER=$(gh pr view --json number --jq .number)
+PR_HEAD=$(gh api "repos/{owner}/{repo}/pulls/${PR_NUMBER}" --jq .head.sha)
 ```
 
 The review gate passes if ALL of these hold:
 1. CODEREVIEW.md exists and has REVIEW_META
 2. `REVIEW_BLOCKS` equals `0`
 3. `REVIEWED_UP_TO` is non-empty and `git merge-base --is-ancestor "${REVIEWED_UP_TO}" HEAD`
+4. `PR_HEAD` equals `git rev-parse HEAD`. `gh pr merge` merges the remote
+   head, and the review covers only the local branch, so a commit that
+   reached the PR some other way (a suggestion applied on GitHub, a bot, a
+   collaborator) would otherwise merge unreviewed. Local commits reach the
+   PR through the pre-push gate.
 
 If any condition fails, report that `/codereview` must be run first and stop.
 Do not merge without a passing review.
@@ -218,6 +225,10 @@ gh pr merge --squash --delete-branch
 git checkout main
 git pull
 ```
+
+If `gh pr merge --help` lists `--match-head-commit`, add
+`--match-head-commit "$(git rev-parse HEAD)"`, so GitHub refuses the merge
+when a commit lands between the check above and the merge.
 
 Report that the PR was merged and the branch was cleaned up.
 
