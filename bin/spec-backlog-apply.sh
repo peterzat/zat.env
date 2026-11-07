@@ -42,6 +42,16 @@ set -euo pipefail
 #
 # Ops run in parse order where independent; across op types the order is
 # clear, delete, adopt, purge, append.
+#
+# Fences are tracked only in the header, above the first `### ` line
+# outside a fence: there, a `### ` or `## ` line inside a fenced code block
+# is header text, not a heading. From the first entry on, fence lines are
+# plain entry text, so an unclosed fence in an entry body cannot hide the
+# entries after it.
+#
+# BACKLOG.md must be a regular file. A symlink (live or dangling) or any
+# other non-regular file is refused before any read or write, so a cloned
+# repo cannot point the script at a file outside the working tree.
 
 BACKLOG=BACKLOG.md
 
@@ -130,6 +140,12 @@ fi
 total_ops=$((clear + ${#deletes[@]} + ${#adopt_headers[@]} + ${#purge_prefixes[@]} + ${#append_headers[@]}))
 [[ "$total_ops" -gt 0 ]] || exit 0
 
+if [[ -L "$BACKLOG" ]] || { [[ -e "$BACKLOG" ]] && [[ ! -f "$BACKLOG" ]]; }; then
+  printf 'ERROR: %s is a symlink or not a regular file; refusing to touch it\n' \
+    "$BACKLOG" >&2
+  exit 1
+fi
+
 write_header() {
   cat > "$1" <<'HEADER'
 # Backlog
@@ -140,7 +156,7 @@ HEADER
 }
 
 count_entries() {
-  awk '/^```/{f=!f; next} !f && /^### /{n++} END{print n+0}' "$BACKLOG"
+  awk '!body && /^```/{f=!f; next} !f && /^### /{body=1; n++} END{print n+0}' "$BACKLOG"
 }
 
 if [[ ! -f "$BACKLOG" ]] && [[ "${#append_headers[@]}" -gt 0 ]]; then
@@ -184,13 +200,15 @@ for target in ${deletes[@]+"${deletes[@]}"}; do
   if awk -v t="$target" '
     BEGIN { done=0 }
     {
-      if (!done && /^### /) {
+      if (!body && /^```/) fence = !fence
+      if (!fence && /^### /) body = 1
+      if (!done && !fence && /^### /) {
         hdr=$0
         sub(/^### /, "", hdr)
         sub(/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/, "", hdr)
         if (hdr == t) { deleting=1; done=1; next }
       }
-      if (deleting && (/^### / || /^## /)) { deleting=0 }
+      if (deleting && !fence && (/^### / || /^## /)) { deleting=0 }
       if (!deleting) print
     }
     END { exit !done }
@@ -211,7 +229,9 @@ for i in ${adopt_headers[@]+"${!adopt_headers[@]}"}; do
   if awk -v t="$target" -v d="$date" '
     BEGIN { done=0 }
     {
-      if (!done && /^### /) {
+      if (!body && /^```/) fence = !fence
+      if (!fence && /^### /) body = 1
+      if (!done && !fence && /^### /) {
         hdr=$0
         sub(/^### /, "", hdr)
         sub(/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/, "", hdr)
@@ -265,7 +285,9 @@ for prefix in ${purge_prefixes[@]+"${purge_prefixes[@]}"}; do
       has_active = 0
       entry_heading = ""
     }
-    /^### / {
+    !body && /^```/ { fence = !fence }
+    !fence && /^### / {
+      body = 1
       flush_entry()
       in_entry = 1
       entry_heading = $0
@@ -276,7 +298,7 @@ for prefix in ${purge_prefixes[@]+"${purge_prefixes[@]}"}; do
       buf[++buf_len] = $0
       next
     }
-    /^## / {
+    !fence && /^## / {
       flush_entry()
       print
       next
@@ -299,7 +321,9 @@ for i in ${append_headers[@]+"${!append_headers[@]}"}; do
   hdr="${append_headers[$i]}"
   body="${append_bodies[$i]}"
   if awk -v t="$hdr" '
-    /^### / {
+    !body && /^```/ { fence = !fence }
+    !fence && /^### / {
+      body = 1
       h=$0
       sub(/^### /, "", h)
       sub(/ \(ACTIVE in spec [0-9]{4}-[0-9]{2}-[0-9]{2}\)$/, "", h)

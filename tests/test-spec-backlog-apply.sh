@@ -12,6 +12,9 @@ set -uo pipefail
 #   - append: new entry, collisions, file creation, unterminated block
 #   - clear: header kept (fenced examples included), headerless file,
 #     ordering against append
+#   - fenced ### lines are not entries for delete/adopt/purge/append
+#   - an unclosed fence in an entry body does not hide later entries
+#   - symlinked (live or dangling) or non-regular BACKLOG.md is refused
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"
@@ -483,6 +486,204 @@ if grep -q "^### after-clear$" "${BACKLOG}"; then pass "clear+append: appended e
 if ! grep -q "^### keep-spec$" "${BACKLOG}"; then pass "clear+append: prior entries cleared"; else fail "clear+append: prior entry survived"; fi
 if [[ "$(grep -c '^clear$' "${BACKLOG}")" -eq 1 ]]; then pass "clear+append: body line 'clear' stored verbatim"; else fail "clear+append: body line 'clear' lost or duplicated"; fi
 if echo "${OUT}" | grep -q "^BACKLOG.md: 1 entries$"; then pass "clear+append: trailing count is 1"; else fail "clear+append: trailing count not 1"; fi
+
+# ============================================================
+echo ""
+echo "==> fenced ### in the header is not an entry for delete/adopt/purge/append"
+# ============================================================
+
+fenced_fixture() {
+  cat > "$1" <<'EOF'
+# Backlog
+
+Entry format:
+
+```
+### <short name>
+- **Origin:** `tester design YYYY-MM-DD`
+```
+
+### keep
+- **Origin:** spec 2026-04-01
+
+### <short name>
+- **Origin:** `tester design 2026-04-24`
+EOF
+}
+
+fenced_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+purge-origin: tester design
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "fenced purge: exit 0"; else fail "fenced purge: expected exit 0, got ${EC}"; fi
+if [[ "$(echo "${OUT}" | grep -c '^PURGED: ')" -eq 1 ]]; then pass "fenced purge: only the real entry purged"; else fail "fenced purge: wrong PURGED count: ${OUT}"; fi
+if [[ "$(grep -c '^```$' "${BACKLOG}")" -eq 2 ]]; then pass "fenced purge: both fence lines kept"; else fail "fenced purge: a fence line was removed"; fi
+if [[ "$(grep -c '^### <short name>$' "${BACKLOG}")" -eq 1 ]]; then pass "fenced purge: fenced example kept, real entry purged"; else fail "fenced purge: fenced example removed or real entry kept"; fi
+if grep -q "^### keep$" "${BACKLOG}"; then pass "fenced purge: unrelated entry kept"; else fail "fenced purge: unrelated entry lost"; fi
+if echo "${OUT}" | grep -q "^BACKLOG.md: 1 entries$"; then pass "fenced purge: trailing count is 1"; else fail "fenced purge: trailing count not 1: ${OUT}"; fi
+
+fenced_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+delete: <short name>
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "fenced delete: exit 0"; else fail "fenced delete: expected exit 0, got ${EC}"; fi
+if [[ "$(grep -c '^```$' "${BACKLOG}")" -eq 2 ]] && [[ "$(grep -c '^### <short name>$' "${BACKLOG}")" -eq 1 ]] && grep -q "^### keep$" "${BACKLOG}"; then pass "fenced delete: real entry deleted, fenced example kept"; else fail "fenced delete: fenced example matched instead of the entry"; fi
+
+fenced_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+adopt: <short name> | 2026-05-01
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "fenced adopt: exit 0"; else fail "fenced adopt: expected exit 0, got ${EC}"; fi
+if [[ "$(sed -n 6p "${BACKLOG}")" == '### <short name>' ]] && grep -q '^### <short name> (ACTIVE in spec 2026-05-01)$' "${BACKLOG}"; then pass "fenced adopt: real entry annotated, fenced example untouched"; else fail "fenced adopt: fenced example annotated"; fi
+
+printf '# Backlog\n\n```\n### only-in-fence\n```\n' > "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append: only-in-fence
+- **Origin:** ad-hoc
+end-append
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if echo "${OUT}" | grep -q "^APPENDED: only-in-fence$"; then pass "fenced append: fenced heading is not a collision"; else fail "fenced append: fenced heading read as a collision: ${OUT}"; fi
+
+# ============================================================
+echo ""
+echo "==> an unclosed fence in an entry body does not hide later entries"
+# ============================================================
+
+stray_fence_fixture() {
+  cat > "$1" <<'EOF'
+# Backlog
+
+### a
+- **Origin:** `tester design 2026-01-01`
+- **Why deferred:** example below
+```
+
+### b
+- **Origin:** spec 2026-01-01
+
+### c (ACTIVE in spec 2026-01-02)
+- **Origin:** `tester design 2026-01-01`
+EOF
+}
+
+stray_fence_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+delete: a
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "stray fence delete: exit 0"; else fail "stray fence delete: expected exit 0, got ${EC}"; fi
+if ! grep -q "^### a$" "${BACKLOG}" && grep -q "^### b$" "${BACKLOG}" && grep -q "^### c (ACTIVE in spec 2026-01-02)$" "${BACKLOG}"; then pass "stray fence delete: only the named entry removed"; else fail "stray fence delete: later entries lost or target kept"; fi
+if echo "${OUT}" | grep -q "^BACKLOG.md: 2 entries$"; then pass "stray fence delete: trailing count is 2"; else fail "stray fence delete: trailing count not 2: ${OUT}"; fi
+
+stray_fence_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+purge-origin: tester design
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "stray fence purge: exit 0"; else fail "stray fence purge: expected exit 0, got ${EC}"; fi
+if [[ "$(echo "${OUT}" | grep -c '^PURGED: ')" -eq 1 ]] && echo "${OUT}" | grep -q "^PURGED: a "; then pass "stray fence purge: only the matching entry purged"; else fail "stray fence purge: wrong PURGED lines: ${OUT}"; fi
+if grep -q "^### b$" "${BACKLOG}"; then pass "stray fence purge: non-matching entry kept"; else fail "stray fence purge: non-matching entry lost"; fi
+if grep -q "^### c (ACTIVE in spec 2026-01-02)$" "${BACKLOG}"; then pass "stray fence purge: ACTIVE entry kept"; else fail "stray fence purge: ACTIVE entry lost"; fi
+
+stray_fence_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+adopt: b | 2026-05-01
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]] && grep -q "^### b (ACTIVE in spec 2026-05-01)$" "${BACKLOG}"; then pass "stray fence adopt: later entry annotated"; else fail "stray fence adopt: later entry not found: ${OUT}"; fi
+
+stray_fence_fixture "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append: c
+- **Origin:** ad-hoc
+end-append
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if echo "${OUT}" | grep -q "^SKIPPED: c (heading already present)$"; then pass "stray fence append: later heading is a collision"; else fail "stray fence append: later heading not detected: ${OUT}"; fi
+if [[ "$(grep -c '^### c' "${BACKLOG}")" -eq 1 ]]; then pass "stray fence append: no duplicate heading written"; else fail "stray fence append: duplicate heading written"; fi
+
+# ============================================================
+echo ""
+echo "==> symlinked or non-regular BACKLOG.md is refused"
+# ============================================================
+
+OUTSIDE="${TEST_DIR}/outside.md"
+printf '# Outside\n\n### secret\n- **Origin:** spec 2026-04-01\n' > "${OUTSIDE}"
+LINK_DIR="${TEST_DIR}/linkrepo"
+mkdir -p "${LINK_DIR}"
+ln -s "${OUTSIDE}" "${LINK_DIR}/BACKLOG.md"
+if [[ -L "${LINK_DIR}/BACKLOG.md" ]]; then
+  pushd "${LINK_DIR}" >/dev/null || exit
+  OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+clear
+append: x
+- **Origin:** ad-hoc
+end-append
+MANIFEST
+)
+  EC=$?
+  popd >/dev/null || exit
+  if [[ "${EC}" -ne 0 ]]; then pass "live symlink: non-zero exit"; else fail "live symlink: expected non-zero exit"; fi
+  if echo "${OUT}" | grep -q "^ERROR: BACKLOG.md is a symlink"; then pass "live symlink: ERROR names the refusal"; else fail "live symlink: no refusal message: ${OUT}"; fi
+  if [[ -L "${LINK_DIR}/BACKLOG.md" ]]; then pass "live symlink: link left in place"; else fail "live symlink: link replaced"; fi
+  if grep -q "^### secret$" "${OUTSIDE}" && ! grep -q "^### x$" "${OUTSIDE}"; then pass "live symlink: target untouched"; else fail "live symlink: target modified"; fi
+
+  rm -f "${LINK_DIR}/BACKLOG.md"
+  ln -s "${TEST_DIR}/dangling-target.md" "${LINK_DIR}/BACKLOG.md"
+  pushd "${LINK_DIR}" >/dev/null || exit
+  OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append: x
+- **Origin:** ad-hoc
+end-append
+MANIFEST
+)
+  EC=$?
+  popd >/dev/null || exit
+  if [[ "${EC}" -ne 0 ]]; then pass "dangling symlink: non-zero exit"; else fail "dangling symlink: expected non-zero exit"; fi
+  if [[ ! -e "${TEST_DIR}/dangling-target.md" ]]; then pass "dangling symlink: target not created"; else fail "dangling symlink: target created outside the repo"; fi
+  rm -f "${LINK_DIR}/BACKLOG.md"
+else
+  echo "  skip symlink cases (this account cannot create symlinks)"
+  rm -f "${LINK_DIR}/BACKLOG.md"
+fi
+
+mkdir "${LINK_DIR}/BACKLOG.md"
+pushd "${LINK_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+clear
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -ne 0 ]] && echo "${OUT}" | grep -q "not a regular file"; then pass "directory BACKLOG.md: refused"; else fail "directory BACKLOG.md: not refused (exit ${EC}): ${OUT}"; fi
 
 # ============================================================
 echo ""

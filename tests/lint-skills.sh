@@ -790,14 +790,15 @@ else
 fi
 
 # Entry template field labels. The template is inlined in Step 3c for the
-# main-thread handoff and also listed in the tail Format section. Both copies
-# must carry the same four fields.
+# main-thread handoff, in the Step 3f append manifest (the copy piped to the
+# script), and in the tail Format section. All three copies must carry the
+# same four fields.
 for field in "One-line description" "Why deferred" "Revisit criteria" "Origin"; do
   FIELD_COUNT=$(grep -c "\*\*${field}" "${SKILLS}/spec/SKILL.md" || true)
-  if [[ "${FIELD_COUNT}" -ge 2 ]]; then
-    pass "spec: BACKLOG.md entry field '${field}' appears in inline template and tail Format"
+  if [[ "${FIELD_COUNT}" -ge 3 ]]; then
+    pass "spec: BACKLOG.md entry field '${field}' appears in Step 3c, Step 3f, and tail Format"
   else
-    fail "spec: BACKLOG.md entry field '${field}' appears <2 times (template duplication drifted)"
+    fail "spec: BACKLOG.md entry field '${field}' appears <3 times (template duplication drifted)"
   fi
 done
 
@@ -937,6 +938,31 @@ for op in "delete:" "adopt:"; do
 done
 has "${APPLY_SCRIPT}" '== "clear" \]\]' \
   "sweep apply: script parses the bare clear op"
+
+# BACKLOG.md must be a regular file. A tracked symlink would make append
+# write outside the repo and make the rewrite ops copy the link's target
+# into the working tree, so the script refuses a symlink (live or
+# dangling) or a non-regular file before any read or write.
+has "${APPLY_SCRIPT}" '^if \[\[ -L "\$BACKLOG" \]\] \|\| \{ \[\[ -e "\$BACKLOG" \]\] && \[\[ ! -f "\$BACKLOG" \]\]; \}; then' \
+  "sweep apply: script refuses a symlinked or non-regular BACKLOG.md"
+
+# A `### ` line inside a fenced block is entry text, not a heading, for
+# every op: clear, delete, adopt, purge-origin, and the append collision
+# check (count_entries uses its own one-liner). Five gated matches.
+if [[ $(grep -c '!fence && /\^### /' "${APPLY_SCRIPT}") -ge 5 ]]; then
+  pass "sweep apply: heading detection is fence-aware in every op"
+else
+  fail "sweep apply: heading detection is not fence-aware in every op"
+fi
+# Fences are tracked only in the header (until the first `### ` outside a
+# fence), so an unclosed fence in an entry body cannot hide later entries
+# from delete, adopt, purge-origin, the append collision check, or
+# count_entries. Five header-only toggles.
+if [[ $(grep -c '!body && /\^```/' "${APPLY_SCRIPT}") -ge 5 ]]; then
+  pass "sweep apply: fence tracking stops at the first entry in every op"
+else
+  fail "sweep apply: fence tracking does not stop at the first entry in every op"
+fi
 
 # Annotation format: the "(ACTIVE in spec YYYY-MM-DD)" stripper must use
 # the same shape as the skill writes. Drift here breaks match-normalization.
