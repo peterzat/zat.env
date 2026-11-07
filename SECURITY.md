@@ -685,6 +685,25 @@ file; BACKLOG.md still matches HEAD (e728437, mode 0600).
 
 ### Accepted Risks
 
+- **Gate follows `git -C <path>` before approval** (hooks/pre-push-codereview.sh,
+  `enter_push_target`): the hook runs `git diff` in the repo a `-C` names before the command is
+  approved, so that repo's config (`core.fsmonitor`, `diff.external`) chooses what runs. Accepted
+  2026-11-07, following the 2026-11-03 decision to stop patching the tokenizer: the next gate change
+  is the heredoc-aware rewrite (BACKLOG `push-gate-quoted-text-false-positive`). If revisited,
+  pinning `-c core.fsmonitor= -c diff.external=` on the hook's git calls is the small mitigation.
+- **Gate judges only refs spelled on the command line** (hooks/pre-push-codereview.sh): fetched
+  refs, refs chosen by config (`remote.<name>.push`, `push.default=matching`), git's abbreviated
+  options, `--repo -d`, `--mirror`, and `--recurse-submodules=on-demand` can still send unreviewed
+  commits. Accepted 2026-11-07 under the advisory-gate threat model of the detection entry below; a
+  git-native pre-push hook, which receives the exact refs, is the structural fix.
+- **No `onFailure: block` on the gate entries** (zat.env-install.sh): a hook that times out,
+  crashes, or cannot start lets the command through. Accepted 2026-11-07: the hook runs on every
+  shell command, so `block` would refuse every shell command while the script is missing, including
+  the ones needed to fix it.
+- **Submodule `ignore = all` hides pointer changes** (bin/codereview-marker): the marker hash, the
+  uncommitted check, the security surface, and the review diff all miss a pointer change in such a
+  submodule. Accepted 2026-11-07: zat.env has no submodules, and the setting has to be chosen in the
+  repo's own config.
 - **Allow list grants general-purpose interpreters** (`zat.env-install.sh:226-267`):
   `Bash(python3 *)`, `Bash(node *)`, `Bash(pip *)`, `Bash(make *)`, and `Bash(git *)` each reach
   arbitrary execution. The deny entries are prefix matches and cannot enumerate every spelling.

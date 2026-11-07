@@ -1454,6 +1454,25 @@ else
   fail "PowerShell tool payload: expected exit 2, got ${ec}"
 fi
 
+# The Bash entry also matches the Monitor tool, whose input carries the same
+# command field; a WebSocket monitor has no command and reads as not a push.
+ec=0
+payload=$(jq -n --arg c "git push" '{tool_name:"Monitor", tool_input:{command:$c, description:"d", timeout_ms:1000}, hook_event_name:"PreToolUse"}')
+(cd "${TEST_REPO}" && printf '%s' "${payload}" | bash "${HOOK}" >/dev/null 2>&1) || ec=$?
+if [[ "${ec}" -eq 2 ]]; then
+  pass "Monitor tool payload: git push is gated"
+else
+  fail "Monitor tool payload: expected exit 2, got ${ec}"
+fi
+ec=0
+payload=$(jq -n '{tool_name:"Monitor", tool_input:{ws:{url:"wss://example.invalid/"}, description:"d", timeout_ms:1000}, hook_event_name:"PreToolUse"}')
+(cd "${TEST_REPO}" && printf '%s' "${payload}" | bash "${HOOK}" >/dev/null 2>&1) || ec=$?
+if [[ "${ec}" -eq 0 ]]; then
+  pass "Monitor WebSocket payload: no command, allowed"
+else
+  fail "Monitor WebSocket payload: expected exit 0, got ${ec}"
+fi
+
 # jq failing used to leave the command empty, which read as "not a push".
 ec=0
 payload=$(jq -n --arg c "git push" '{tool_name:"Bash", tool_input:{command:$c}, hook_event_name:"PreToolUse"}')

@@ -2065,8 +2065,8 @@ has "${HOOK}" 'INVOKED_CMD="\$\{INVOKED_CMD//\$.\\r./\}"' \
   "hook: strips CR from the command before tokenizing (native Windows jq writes CRLF)"
 has "${HOOK}" 'if ! INVOKED_CMD=\$\(printf' \
   "hook: refuses the push when jq cannot read the command"
-has "${REPO_DIR}/zat.env-install.sh" '"matcher": "Bash"' \
-  "install: gates git push from the Bash tool"
+has "${REPO_DIR}/zat.env-install.sh" '"matcher": "Bash\|Monitor"' \
+  "install: gates git push from the Bash and Monitor tools in one entry"
 has "${REPO_DIR}/zat.env-install.sh" '"matcher": "PowerShell"' \
   "install: gates git push from the PowerShell tool too"
 hasnt "${REPO_DIR}/zat.env-install.sh" '"if":' \

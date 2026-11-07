@@ -325,6 +325,13 @@ done
 # PowerShell tool unless pwsh is installed and opted into, so there the entry
 # never fires.
 #
+# The Bash entry also matches the Monitor tool, whose `command` runs in a
+# shell the same way. Claude Code before 2.1.314 did not run Bash-matcher
+# hooks for it, and the stable channel can hold an install there, so a push
+# through Monitor went ungated. One entry for both keeps the hook to a single
+# run per command on later versions, which do run Bash hooks for Monitor; two
+# entries could run it twice, and the first run would consume the skip marker.
+#
 # The timeout leaves headroom for Windows, where the hook's git and bash
 # processes are slow to start (about 2.5 s on a small repo, against well
 # under a second on Linux).
@@ -335,7 +342,7 @@ jq --arg cmd "${HOOK_COMMAND}" '
   .hooks.PreToolUse = [.hooks.PreToolUse[] | select(.hooks | map(.command // "" | test("pre-push-codereview")) | any | not)] |
   .hooks.PreToolUse += [
     {
-      "matcher": "Bash",
+      "matcher": "Bash|Monitor",
       "hooks": [{ "type": "command", "command": $cmd, "timeout": 30 }]
     },
     {
@@ -344,7 +351,7 @@ jq --arg cmd "${HOOK_COMMAND}" '
     }
   ]
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    Added pre-push hook (Bash and PowerShell)"
+echo "    Added pre-push hook (Bash, Monitor, and PowerShell)"
 
 # Remove any existing allow-venv-source entry, then add the current version.
 VENV_HOOK_COMMAND="bash \"${REPO_DIR}/hooks/allow-venv-source.sh\""
