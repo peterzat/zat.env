@@ -854,6 +854,15 @@ fi
 has "${SKILLS}/spec/SKILL.md" '^- `clear` \(alone on its line' \
   "spec: BACKLOG.md Format documents the clear op"
 
+# The Step 3c turn-close capture writes the entries the user offers. It used
+# to promise to create BACKLOG.md itself, which skipped the script's
+# duplicate-name check and symlink refusal.
+SPEC_3C=$(awk '/^## Step 3c:/{p=1} /^## Step 3c\.5:/{p=0} p' "${SKILLS}/spec/SKILL.md")
+text_has "${SPEC_3C}" 'an `append:` manifest piped to' \
+  "spec: Step 3c turn-close capture appends through an append: manifest"
+text_has "${SPEC_3C}" '`spec-backlog-apply.sh`, as `/spec backlog` does, never by editing' \
+  "spec: Step 3c turn-close capture never edits BACKLOG.md directly"
+
 # Step 2 routing: a brief reaches direct mode even with no SPEC.md. The old
 # order checked "no SPEC.md" first, so /spec <brief> in a new project always
 # interviewed.
@@ -880,10 +889,10 @@ for step in 3a 3b 3e; do
 done
 
 # --- Sweep apply contract ---
-# The sweep manifest is the prompt/infrastructure boundary for backlog
-# mutations: the skill pipes a manifest on stdin to
-# spec-backlog-apply.sh, which parses ops (`delete:` / `adopt:`) and
-# mutates BACKLOG.md deterministically. Drift on op prefix or annotation
+# The manifest is the prompt/infrastructure boundary for backlog
+# mutations: the skills pipe a manifest on stdin to
+# spec-backlog-apply.sh, which parses ops (`clear`, `delete:`, `adopt:`,
+# `purge-origin:`, `append:`) and mutates BACKLOG.md deterministically. Drift on op prefix or annotation
 # format silently stops mutations from landing.
 
 APPLY_SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"

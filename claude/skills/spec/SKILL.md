@@ -185,14 +185,18 @@ based on the current codebase state (read relevant code and tests). Then:
         > notes ("X was tried and reverted") fail this gate and belong in a
         > commit message or FINDINGS.md instead — and a concrete why-deferred
         > reason. I'll push back on anything that fails a gate rather than
-        > writing it as-is. Template (I'll create BACKLOG.md with a
-        > `# Backlog` header if it doesn't exist):
+        > writing it as-is. Template:
         >
         >     ### <short name>
         >     - **One-line description:** <what, and roughly where>.
         >     - **Why deferred:** reason.
         >     - **Revisit criteria:** what would make this worth picking up again.
         >     - **Origin:** spec date or plan slug where it was first considered.
+        >
+        > I'll add each entry with an `append:` manifest piped to
+        > `spec-backlog-apply.sh`, as `/spec backlog` does, never by editing
+        > BACKLOG.md. The script creates the file if it is missing and
+        > reports a name already in use instead of adding a duplicate.
 
         End with: "Run `/spec` to start the next turn. You can also ask this
         conversation to review and enrich the proposal with context from this
@@ -656,8 +660,8 @@ a proposed deletion, the user edits the `### Backlog Sweep` subsection
 `/spec` again. Deletions are reversible via git.
 
 Manifest format (piped to `bin/spec-backlog-apply.sh` on stdin by Step 3f,
-Step 3g Step 2, and `/tester design`, one op per line except `append:`
-which spans a block):
+the Step 3c turn-close capture, Step 3g Step 2, Step 4's adoption, and
+`/tester design`, one op per line except `append:` which spans a block):
 
 ```
 clear
@@ -695,8 +699,9 @@ Rules:
   `SKIPPED: <heading>` and no write; otherwise `APPENDED: <heading>`.
   If BACKLOG.md does not exist, the script creates it with the standard
   `# Backlog` header before appending. A missing `end-append` delimiter
-  is an error (exit 1). Used by `/tester design` to land rollout entries
-  without LLM-executed Write/Edit.
+  is an error (exit 1). Used by `/spec backlog`, the Step 3c turn-close
+  capture, and `/tester design`, so no entry lands through LLM-executed
+  Write/Edit.
 - Heading matching strips a trailing `(ACTIVE in spec YYYY-MM-DD)`
   annotation from both the manifest entry and the file line, so the
   manifest may reference a heading with or without the annotation.
