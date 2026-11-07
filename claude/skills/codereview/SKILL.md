@@ -298,6 +298,7 @@ echo "UPSTREAM=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "o
 echo "PRIOR_COMMIT=$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)"
 echo "PRIOR_BASE=$(grep -oP '"base"\s*:\s*"\K[^"]+' CODEREVIEW.md 2>/dev/null)"
 echo "PRIOR_BLOCKS=$(grep -oP '"block"\s*:\s*\K[0-9]+' CODEREVIEW.md 2>/dev/null)"
+echo "PRIOR_TIER=$(grep -oP '"tier"\s*:\s*"\K[a-z]+' CODEREVIEW.md 2>/dev/null)"
 ```
 
 Each `echo` is independent so the block is safe even if you split it across
@@ -307,21 +308,28 @@ If all of these hold, classify as **refresh review**:
 1. `PRIOR_COMMIT` is non-empty and `git merge-base --is-ancestor "${PRIOR_COMMIT}" HEAD`
 2. `PRIOR_BLOCKS` equals `0`
 3. `PRIOR_BASE` matches the upstream ref printed above
+4. `PRIOR_TIER` is `full` or `refresh`. A light review read only prose and
+   ran no tests or security scan, so it cannot vouch for the code a refresh
+   would treat as already reviewed.
 
 If any condition fails (missing fields, prior BLOCKs, rebase changed the base,
-commit no longer exists), fall back to full review.
+commit no longer exists, prior review was light), fall back to full review.
 
 For a refresh review, compute two file sets (each diff is self-contained — the
 upstream and prior-commit references are derived inline so the block survives
 splitting across Bash tool calls):
 ```bash
-# Focus set: files changed since the prior review
-git diff --name-only "$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)"..HEAD -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
+# Focus set: files changed since the prior review, working tree included
+git diff --name-only "$(grep -oP '"reviewed_up_to"\s*:\s*"\K[a-f0-9]+' CODEREVIEW.md 2>/dev/null)" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
 # Full set: all files changed since upstream
 git diff --name-only "$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "origin/$(git rev-parse --abbrev-ref HEAD)")" -- ':!CODEREVIEW.md' ':!SECURITY.md' ':!TESTING.md' ':!SPEC.md'
 ```
 
-- **Focus set**: files in FOCUS (new or re-modified since the prior review)
+- **Focus set**: files in FOCUS (new or re-modified since the prior review,
+  committed or not). The diff runs against the working tree, like the full
+  set, so a file changed only in the working tree is in focus; a
+  `<prior>..HEAD` range would see commits only and leave it in the
+  already-reviewed set with diff hunks only.
 - **Already-reviewed set**: files in FULL but not in FOCUS
 
 If a file appears in both the prior review's diff and the focus set (it was

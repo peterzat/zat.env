@@ -348,7 +348,7 @@ For external or cloned projects, SPEC.md describes what you are building or chan
 
 **Tiered review.** After gathering the diff, the skill classifies changes as **light** (plain docs only: `.md` and `.gitignore`) or **full** (any code or configuration files). Configuration formats (`.json`, `.yaml`, `.toml`, etc.) get full review because they are often operationally live, and so do `.txt` and `.gitconfig`, since `requirements.txt` decides what gets installed and a gitconfig can set a command git runs. So does markdown that instructs an agent (`SKILL.md`, `CLAUDE.md`, `AGENTS.md`, files under `.claude/`), because it grants tools and steers what the agent runs. Light review skips the test suite, security chain, external reviewers, and fix loop. This keeps docs-only pushes fast while maintaining the full pipeline for code and config changes.
 
-**Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0` and the reviewed commit is an ancestor of HEAD, the skill performs an incremental review scoped to files changed since the prior review. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
+**Refresh review optimization.** When a prior CODEREVIEW.md exists with `block: 0`, the reviewed commit is an ancestor of HEAD, and that review was not light, the skill performs an incremental review scoped to files changed since the prior review, committed or not. This keeps iterative fix-and-review cycles fast without re-evaluating the entire diff.
 
 **Full review pipeline:**
 1. Reads prior review state from CODEREVIEW.md, SECURITY.md, TESTING.md, and SPEC.md (scoped reads)

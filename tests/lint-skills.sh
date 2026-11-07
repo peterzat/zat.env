@@ -626,12 +626,21 @@ has "${HOOK}" 'Refusing to push' \
 echo ""
 echo "==> REVIEW_META field contracts"
 
-# Codereview refresh detection reads: reviewed_up_to, block, base
+# Codereview refresh detection reads: reviewed_up_to, block, base, tier
 # These must exist in the Step 9 template.
-for field in reviewed_up_to block base; do
+for field in reviewed_up_to block base tier; do
   has "${SKILLS}/codereview/SKILL.md" "\"${field}\"" \
     "REVIEW_META: codereview writes '${field}' (read by refresh detection)"
 done
+
+# Refresh detection: the focus set diffs the prior commit against the
+# working tree (a `..HEAD` range saw commits only, so an uncommitted-only
+# file got diff hunks only), and a light prior review cannot anchor a
+# refresh of code.
+hasnt "${SKILLS}/codereview/SKILL.md" "CODEREVIEW.md 2>/dev/null\\)\"\\.\\.HEAD" \
+  "codereview: refresh focus set is not limited to committed changes"
+has "${SKILLS}/codereview/SKILL.md" 'PRIOR_TIER` is `full` or `refresh`' \
+  "codereview: a light prior review cannot anchor a refresh"
 
 # PR merge gate reads: block, reviewed_up_to via grep patterns.
 # Verify the grep patterns in /pr match the field names in codereview's template.
