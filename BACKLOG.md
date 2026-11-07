@@ -23,7 +23,7 @@ rejected. Read before drafting a new SPEC.md; swept at turn close.
 - **Origin:** ad-hoc (prompt audit 2026-10-01)
 
 ### skill-size-references-split
-- **One-line description:** `claude/skills/codereview/SKILL.md` (~680 lines), `spec/SKILL.md` (~660), and `tester/SKILL.md` (~580) exceed CLAUDE.md's ~500-line guideline. First candidate: move spec's `## BACKLOG.md Format` section and manifest reference (end of the file) into `claude/skills/spec/references/`, moving the lint pins that grep it at the same time.
+- **One-line description:** `claude/skills/codereview/SKILL.md` (~740 lines), `spec/SKILL.md` (~710), and `tester/SKILL.md` (~610) exceed CLAUDE.md's ~500-line guideline. First candidate: move spec's `## BACKLOG.md Format` section and manifest reference (end of the file) into `claude/skills/spec/references/`, moving the lint pins that grep it at the same time.
 - **Why deferred:** The length is not causing errors, and the move touches lint contract pins (four-field template, manifest ops, canonical Origin forms). It is a refactor, not a fix.
 - **Revisit criteria:** One of these skills grows further past the guideline, OR a session shows the model missing an instruction in the tail of one of them, OR the related lint pins are being reworked anyway.
 - **Origin:** ad-hoc (prompt audit 2026-10-01)

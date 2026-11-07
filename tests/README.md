@@ -34,7 +34,7 @@ Checks by category:
 | Carry-forward severity | Accepted Risks downgrade, re-report at original severity, no silent severity loss |
 | Cross-skill context graph | SPEC.md reading, spec alignment, no-nag, architect terminal node, NOTE not auto-fixed |
 | Plan-mode handoff contract | `/spec plan` routing and adoption, the ExitPlanMode reminder hook, and its registration |
-| BACKLOG.md contracts | Backlog Sweep and Revisit subsections, the four-field entry template, `spec-backlog-apply.sh` manifest ops, and proposal routing without a mid-run confirmation |
+| BACKLOG.md contracts | Backlog Sweep and Revisit subsections, the four-field entry template, `spec-backlog-apply.sh` manifest ops (including `clear`), backlog mode and Step 4 ACTIVE adoption going through the script, and proposal routing without a mid-run confirmation |
 | Finding standards | Review skills carry no separate re-check pass; evidence, severity, and coverage rules live in the main steps |
 | Codefix constraints | One-fix-at-a-time, 20-line cap, syntax check, no self-evaluation, no re-running review |
 | External reviewer integration | Step 5.5, script reference, gating, provider tags, cost log, template exit states, Step 5.5 and E.4 Bash timeout covering the script's `REVIEW_TIMEOUT` default, script contracts |
@@ -44,7 +44,7 @@ Checks by category:
 | Accepted Risks consistency | Missing Accepted Risks section in codereview or security templates |
 | Skill effort levels | Frontmatter effort matches README; judgment skills set none; install seeds `effortLevel` and sets `classifyAllShell`; venv hook makes no decision in auto mode |
 | Uncommitted prior entry guard | Rolling files check `git status` before condensing, carry an uncommitted entry forward, and keep a single META footer |
-| Tester/spec cross-skill contracts | Durable-contract H1, `tester design` Origin form, and the `/tester design` pre-apply checklist components and guards |
+| Tester/spec cross-skill contracts | Durable-contract H1, `tester design` Origin form, the `/tester design` pre-apply checklist components and guards, and the defects channel (D.2, D.3, D.5, D.7) |
 | Cross-platform portability guards | bash 3.2 empty-array guards, BSD `stat` fallback, `gtimeout` fallback |
 | Windows (Git Bash) | LF pinned by `.gitattributes`; hook strips CR from jq output and refuses when jq fails; gate registered for Bash and PowerShell; Bash-only shell tool, native symlinks, and git-config path form on Windows; stale-hook scan strips CR; `codereview-marker` shadow warning; `awk` cost fallback without `bc` |
 | Security guards | `--range` leading-dash rejection, reviewer credential modes, deny-list union, per-provider stdout/stderr capture and own-tag findings demux |
