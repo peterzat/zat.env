@@ -11,11 +11,12 @@ set -uo pipefail
 #   - missing BACKLOG.md fall-through
 #   - append: new entry, collisions, file creation, unterminated block
 #   - clear: header kept (fenced examples included), headerless file,
-#     ordering against append
+#     refused beside any other op; append: with no heading refused
 #   - fenced ### lines are not entries for delete/adopt/purge/append
 #   - an unclosed fence in an entry body does not hide later entries
 #   - symlinked (live or dangling) or non-regular BACKLOG.md is refused
-#   - purge-origin: on a CRLF file keeps the ACTIVE entry
+#   - CRLF file: purge-origin keeps the ACTIVE entry; delete, adopt, and
+#     the append collision check find their headings
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${REPO_DIR}/bin/spec-backlog-apply.sh"
@@ -25,7 +26,9 @@ TOTAL=0
 pass() { TOTAL=$((TOTAL + 1)); printf '  ok   %s\n' "$1"; }
 fail() { TOTAL=$((TOTAL + 1)); FAILS=$((FAILS + 1)); printf '  FAIL %s\n' "$1"; }
 
-TEST_DIR=$(mktemp -d)
+# Without the check, a failed mktemp left pushd in the caller's directory,
+# and every case ran against that directory's BACKLOG.md.
+TEST_DIR=$(mktemp -d) || exit 1
 cleanup() { rm -rf "${TEST_DIR}"; }
 trap cleanup EXIT
 
@@ -182,6 +185,30 @@ if [[ "${EC}" -eq 0 ]]; then pass "purge-origin CRLF: exit 0"; else fail "purge-
 if grep -q $'^### tester-active (ACTIVE in spec 2026-04-20)\r$' "${BACKLOG}"; then pass "purge-origin CRLF: ACTIVE entry preserved with its CRLF"; else fail "purge-origin CRLF: ACTIVE entry removed"; fi
 if ! echo "${OUT}" | grep -q "tester-active"; then pass "purge-origin CRLF: ACTIVE entry not listed as PURGED"; else fail "purge-origin CRLF: ACTIVE entry listed as PURGED"; fi
 if ! grep -q $'^### tester-one\r$' "${BACKLOG}"; then pass "purge-origin CRLF: non-ACTIVE entry still purged"; else fail "purge-origin CRLF: tester-one still present"; fi
+
+# ============================================================
+echo ""
+echo "==> delete, adopt, append: CRLF headings still match"
+# ============================================================
+
+fixture_standard "${BACKLOG}"
+awk '{ printf "%s\r\n", $0 }' "${BACKLOG}" > "${BACKLOG}.crlf" && mv "${BACKLOG}.crlf" "${BACKLOG}"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+delete: tester-one
+adopt: tester-two | 2026-05-01
+append: keep-spec
+- **One-line description:** would duplicate.
+end-append
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 0 ]]; then pass "CRLF ops: exit 0"; else fail "CRLF ops: expected exit 0, got ${EC}: ${OUT}"; fi
+if ! grep -q $'^### tester-one\r$' "${BACKLOG}"; then pass "CRLF delete: entry removed"; else fail "CRLF delete: entry still present"; fi
+if grep -q '^### tester-two (ACTIVE in spec 2026-05-01)' "${BACKLOG}"; then pass "CRLF adopt: heading annotated"; else fail "CRLF adopt: heading not annotated"; fi
+if echo "${OUT}" | grep -q "^SKIPPED: keep-spec"; then pass "CRLF append: existing heading SKIPPED"; else fail "CRLF append: duplicate not detected"; fi
+if [[ "$(grep -c '^### keep-spec' "${BACKLOG}")" -eq 1 ]]; then pass "CRLF append: no duplicate heading"; else fail "CRLF append: duplicate heading written"; fi
 
 # ============================================================
 echo ""
@@ -488,26 +515,76 @@ if ! grep -q "^### lonely$" "${BACKLOG}"; then pass "clear headerless: entry rem
 
 # ============================================================
 echo ""
-echo "==> clear: runs before append; 'clear' inside an append body is body"
+echo "==> clear: refused beside any other op; nothing changes"
+# ============================================================
+
+# Only /spec backlog clear sends clear, so a clear beside other ops is a
+# stray line. A body line reading exactly end-append ends the block early,
+# and the clear after it then reads as an op: the refusal covers that too.
+for case_name in with-delete early-end-append; do
+  fixture_standard "${BACKLOG}"
+  cp "${BACKLOG}" "${TEST_DIR}/before.md"
+  pushd "${TEST_DIR}" >/dev/null || exit
+  if [[ "${case_name}" == "with-delete" ]]; then
+    OUT=$(printf 'delete: keep-spec\nclear\n' | bash "${SCRIPT}" 2>&1)
+  else
+    OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append: early-end
+- **One-line description:** body that quotes a manifest.
+end-append
+clear
+end-append
+MANIFEST
+)
+  fi
+  EC=$?
+  popd >/dev/null || exit
+  if [[ "${EC}" -eq 1 ]]; then pass "clear ${case_name}: exit 1"; else fail "clear ${case_name}: expected exit 1, got ${EC}"; fi
+  if cmp -s "${BACKLOG}" "${TEST_DIR}/before.md"; then pass "clear ${case_name}: BACKLOG.md unchanged"; else fail "clear ${case_name}: BACKLOG.md changed"; fi
+  if echo "${OUT}" | grep -q "clear must be the only op"; then pass "clear ${case_name}: error names the rule"; else fail "clear ${case_name}: missing error: ${OUT}"; fi
+done
+
+# ============================================================
+echo ""
+echo "==> append: a body line 'clear' is body, not an op"
 # ============================================================
 
 fixture_standard "${BACKLOG}"
 pushd "${TEST_DIR}" >/dev/null || exit
 OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
-append: after-clear
-- **One-line description:** lands after the clear.
+append: quotes-clear
+- **One-line description:** mentions the op.
 clear
 end-append
-clear
 MANIFEST
 )
 EC=$?
 popd >/dev/null || exit
-if [[ "${EC}" -eq 0 ]]; then pass "clear+append: exit 0"; else fail "clear+append: expected exit 0, got ${EC}"; fi
-if grep -q "^### after-clear$" "${BACKLOG}"; then pass "clear+append: appended entry survives the clear"; else fail "clear+append: appended entry missing"; fi
-if ! grep -q "^### keep-spec$" "${BACKLOG}"; then pass "clear+append: prior entries cleared"; else fail "clear+append: prior entry survived"; fi
-if [[ "$(grep -c '^clear$' "${BACKLOG}")" -eq 1 ]]; then pass "clear+append: body line 'clear' stored verbatim"; else fail "clear+append: body line 'clear' lost or duplicated"; fi
-if echo "${OUT}" | grep -q "^BACKLOG.md: 1 entries$"; then pass "clear+append: trailing count is 1"; else fail "clear+append: trailing count not 1"; fi
+if [[ "${EC}" -eq 0 ]]; then pass "append body clear: exit 0"; else fail "append body clear: expected exit 0, got ${EC}"; fi
+if grep -q "^### quotes-clear$" "${BACKLOG}"; then pass "append body clear: entry appended"; else fail "append body clear: entry missing"; fi
+if grep -q "^### keep-spec$" "${BACKLOG}"; then pass "append body clear: other entries kept"; else fail "append body clear: entries cleared"; fi
+if [[ "$(grep -c '^clear$' "${BACKLOG}")" -eq 1 ]]; then pass "append body clear: body line stored verbatim"; else fail "append body clear: body line lost or duplicated"; fi
+
+# ============================================================
+echo ""
+echo "==> append: an empty heading is refused before any op runs"
+# ============================================================
+
+# An append: with no heading used to skip the block, so its body lines were
+# read as ops and the delete below ran.
+fixture_standard "${BACKLOG}"
+cp "${BACKLOG}" "${TEST_DIR}/before.md"
+pushd "${TEST_DIR}" >/dev/null || exit
+OUT=$(bash "${SCRIPT}" <<'MANIFEST' 2>&1
+append:
+delete: keep-spec
+end-append
+MANIFEST
+)
+EC=$?
+popd >/dev/null || exit
+if [[ "${EC}" -eq 1 ]]; then pass "append empty heading: exit 1"; else fail "append empty heading: expected exit 1, got ${EC}"; fi
+if cmp -s "${BACKLOG}" "${TEST_DIR}/before.md"; then pass "append empty heading: BACKLOG.md unchanged"; else fail "append empty heading: BACKLOG.md changed"; fi
 
 # ============================================================
 echo ""

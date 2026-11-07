@@ -872,6 +872,19 @@ text_has "${SPEC_S2}" 'no SPEC.md exists and `\$ARGUMENTS` is empty:\*\* Intervi
 text_has "${SPEC_S2}" 'Direct spec mode \(Step 3b\),' \
   "spec: Step 2 sends a brief to direct mode whether or not SPEC.md exists"
 
+# SPEC.md dates reach a git log command. SPEC.md is repo content, so a
+# date carrying $(...) would run under /spec's Bash(*) without the format
+# rule and the single quotes.
+text_has "${SPEC_S2}" "--since='YYYY-MM-DD'" \
+  "spec: Step 2 stale-proposal check single-quotes the date"
+text_has "${SPEC_S2}" '\^\[0-9\]\{4\}-\[0-9\]\{2\}-\[0-9\]\{2\}\$' \
+  "spec: Step 2 uses the proposal date only when it matches the date format"
+SPEC_3D=$(awk '/^## Step 3d:/{p=1} /^## Step 3e:/{p=0} p' "${SKILLS}/spec/SKILL.md")
+text_has "${SPEC_3D}" "--since='YYYY-MM-DD'" \
+  "spec: Step 3d git log single-quotes the SPEC_META date"
+text_has "${SPEC_3D}" 'same date-format rule' \
+  "spec: Step 3d applies Step 2's date-format rule"
+
 # ACTIVE annotation in every spec-writing mode. It is what keeps
 # /tester design's purge-origin: from deleting an entry a spec is building;
 # Step 3g set it and Steps 3a/3b/3e did not.
@@ -947,6 +960,10 @@ for op in "delete:" "adopt:"; do
 done
 has "${APPLY_SCRIPT}" '== "clear" \]\]' \
   "sweep apply: script parses the bare clear op"
+has "${APPLY_SCRIPT}" 'clear must be the only op' \
+  "sweep apply: script refuses clear beside any other op"
+has "${APPLY_SCRIPT}" 'append: needs a heading' \
+  "sweep apply: script refuses an append: with no heading"
 
 # BACKLOG.md must be a regular file. A tracked symlink would make append
 # write outside the repo and make the rewrite ops copy the link's target
@@ -1785,9 +1802,11 @@ fi
 TESTER_D2=$(awk '/^### Step D\.2:/{p=1} /^### Step D\.3:/{p=0} p' "${TESTER}")
 TESTER_D3=$(awk '/^### Step D\.3:/{p=1} /^### Step D\.4:/{p=0} p' "${TESTER}")
 TESTER_D5=$(awk '/^### Step D\.5:/{p=1} /^### Step D\.5\.5:/{p=0} p' "${TESTER}")
-TESTER_D7=$(awk '/^### Step D\.7:/{p=1} p' "${TESTER}")
+TESTER_D7=$(awk '/^### Step D\.7:/{p=1; print; next} p && /^#{2,3} /{p=0} p' "${TESTER}")
 text_has "${TESTER_D2}" 'What fails today' \
   "tester: D.2 looks for what fails today"
+text_has "${TESTER_D2}" 'one run of the' \
+  "tester: D.2 bounds what it runs to confirm a defect"
 text_has "${TESTER_D5}" 'Defects are not rollout entries' \
   "tester: D.5 keeps defects out of the rollout"
 text_has "${TESTER_D5}" 'never in BACKLOG.md' \

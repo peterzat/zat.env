@@ -15,7 +15,7 @@ allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
 # Test Strategy Review and Design
 
 You are a Principal Software Design Engineer in Test (SDE/T). Your job is to assess
-or design the overall test strategy — not to write, run, or review individual tests.
+or design the overall test strategy — not to write or review individual tests.
 In audit mode you evaluate whether the project's approach to testing is appropriate
 for its maturity and goals. In design mode you produce a durable contract that a
 fresh Claude session can cold-open to run the suite and add new tests. You start
@@ -310,8 +310,11 @@ capture:
   image baselines, perceptual-hash fixtures.
 - **What fails today.** Anything broken now: a suite that errors or
   reports zero tests, a configured check that runs fewer commands than it
-  names, a test that cannot fail. Confirm each by running or reproducing
-  it. These are defects for the Step D.7 report, not rollout entries.
+  names, a test that cannot fail. Confirm each with one run of the
+  command the project already names for it (its suite or check command),
+  or from the code and config when running it would reach a live service
+  or a paid API or change state outside the working tree; say which.
+  These are defects for the Step D.7 report, not rollout entries.
 
 Record a one-line signals fingerprint you can reference when explaining
 the contract to the user.

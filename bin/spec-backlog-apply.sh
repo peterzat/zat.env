@@ -40,9 +40,14 @@ set -euo pipefail
 # above the first entry: the `# Backlog` header and any notes a project
 # put there. A `### ` line inside a fenced code block is not an entry. If
 # nothing is left above the first entry, the standard header is written.
+# clear must be the manifest's only op: only /spec backlog clear sends it,
+# so a clear beside other ops (a stray line, or a body line that ended an
+# append block early) is refused before anything changes. An append: with
+# an empty heading is refused the same way, since its body lines would
+# otherwise be read as ops.
 #
 # Ops run in parse order where independent; across op types the order is
-# clear, delete, adopt, purge, append.
+# delete, adopt, purge, append.
 #
 # Fences are tracked only in the header, above the first `### ` line
 # outside a fence: there, a `### ` or `## ` line inside a fenced code block
@@ -123,11 +128,13 @@ while IFS= read -r line; do
       hdr="${line#append:}"
       hdr="${hdr# }"
       hdr=$(printf '%s' "$hdr" | strip_annot)
-      if [[ -n "$hdr" ]]; then
-        in_append=1
-        current_header="$hdr"
-        current_body=""
+      if [[ -z "${hdr//[[:space:]]/}" ]]; then
+        printf 'ERROR: append: needs a heading; nothing changed\n' >&2
+        exit 1
       fi
+      in_append=1
+      current_header="$hdr"
+      current_body=""
       ;;
   esac
 done <<< "$manifest"
@@ -144,6 +151,11 @@ total_ops=$((clear + ${#deletes[@]} + ${#adopt_headers[@]} + ${#purge_prefixes[@
 if [[ -L "$BACKLOG" ]] || { [[ -e "$BACKLOG" ]] && [[ ! -f "$BACKLOG" ]]; }; then
   printf 'ERROR: %s is a symlink or not a regular file; refusing to touch it\n' \
     "$BACKLOG" >&2
+  exit 1
+fi
+
+if [[ "$clear" -eq 1 && "$total_ops" -gt 1 ]]; then
+  printf 'ERROR: clear must be the only op in its manifest; nothing changed\n' >&2
   exit 1
 fi
 

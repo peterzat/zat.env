@@ -81,7 +81,7 @@ mode instead of adopting the plan.
   (or a named plan) into a persistent SPEC.md. Wins over every other branch,
   including "no SPEC.md exists."
 - **`propose`:** Propose mode (Step 3d). Requires an existing SPEC.md; if none
-  exists, fall through to interview mode.
+  exists, route to interview mode (Step 3a).
 - **`backlog <description>` or `backlog clear`:** Backlog mode (Step 3f).
   Append captures a deferred idea as a structured BACKLOG.md entry; clear
   removes every entry and keeps the file's header. Neither touches
@@ -93,7 +93,10 @@ mode instead of adopting the plan.
   the user's answer to the interview's questions.
 - **No arguments, SPEC.md exists with a `### Proposal` section:**
   Proposal consume mode (Step 3g). **Stale proposal check:** run
-  `git log --oneline` since the proposal date. If there are 5 or more
+  `git log --oneline --since='YYYY-MM-DD'` with the proposal date. SPEC.md
+  is repo content, so use the date only if it matches
+  `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, single-quoted as shown; otherwise skip
+  the check. If there are 5 or more
   commits after that date, consume it anyway (Step 3g grounds the spec
   in the current code) and say so in the Step 5 output: "This proposal
   was from YYYY-MM-DD, N commits before this spec; the criteria are
@@ -145,7 +148,8 @@ full of placeholder criteria. Instead, tell the user:
 > Drop into Claude Code's plan mode (Shift+Tab twice, or type `/plan`) to
 > explore the approach first, then run `/spec plan` to convert the saved plan
 > into a SPEC.md. The pressure test will sharpen the plan's outcomes into
-> verifiable criteria at that point.
+> verifiable criteria at that point. Or run `/spec new` to answer a few
+> questions instead.
 
 Then stop. Do not proceed to write SPEC.md. This is the only mode that may
 refuse to write — plan adoption mode and interview mode always produce a spec.
@@ -247,12 +251,14 @@ evolve mode's turn-boundary transition (Step 3c) when all criteria are met.
 
 1. Read current SPEC.md to understand the prior turn: goal, criteria (met and unmet),
    context section, SPEC_META date. If no SPEC.md exists, there is nothing to propose
-   from; interview mode (Step 3a) activates instead via Step 2's routing. If criteria
+   from; Step 2 routes to interview mode (Step 3a) instead. If criteria
    are partially met, note which were completed and which were abandoned. The proposal
    should acknowledge both: what was accomplished and why the remaining work is being
    set aside in favor of a new direction.
-2. Run `git log --oneline` since the SPEC_META date to see what was built. Commit
-   messages are the primary signal for what happened.
+2. Run `git log --oneline --since='YYYY-MM-DD'` with the SPEC_META date to see
+   what was built, under the same date-format rule as Step 2's stale proposal
+   check (without a valid date, use the commits since SPEC.md last changed).
+   Commit messages are the primary signal for what happened.
 3. Read any working documents referenced in SPEC.md's Context section (e.g., TESTING.md,
    CODEREVIEW.md, project-specific files). These are optional enrichment; the proposal
    must work from git history and SPEC.md alone as the universal baseline.
@@ -678,6 +684,8 @@ Rules:
   ones included, and any `## ` theme subhead left empty. Every line above
   the first entry stays; a `### ` inside a fenced code block there is not
   an entry. Reports `CLEARED: N entries`. Used by `/spec backlog clear`.
+  It must be the manifest's only op: a manifest that pairs it with any
+  other op is refused (exit 1) and nothing changes.
 - `delete:` removes the `### <heading>` entry from BACKLOG.md, including
   all bullets until the next `### ` or `## ` (or EOF).
 - `adopt:` sets the `### <heading>` line to
@@ -699,7 +707,8 @@ Rules:
   `SKIPPED: <heading>` and no write; otherwise `APPENDED: <heading>`.
   If BACKLOG.md does not exist, the script creates it with the standard
   `# Backlog` header before appending. A missing `end-append` delimiter
-  is an error (exit 1). Used by `/spec backlog`, the Step 3c turn-close
+  is an error (exit 1), and so is an `append:` with no heading. Used by
+  `/spec backlog`, the Step 3c turn-close
   capture, and `/tester design`, so no entry lands through LLM-executed
   Write/Edit.
 - Heading matching strips a trailing `(ACTIVE in spec YYYY-MM-DD)`
@@ -709,8 +718,8 @@ Rules:
   comments or blank lines in the heredoc are safe — unless they appear
   inside an `append:` / `end-append` block, where every line is body.
 - The script invocation is skipped entirely when there are zero ops.
-- Ops run in order: clear, delete, adopt, purge, append. Within an op
-  type, entries run in parse order.
+- Ops run in order: delete, adopt, purge, append (`clear` runs alone).
+  Within an op type, entries run in parse order.
 - If a `delete:` or `adopt:` heading is not found in BACKLOG.md, the
   script reports a MISS to stderr and exits non-zero. The skill surfaces
   the MISS to the user rather than silently dropping it. `purge-origin:`
