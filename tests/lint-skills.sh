@@ -1130,6 +1130,8 @@ for skill in security codefix; do
 done
 has "${SKILLS}/security/SKILL.md" "A finding states what is true now" \
   "security: findings record current state, not their history"
+has "${SKILLS}/security/SKILL.md" "this scan, without the carried mark" \
+  "security: an in-scope re-check drops the carried mark"
 has "${SKILLS}/security/SKILL.md" "A carried NOTE is condensed to its first line" \
   "security: carried NOTEs condense to one line"
 hasnt "${SKILLS}/security/SKILL.md" "carried from the YYYY-MM-DD scan" \

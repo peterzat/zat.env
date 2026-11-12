@@ -158,7 +158,8 @@ replace its Status line. SECURITY.md's git history holds the earlier versions.
 that is not listed under Accepted Risks is either re-checked or carried:
 - **File in this run's scope:** re-check it in Step 3. If it is still present,
   report it as it stands now, keeping its `found` date and setting
-  `last checked` to this scan; if it is gone, say it is resolved in the Summary.
+  `last checked` to this scan, without the carried mark; if it is gone, say it
+  is resolved in the Summary.
 - **File outside this run's scope:** carry it into the current findings at its
   original severity. Copy its Status line unchanged and end it with
   `; carried, not re-checked` unless it already ends that way. Do not re-verify
