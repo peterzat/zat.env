@@ -1,39 +1,54 @@
-## Review — 2026-11-12 (commit: 721b632)
+## Review — 2026-11-12 (commit: e3b6b5f)
 
-**Summary:** Refresh review of the three unpushed commits on origin/main: c5bf5e6 gives each /security finding one Status line (found / last checked) and condenses carried NOTEs, 9787b0b keeps /security and /codefix in the foreground and stops /security from running suites or subagents, and 721b632 adds the "Bound a strong model" Philosophy paragraph to README. All 5 changed files (CLAUDE.md, README.md, the codefix and security skills, tests/lint-skills.sh) were in the focus set and reviewed at full depth; there was no already-reviewed set.
-- **Findings.** One new WARN, fixed by one /codefix cycle (uncommitted): README.md:582 said forked skills never wait on background work, which is false for /codereview. The re-review confirmed the new wording; README.md is plain markdown, so the post-fix security surface was empty and no re-check ran. Eight new NOTEs, mostly gaps at the edges of the new Status-line and foreground rules.
-- **Security.** /security scanned the 4 surface files changed since 1d1b5da: 0 BLOCK, 1 WARN (carried global-claude.md:108), 27 NOTE, three new, no secrets. SECURITY.md is rewritten under the new rules (Status lines, condensed carried NOTEs, 953 lines of history down to 406) and is uncommitted.
-- **Tests.** tests/run-all.sh: 1214/1214 across 6 suites, before and after the fix.
-- **Commit before pushing.** README.md (the fix), SECURITY.md, and CODEREVIEW.md are uncommitted; the push gate refuses while README.md is.
+**Summary:** Refresh review of e3b6b5f, the one unpushed commit on origin/main. It adds "without the carried mark" to /security's in-scope re-check rule with a lint pin, and rewrites the scan-time figures in CLAUDE.md:60 and README.md:582, following two NOTEs from the 721b632 review. All 4 changed files (CLAUDE.md, README.md, claude/skills/security/SKILL.md, tests/lint-skills.sh) were in the focus set and reviewed at full depth; there was no already-reviewed set.
+- **Findings.** No BLOCK and no new WARN. Three new NOTEs from the review, two of them found by both the inline review and the built-in: the post-fix update path keeps the carried-mark gap e3b6b5f closed for the in-scope re-check, "the carried mark" is named only by reference, and README.md:582's "typical review's hour" reads against README.md:839's 24-minute median. Two new security NOTEs on code this push does not change. The two NOTEs e3b6b5f addressed are resolved. CLAUDE.md:60's new figures match 9787b0b's measurements (first pass 22 to 27 minutes, post-fix 11 to 17, first scan 23.6 minutes under 100 KB and 22.9 at 600 KB or more), and "the level set under Skill effort levels" matches that bullet (`/security` max).
+- **Mixed concerns.** e3b6b5f bundles a skill rule and a docs figure fix. Both answer NOTEs from one review, the message names both, and the change is 6 lines, as in the repo's earlier NOTE-sweep commits (b47852a). Not flagged.
+- **Security.** /security scanned the 3 surface files changed since 721b632: 0 BLOCK, 1 WARN (carried global-claude.md:108), 29 NOTE, two new, no secrets. SECURITY.md is rewritten and uncommitted.
+- **Tests.** tests/run-all.sh: 1215/1215 across 6 suites (the new lint pin is the one added check). No fix cycle ran.
+- **Commit before pushing.** SECURITY.md and CODEREVIEW.md are uncommitted. The gate excludes review files from its hash and its uncommitted check, so it does not refuse for them, but committing keeps the record with the push.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 7 findings, 6 kept after Step 6 (all NOTE; two merged into one entry, one merged with an inline finding), 1 dropped as style (line wrapping).
+`/code-review high`: 3 findings, 3 kept after Step 6 (all NOTE; two merged with inline findings).
 
 ### Findings
 
-No BLOCK findings. The new WARN is fixed (below); the carried WARN is held for a user decision.
+No BLOCK findings. The carried WARN is held for a user decision.
 
 [WARN] (carried forward) claude/global-claude.md:108 — (security) Requires a user decision; not for /codefix. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
   Suggested fix: Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
 New this run:
 
-[NOTE] claude/skills/security/SKILL.md:159-167 — (security) A carried NOTE is condensed to one sentence, and nothing tells a later scan to recover its full text from SECURITY.md's git history before re-checking it or calling it resolved. When its file comes back into scope, the scan re-checks the one-sentence version, so a NOTE that listed many cases (the hook-walker NOTE named about 40 push spellings) can be marked resolved after one is checked. Confidence: high on the mechanism, medium on impact (NOTEs only).
-  Suggested fix: In the in-scope re-check bullet, say to read a condensed NOTE's last full version from SECURITY.md's history (for example `git log -p -S '<first line>' -- SECURITY.md`) before re-checking or resolving it.
+[NOTE] claude/skills/security/SKILL.md:207-215 — (also claude-code) The Post-fix update rewrites a finding that is still present "with `last checked` set to this pass" (lines 211-212) and, unlike the in-scope bullet e3b6b5f fixed at line 161, never says to drop the carried mark. Reachable: a path-scoped Step 5 scan carries a finding in a file outside its scope with `; carried, not re-checked`; /codefix then edits that file (a carried finding sent under /codereview Step 6's outside-the-diff rule, or a diff file that `codereview-marker surface <meta-commit>` left out because the last scan already covered it); Step 7 runs `/security post-fix <file>`, and the finding gets a fresh `last checked` with the suffix still on it, the contradiction e3b6b5f's message says it fixed. The commit title ("a re-check drops the carried mark") is broader than the change, and the new lint pin covers only line 161. The next in-scope re-check drops the suffix, so the contradiction lasts one scan. Confidence: high on the gap, low on frequency.
+  Suggested fix: In the Post-fix update, write "with `last checked` set to this pass and no `; carried, not re-checked` suffix", and pin it in tests/lint-skills.sh beside the line-161 pin.
 
-[NOTE] claude/skills/security/SKILL.md:152-161 — (claude-code) The in-scope re-check bullet says to keep `found` and set `last checked`, but not to drop a `; carried, not re-checked` suffix, which the carry bullet treats as persistent ("unless it already ends that way"). The paragraph above says to replace the Status line and the template has no suffix, so a careful model drops it; a field-by-field edit keeps it, and the finding then reads as both checked and not re-checked. Confidence: medium.
-  Suggested fix: Add "and drop any `; carried, not re-checked` suffix" to the in-scope bullet.
+[NOTE] claude/skills/security/SKILL.md:161 — (also claude-code) "without the carried mark" names the suffix only by reference. The literal `; carried, not re-checked` first appears in the next bullet (line 165), so the rule depends on the model linking the two, and the lint pin holds the reference, not the string. The 721b632 review's suggested wording named the string. Confidence: low that a model misreads it (the bullets are adjacent).
+  Suggested fix: Optional. Write "and drop any `; carried, not re-checked` suffix" here and in the Post-fix update (above), and pin that text.
+
+[NOTE] README.md:582 — (claude-code) "most of a typical review's hour is the two max-effort scans themselves (the first pass and the re-check after fixes)". The paragraph is about zat-hermes, but the sentence says "a typical review", and README.md:839 puts a typical review at a median of about 24 minutes (16 of them /security), with README.md:374 giving a 16-minute median scan. Read on its own, the sentence's durations differ from those by 2x or more. The re-check also runs only when /codefix changed surface files, so not every review has two scans. "A typical review's hour" predates e3b6b5f; this commit rewrote the rest of the clause. Confidence: medium.
+  Suggested fix: Optional. "most of a typical zat-hermes review's hour is its two max-effort scans (the first pass, and the re-check when /codefix changed code)".
+
+[NOTE] claude/skills/security/SKILL.md:19, 63-76 — (security) /security's scope argument is substituted into its own prompt, inside a backtick code span at line 19 and again at line 63, and /codereview fills it with repository file names from `codereview-marker surface`, which prints names raw and which Step 5 says not to hand-edit. A committed name holding a backtick closes the code span and puts the rest of its text among the scan's instructions, with `Bash(*)` pre-approved outside auto mode. Separately, lines 63-76 have no separator between mode words and paths: a file named `post-fix` that sorts first makes the scan skip it and update the prior entry in place, and a lone surface file named `changes-only` makes it read only the uncommitted diff. Predates this push. /security confirmed git 2.34.1 commits such a name and `surface` prints it unchanged; no hostile name reached a live model. Confidence: high on the substitution, low that a model acts on it, low on likelihood (the name shows in `git log --stat` and a PR's file list).
+  Suggested fix: Have `codereview-marker surface` refuse a path that starts with `-` or holds a backtick, `$`, a quote, or a control character; separate mode words from paths (`/security -- <files>`, `/security post-fix -- <files>`); say at line 19 that the argument lists repository paths, which are data. Pin each in lint.
+
+[NOTE] claude/skills/security/SKILL.md:52-59, 185-205 — (security) Neither /security nor /codereview checks that SECURITY.md, CODEREVIEW.md, TESTING.md, or SPEC.md is a regular file before reading or writing it, while bin/spec-backlog-apply.sh refuses a symlinked BACKLOG.md. A review file committed as a symlink (for example to `../../.bash_aliases` under the `~/src/<repo>` layout) is invisible to every reviewer, because the hash, surface, uncommitted check, and review diffs all exclude review files. /security found that Claude Code 2.1.311's Read follows the link, Write and Edit refuse it (live or dangling) but name the target in the refusal, and a shell heredoc write follows it with `git status` and `codereview-marker uncommitted` staying clean. Recent reviews write CODEREVIEW.md with Write and Edit, so the risk needs a model to work around the tool's refusal. Predates this push. Confidence: high on the read and the shell write, low that a model writes past the refusal, low on likelihood (a PR's file list shows the type change).
+  Suggested fix: Refuse the run deterministically when any review file is a symlink or not a regular file (for example a `codereview-marker` check run first in Step 1 of /codereview and /security), say in /security Step 5 that a refused write is reported rather than retried at the named target or through the shell, and pin both in lint.
+
+Carried forward from the 2026-11-12 review of 721b632, still present. Line numbers in claude/skills/security/SKILL.md are updated for e3b6b5f's added line; /security re-checked the 91-93 and 159-168 NOTEs at e3b6b5f.
+
+[NOTE] claude/skills/security/SKILL.md:159-168 — (security) A carried NOTE is condensed to one sentence, and nothing tells a later scan to recover its full text from SECURITY.md's git history before re-checking it or calling it resolved. When its file comes back into scope, the scan re-checks the one-sentence version, so a NOTE that listed many cases (the hook-walker NOTE named about 40 push spellings) can be marked resolved after one is checked. Confidence: high on the mechanism, medium on impact (NOTEs only).
+  Suggested fix: In the in-scope re-check bullet, say to read a condensed NOTE's last full version from SECURITY.md's history (for example `git log -p -S '<first line>' -- SECURITY.md`) before re-checking or resolving it.
 
 [NOTE] claude/skills/security/SKILL.md:148-150 — (claude-code) "Each sha is HEAD at that scan" does not identify the code the line numbers came from when the scan read an uncommitted tree, which post-fix mode always does, and gives no value in a repo with no commits. SECURITY_META's `commit` has the same property, so this matches the rest of the file. Confidence: high on the mechanism, low that it misleads.
   Suggested fix: Optional. Append `+ uncommitted` to the sha when files in scope have uncommitted changes, and say what to write before the first commit.
 
-[NOTE] claude/skills/security/SKILL.md:169-172 — (claude-code) A legacy finding whose text gives no date gets the prior entry's date and commit as `found`, which understates its age. SECURITY.md's history usually has the real date; this run's /security used it for the settings.json umask NOTE. Confidence: low that it matters.
+[NOTE] claude/skills/security/SKILL.md:170-173 — (claude-code) A legacy finding whose text gives no date gets the prior entry's date and commit as `found`, which understates its age. SECURITY.md's history usually has the real date; this run's /security used it for the settings.json umask NOTE. Confidence: low that it matters.
   Suggested fix: Optional. Take `found` from SECURITY.md's git history when it is cheap to find, falling back to the prior entry.
 
-[NOTE] claude/skills/security/SKILL.md:190-204, README.md:393 — (claude-code) When SECURITY.md is uncommitted at the start of a scan, Step 5 still copies the whole prior file verbatim under `## Prior review carried forward`, old-format findings included, so across an uncommitted streak the file grows with the number of scans. README.md:393 says it now "grows with open findings rather than with the number of scans" without that condition. The guard predates this push, and the next run after a commit condenses normally. Confidence: high on the mechanism, low on frequency (SECURITY.md is normally committed between reviews).
+[NOTE] claude/skills/security/SKILL.md:191-205, README.md:393 — (claude-code) When SECURITY.md is uncommitted at the start of a scan, Step 5 still copies the whole prior file verbatim under `## Prior review carried forward`, old-format findings included, so across an uncommitted streak the file grows with the number of scans. README.md:393 says it now "grows with open findings rather than with the number of scans" without that condition. The guard predates this push, and the next run after a commit condenses normally. Confidence: high on the mechanism, low on frequency (SECURITY.md is normally committed between reviews).
   Suggested fix: Optional. Qualify the README sentence ("while SECURITY.md is committed between scans"), or migrate carried-forward findings to Status lines as well.
 
 [NOTE] claude/skills/codefix/SKILL.md:30-36, 84-98, claude/skills/security/SKILL.md:40-43 — (also claude-code) "Run every command in the foreground" leaves two cases open. The Bash tool moves a command that passes its timeout (2 minutes by default) to the background, as claude/skills/codereview/SKILL.md:497-499 says, and neither skill says to stop it rather than wait on it, so a fork can still end its turn with background work running. And /codefix says a check too long for the foreground "is skipped and named in the report", but Step 4's template lists only fixed and skipped findings, so the check is dropped or reads as an unfixed finding (claude-code). Confidence: medium on the gap, low on occurrence (/security now runs short commands only; /codefix runs syntax checks).
@@ -42,11 +57,10 @@ New this run:
 [NOTE] claude/skills/security/SKILL.md:91-93, claude/skills/codefix/SKILL.md:73-74 — (security) The secret-history template `git log -p --follow -3 <file>` has no `--` before the path, and the path comes from the repo. A committed path starting with `--output=` makes git truncate a file the committer chooses; /security confirmed on git 2.34.1 that the command exits 128 but still empties an existing file. A name containing `$(...)`, backticks, or a single quote runs a command when pasted into the shell, and /codefix's syntax checks paste names the same way. Predates this push. The full chain (committing such a name, the model picking it as sensitive-looking) was not tested: the auto-mode classifier refused the scratch-repo commands. Confidence: high on the git behavior, low on likelihood.
   Suggested fix: Write the template as `git log -p --follow -3 -- '<file>'`, and have `codereview-marker surface` refuse names that start with `-` or hold shell metacharacters.
 
-[NOTE] README.md:374, 582, CLAUDE.md:60 — Three figures for scan time now disagree on their face. README.md:374 gives /security a median of about 16 minutes (49 runs, three projects), CLAUDE.md:60 says about 23 minutes for a first pass, and README.md:582 says "a typical review's hour is the max-effort scan itself". 9787b0b's message reconciles them (the hour is two scans, 22 to 27 and 11 to 17 minutes, plus /codefix); the README does not. CLAUDE.md:60 also points to "the recall trade-off recorded under Skill effort levels", and that bullet records no trade-off; README.md:305 holds the rationale. Confidence: medium.
-  Suggested fix: Optional. Write "a typical review's hour is mostly its two max-effort scans", and point CLAUDE.md:60 at README's effort paragraph.
-
 [NOTE] claude/skills/codefix/SKILL.md:40-45 — (claude-code, also security; carried, re-reported) /codefix extracts every BLOCK and WARN in CODEREVIEW.md, including those under `## Prior review carried forward (uncommitted; not current findings)`. That block is a verbatim copy that never passed /codereview's Step 1 and Step 6 filters, so a stale BLOCK becomes a fix spec, and an uncommitted CODEREVIEW.md someone else left in the working tree can plant one (security). This push moved the lines only.
   Suggested fix: Have /codefix read only the current entry and skip the carried-forward block.
+
+The blocks below are carried verbatim from the 721b632 review, headings included, so "this run" in them means that review or the one each heading names. Of their files, only tests/lint-skills.sh changed in e3b6b5f (two lines added at 1133, so later lines moved down by 2).
 
 Carried forward from the 2026-11-07 review of 1d1b5da, still present, not re-checked this run:
 
@@ -342,14 +356,14 @@ Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shif
 [NOTE] (carried forward) zat.env-install.sh:227 — Deny entries accumulate across installs; deliberate, since deny entries only narrow.
   Suggested fix: None needed.
 
+
 Resolved by this push:
-- [WARN] README.md:582 — "forked skills never wait on background work" now reads "`/security` and `/codefix` never wait on background work" (this run's /codefix, uncommitted).
-- [NOTE] claude/skills/codereview/SKILL.md:339 (carried from 2026-11-03) — /security's verification runs overlapping the project's test suite: 9787b0b stops /security from running the project's suites, which was the overlap that could collide. Short single-fact commands remain and are not expected to collide.
-- [NOTE] b8746a8 bundling two review follow-ups (2026-11-07): the commit is now on origin/main, so there is nothing left to split.
+- [NOTE] claude/skills/security/SKILL.md:152-161 (2026-11-12, claude-code) — the in-scope re-check bullet now says to set `last checked` "without the carried mark" (line 161), pinned in tests/lint-skills.sh. The post-fix path keeps the gap (new NOTE above).
+- [NOTE] README.md:374, 582, CLAUDE.md:60 (2026-11-12) — the three scan-time figures: CLAUDE.md:60 now names zat-hermes's first-pass and post-fix figures beside README's three-project median and points at the effort level rather than a recall trade-off, and README.md:582 says the hour is mostly two scans. The "typical review" wording keeps a smaller residue (new NOTE above).
 
 ### Fixes Applied
 
-- [WARN] README.md:582 — Replaced "forked skills never wait on background work" with "`/security` and `/codefix` never wait on background work", matching CLAUDE.md:60. Uncommitted.
+None.
 
 ### Accepted Risks
 
@@ -366,6 +380,6 @@ Resolved by this push:
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-11-07, commit 1d1b5da): Refresh review of b8746a8 (External-Only Mode range after `--end-of-options`, hooks/README Monitor matcher) and 1d1b5da (two BACKLOG deferrals moved to Accepted Risks). No /codefix cycle; it left 0 BLOCK / 1 WARN (global-claude.md:108, held for a user decision) / 92 NOTE.*
+*Prior review (2026-11-12, commit 721b632): Refresh review of c5bf5e6 (one Status line per /security finding, condensed carried NOTEs), 9787b0b (/security and /codefix in the foreground, no suites or subagents in /security), and 721b632 (README "Bound a strong model"). One /codefix cycle fixed a README.md:582 WARN; it left 0 BLOCK / 1 WARN (global-claude.md:108, held for a user decision) / 98 NOTE.*
 
-<!-- REVIEW_META: {"date":"2026-11-12","commit":"721b632","reviewed_up_to":"721b63214433918519a515129456221b51294e86","base":"origin/main","tier":"refresh","block":0,"warn":1,"note":98} -->
+<!-- REVIEW_META: {"date":"2026-11-12","commit":"e3b6b5f","reviewed_up_to":"e3b6b5fd4e774a1b6845052e965177151f4aa9ed","base":"origin/main","tier":"refresh","block":0,"warn":1,"note":101} -->
