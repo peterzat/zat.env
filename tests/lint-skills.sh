@@ -1117,6 +1117,17 @@ has "${SKILLS}/security/SKILL.md" "; carried, not re-checked" \
 # lines, so the file grows with open findings, not with the number of scans.
 has "${SKILLS}/security/SKILL.md" "Status: found YYYY-MM-DD at <short-sha>; last checked YYYY-MM-DD at <short-sha>" \
   "security: each finding has a found / last-checked Status line"
+# zat-hermes's 110 to 255 minute reviews came from forks that ran whole
+# mutation suites, polled for them, or spawned subagents (in 2026-11 transcripts:
+# /security ran the test runner in 62 of 162 forks, polled in 5, spawned
+# agents in 3; /codefix polled in 1 of 93). A fork that ends its turn with
+# background work running also hands its caller an unfinished result.
+has "${SKILLS}/security/SKILL.md" "do not spawn subagents, and do not run the project's test, mutation," \
+  "security: no subagents and no project test/mutation suite runs"
+for skill in security codefix; do
+  has "${SKILLS}/${skill}/SKILL.md" "Do not start background work and wait" \
+    "${skill}: no background work and no polling inside the fork"
+done
 has "${SKILLS}/security/SKILL.md" "A finding states what is true now" \
   "security: findings record current state, not their history"
 has "${SKILLS}/security/SKILL.md" "A carried NOTE is condensed to its first line" \

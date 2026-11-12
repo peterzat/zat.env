@@ -32,6 +32,15 @@ Scope argument: `$ARGUMENTS`
   for secure code. Do not manufacture findings to fill the report.
 - **No style policing.** Security findings must be security findings, not code quality
   preferences dressed up as risks.
+- **Read the code; do not run the suites.** Do the scan yourself, in this
+  context: do not spawn subagents, and do not run the project's test, mutation,
+  or benchmark suites. `/codereview` runs the tests, and a suite run inside a
+  scan adds minutes to hours without tracing an attack path. A short command
+  that checks one fact (a file mode, a config value, `git log -p`) is fine.
+  Run every command in the foreground. Do not start background work and wait
+  on it: a forked skill that ends its turn with background work still running
+  hands its caller an unfinished result, and a polling loop (`until`/`while` +
+  `sleep`, `pgrep`, watching output files) can outlive the session.
 
 ---
 

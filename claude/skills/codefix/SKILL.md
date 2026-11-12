@@ -27,6 +27,13 @@ enough; a separate reviewer will do that.
 - **No self-evaluation.** Do not assess whether your fix resolves the finding.
   Do not re-run the review. Do not update CODEREVIEW.md. A separate reviewer
   will verify your work.
+- **Foreground only.** Run every command in the foreground and wait for it.
+  Do not start background work and wait on it: a forked skill that ends its
+  turn with background work still running hands `/codereview` an unfinished
+  result, and a polling loop (`until`/`while` + `sleep`, `pgrep`, watching
+  output files) can outlive the session. `/codereview` re-runs the test suite
+  after each pass, so a check too long for the foreground is skipped and
+  named in the report.
 
 ---
 
