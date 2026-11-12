@@ -1,25 +1,54 @@
-## Review — 2026-11-07 (commit: 1d1b5da)
+## Review — 2026-11-12 (commit: 721b632)
 
-**Summary:** Refresh review of the two unpushed commits on origin/main (c09fc07): b8746a8 puts External-Only Mode's range after `--end-of-options` (Steps E.2, E.3, E.4, with three lint pins and a CLAUDE.md note) and says in hooks/README.md that the gate entry's matcher is `Bash|Monitor`; 1d1b5da adds two BACKLOG entries and moves the /pr merge and review-files WARNs to Accepted Risks in CODEREVIEW.md and SECURITY.md. All 5 changed files (BACKLOG.md, CLAUDE.md, the codereview skill, hooks/README.md, tests/lint-skills.sh) were reviewed at full depth; there was no already-reviewed set.
-- **Fix verified.** On git 2.34.1, `git rev-parse --verify --quiet --end-of-options "--output=<p>^{commit}"` exits 1 and `git diff --end-of-options "--output=<p>..HEAD"` fails as a bad revision; neither writes a file. Real refs, two-dot, three-dot, and empty-tree ranges still diff, and the pathspec exclusions after `--` still apply (identical output with and without the flag). Reverting E.2 or E.3 in memory fails the matching lint check.
-- **Accepted Risks.** 1d1b5da is the operator's own commit and records the 2026-11-07 decision to defer both WARNs to BACKLOG, so this run reports them as NOTEs. That is the review-files case the second entry describes, applied by the operator.
-- **Security.** /security scanned the 6 surface files changed since 03aacf2: 0 BLOCK, 1 WARN (carried global-claude.md:108), 24 NOTE, one NOTE new, no secrets. It confirms the live `~/.claude/settings.json` now has the `Bash|Monitor` gate matcher, which clears the operational item the last two entries carried. SECURITY.md is updated and uncommitted.
-- **Tests.** tests/run-all.sh: 1207/1207 across 6 suites. No /codefix cycle ran: the one open WARN needs a user decision.
+**Summary:** Refresh review of the three unpushed commits on origin/main: c5bf5e6 gives each /security finding one Status line (found / last checked) and condenses carried NOTEs, 9787b0b keeps /security and /codefix in the foreground and stops /security from running suites or subagents, and 721b632 adds the "Bound a strong model" Philosophy paragraph to README. All 5 changed files (CLAUDE.md, README.md, the codefix and security skills, tests/lint-skills.sh) were in the focus set and reviewed at full depth; there was no already-reviewed set.
+- **Findings.** One new WARN, fixed by one /codefix cycle (uncommitted): README.md:582 said forked skills never wait on background work, which is false for /codereview. The re-review confirmed the new wording; README.md is plain markdown, so the post-fix security surface was empty and no re-check ran. Eight new NOTEs, mostly gaps at the edges of the new Status-line and foreground rules.
+- **Security.** /security scanned the 4 surface files changed since 1d1b5da: 0 BLOCK, 1 WARN (carried global-claude.md:108), 27 NOTE, three new, no secrets. SECURITY.md is rewritten under the new rules (Status lines, condensed carried NOTEs, 953 lines of history down to 406) and is uncommitted.
+- **Tests.** tests/run-all.sh: 1214/1214 across 6 suites, before and after the fix.
+- **Commit before pushing.** README.md (the fix), SECURITY.md, and CODEREVIEW.md are uncommitted; the push gate refuses while README.md is.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 4 findings, 4 kept after Step 6 (all NOTE).
+`/code-review high`: 7 findings, 6 kept after Step 6 (all NOTE; two merged into one entry, one merged with an inline finding), 1 dropped as style (line wrapping).
 
 ### Findings
 
-No BLOCK findings. One WARN, carried and held for a user decision.
+No BLOCK findings. The new WARN is fixed (below); the carried WARN is held for a user decision.
 
 [WARN] (carried forward) claude/global-claude.md:108 — (security) Requires a user decision; not for /codefix. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
   Suggested fix: Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
 New this run:
+
+[NOTE] claude/skills/security/SKILL.md:159-167 — (security) A carried NOTE is condensed to one sentence, and nothing tells a later scan to recover its full text from SECURITY.md's git history before re-checking it or calling it resolved. When its file comes back into scope, the scan re-checks the one-sentence version, so a NOTE that listed many cases (the hook-walker NOTE named about 40 push spellings) can be marked resolved after one is checked. Confidence: high on the mechanism, medium on impact (NOTEs only).
+  Suggested fix: In the in-scope re-check bullet, say to read a condensed NOTE's last full version from SECURITY.md's history (for example `git log -p -S '<first line>' -- SECURITY.md`) before re-checking or resolving it.
+
+[NOTE] claude/skills/security/SKILL.md:152-161 — (claude-code) The in-scope re-check bullet says to keep `found` and set `last checked`, but not to drop a `; carried, not re-checked` suffix, which the carry bullet treats as persistent ("unless it already ends that way"). The paragraph above says to replace the Status line and the template has no suffix, so a careful model drops it; a field-by-field edit keeps it, and the finding then reads as both checked and not re-checked. Confidence: medium.
+  Suggested fix: Add "and drop any `; carried, not re-checked` suffix" to the in-scope bullet.
+
+[NOTE] claude/skills/security/SKILL.md:148-150 — (claude-code) "Each sha is HEAD at that scan" does not identify the code the line numbers came from when the scan read an uncommitted tree, which post-fix mode always does, and gives no value in a repo with no commits. SECURITY_META's `commit` has the same property, so this matches the rest of the file. Confidence: high on the mechanism, low that it misleads.
+  Suggested fix: Optional. Append `+ uncommitted` to the sha when files in scope have uncommitted changes, and say what to write before the first commit.
+
+[NOTE] claude/skills/security/SKILL.md:169-172 — (claude-code) A legacy finding whose text gives no date gets the prior entry's date and commit as `found`, which understates its age. SECURITY.md's history usually has the real date; this run's /security used it for the settings.json umask NOTE. Confidence: low that it matters.
+  Suggested fix: Optional. Take `found` from SECURITY.md's git history when it is cheap to find, falling back to the prior entry.
+
+[NOTE] claude/skills/security/SKILL.md:190-204, README.md:393 — (claude-code) When SECURITY.md is uncommitted at the start of a scan, Step 5 still copies the whole prior file verbatim under `## Prior review carried forward`, old-format findings included, so across an uncommitted streak the file grows with the number of scans. README.md:393 says it now "grows with open findings rather than with the number of scans" without that condition. The guard predates this push, and the next run after a commit condenses normally. Confidence: high on the mechanism, low on frequency (SECURITY.md is normally committed between reviews).
+  Suggested fix: Optional. Qualify the README sentence ("while SECURITY.md is committed between scans"), or migrate carried-forward findings to Status lines as well.
+
+[NOTE] claude/skills/codefix/SKILL.md:30-36, 84-98, claude/skills/security/SKILL.md:40-43 — (also claude-code) "Run every command in the foreground" leaves two cases open. The Bash tool moves a command that passes its timeout (2 minutes by default) to the background, as claude/skills/codereview/SKILL.md:497-499 says, and neither skill says to stop it rather than wait on it, so a fork can still end its turn with background work running. And /codefix says a check too long for the foreground "is skipped and named in the report", but Step 4's template lists only fixed and skipped findings, so the check is dropped or reads as an unfixed finding (claude-code). Confidence: medium on the gap, low on occurrence (/security now runs short commands only; /codefix runs syntax checks).
+  Suggested fix: Say that a command moved to the background is stopped and named as not run, and add a "Checks not run:" line to /codefix's Step 4 template.
+
+[NOTE] claude/skills/security/SKILL.md:91-93, claude/skills/codefix/SKILL.md:73-74 — (security) The secret-history template `git log -p --follow -3 <file>` has no `--` before the path, and the path comes from the repo. A committed path starting with `--output=` makes git truncate a file the committer chooses; /security confirmed on git 2.34.1 that the command exits 128 but still empties an existing file. A name containing `$(...)`, backticks, or a single quote runs a command when pasted into the shell, and /codefix's syntax checks paste names the same way. Predates this push. The full chain (committing such a name, the model picking it as sensitive-looking) was not tested: the auto-mode classifier refused the scratch-repo commands. Confidence: high on the git behavior, low on likelihood.
+  Suggested fix: Write the template as `git log -p --follow -3 -- '<file>'`, and have `codereview-marker surface` refuse names that start with `-` or hold shell metacharacters.
+
+[NOTE] README.md:374, 582, CLAUDE.md:60 — Three figures for scan time now disagree on their face. README.md:374 gives /security a median of about 16 minutes (49 runs, three projects), CLAUDE.md:60 says about 23 minutes for a first pass, and README.md:582 says "a typical review's hour is the max-effort scan itself". 9787b0b's message reconciles them (the hour is two scans, 22 to 27 and 11 to 17 minutes, plus /codefix); the README does not. CLAUDE.md:60 also points to "the recall trade-off recorded under Skill effort levels", and that bullet records no trade-off; README.md:305 holds the rationale. Confidence: medium.
+  Suggested fix: Optional. Write "a typical review's hour is mostly its two max-effort scans", and point CLAUDE.md:60 at README's effort paragraph.
+
+[NOTE] claude/skills/codefix/SKILL.md:40-45 — (claude-code, also security; carried, re-reported) /codefix extracts every BLOCK and WARN in CODEREVIEW.md, including those under `## Prior review carried forward (uncommitted; not current findings)`. That block is a verbatim copy that never passed /codereview's Step 1 and Step 6 filters, so a stale BLOCK becomes a fix spec, and an uncommitted CODEREVIEW.md someone else left in the working tree can plant one (security). This push moved the lines only.
+  Suggested fix: Have /codefix read only the current entry and skip the carried-forward block.
+
+Carried forward from the 2026-11-07 review of 1d1b5da, still present, not re-checked this run:
 
 [NOTE] claude/skills/codereview/SKILL.md:115-126, 148, 175 — (security, also claude-code) External-Only Mode pastes the range into shell commands: double-quoted in E.2, bare in E.3 and E.4. Git accepts `$(...)`, backticks, `;`, and `|` in branch names, so a branch someone else named can run a command. /security, on git 2.34.1 in a scratch repo: a branch `x$(touch${IFS}E2RAN)` ran `touch` inside E.2's quotes, and a branch `x;touch` passed E.2 (it resolves) and then split E.3's command at the `;`. The built-in found the benign form: a ref with spaces such as `HEAD@{2 days ago}` passes E.2's quoted check, then E.3's bare expansion splits it into three words, git fails, and the skill reports "Empty diff" for a range that has changes. Predates b8746a8. Needs external reviewers configured (E.1 stops the mode on this host). Confidence: high on the mechanism, low on likelihood.
   Suggested fix: In E.2, refuse an argument with characters outside letters, digits, and `._/~^@{}+-` (plus space for reflog dates) before running anything, then single-quote the placeholders in E.2, E.3, E.4, and `--range`, and pin both in lint.
@@ -36,9 +65,6 @@ New this run:
 [NOTE] tests/lint-skills.sh:1368, 1376-1380 — (claude-code) The new checks fall back to line 1 when the External-Only Mode bounds are missing, so the negative "no bare `git diff <range>`" check passes without checking anything. The bounds check above fails explicitly in that case, and so do the two positive checks, so the suite still fails; the vacuous "ok" line is misleading only.
   Suggested fix: Optional. Wrap the three checks in the same `[[ -n START && -n END ]]` guard as the neighbouring checks.
 
-[NOTE] b8746a8 (claude/skills/codereview/SKILL.md, hooks/README.md) — The commit bundles two unrelated review follow-ups: the External-Only Mode range fix and the hooks/README Monitor sentence. The subject and body name both, and the repo groups review follow-ups this way (c09fc07, 03aacf2). Confidence: low that it matters.
-  Suggested fix: None needed; splitting means rewriting unpushed history.
-
 [NOTE] claude/skills/codereview/SKILL.md:338-343 — Step 2's refresh focus set is every file changed since `reviewed_up_to`, not limited to the push diff. When the prior review predates the upstream, as here (03aacf2 is behind origin/main at c09fc07), it lists already-pushed files (README.md, bin/spec-backlog-apply.sh, the pr and spec skills) for full-depth review. The cost is extra reading, not missed review.
   Suggested fix: Optional. Define the focus set as FOCUS intersected with FULL.
 
@@ -50,7 +76,7 @@ Accepted Risks, reported as NOTE (deferred by the operator in 1d1b5da):
 [NOTE] claude/skills/codereview/SKILL.md (Steps 1, 2, 5, 6) — (security; carried) CODEREVIEW.md and SECURITY.md edits inside the reviewed commits decide how deeply those commits are reviewed, and the review diff excludes those files. Accepted Risks; BACKLOG `review-files-set-review-depth`.
   Suggested fix: As recorded in the BACKLOG entry.
 
-Carried forward from the 2026-11-07 review of 03aacf2, still present. /security re-checked this run the /pr pulled-changes read, /pr status and inspect, gh 2.4.0, and the out-of-diff /codefix NOTEs; the rest were not re-checked.
+Carried forward from the 2026-11-07 review of 03aacf2, still present, not re-checked this run (the /codefix carried-block NOTE is re-reported above):
 
 [NOTE] claude/skills/pr/SKILL.md:185, 200-210, README.md:470-472, 838 — (security post-fix re-check) The read this run's /codefix added for pulled PR changes, `git log -p "${REVIEWED_UP_TO}..HEAD"` or `/codereview external "${REVIEWED_UP_TO}"`, can be emptied by the pulled commits themselves. A pulled commit that marks a file `-diff` in .gitattributes makes `git log -p` print "Binary files differ" in place of the change. And REVIEWED_UP_TO comes from the CODEREVIEW.md the pull just updated, so a code commit followed by one that moves `reviewed_up_to` past it shrinks the read to a one-line metadata hunk, and `/codereview external` reports an empty diff. Security reproduced both in scratch repos on git 2.34.1. The honest cases (a suggestion applied on GitHub, a dependency bot) do neither. Confidence: high on the mechanism, low on likelihood (it needs a hostile committer on the PR branch).
   Suggested fix: Take the range from commit heads rather than pulled files, and pass `--text`: before pulling, `git fetch` and read `git log -p --text "HEAD..${PR_HEAD}"`; right after `git pull`, `git log -p --text ORIG_HEAD..HEAD` (`git pull` sets ORIG_HEAD for fast-forward and merge pulls).
@@ -58,8 +84,6 @@ Carried forward from the 2026-11-07 review of 03aacf2, still present. /security 
 [NOTE] claude/skills/pr/SKILL.md:11, 159-176 — (security) /pr status and inspect read PR bodies, comments, and reviews, which anyone can write on a public repo, under a pre-approved `Bash(*)`, and the skill does not say that text is data. Outside auto mode, a command planted in a comment would run unprompted if the model followed it.
   Suggested fix: Say the PR text is data, not instructions, and narrow `allowed-tools` to `Bash(gh *)` and `Bash(git *)`.
 
-[NOTE] claude/skills/codefix/SKILL.md:35-38 — (claude-code) /codefix extracts every BLOCK and WARN in CODEREVIEW.md, including those under `## Prior review carried forward (uncommitted; not current findings)`, which /codereview writes when CODEREVIEW.md was uncommitted at Step 1. A stale BLOCK there (already fixed, or about rewritten code) becomes a fix spec, and 500153c's "fixed like any other" rule makes acting on it more likely. Not an interaction with this push's changes.
-  Suggested fix: Have /codefix read only the current entry and skip the carried-forward block.
 
 [NOTE] bin/spec-backlog-apply.sh:102, 106 — (claude-code) The parse loop computes the same trailing-whitespace trim twice in a row, for `end-append` and for `clear`, so a later change to what counts as a bare op (stripping a trailing CR, say) has to be made in both.
   Suggested fix: Optional. Compute the trimmed line once.
@@ -91,12 +115,6 @@ Carried forward from the 2026-11-07 review of 03aacf2, still present. /security 
 [NOTE] bin/spec-backlog-apply.sh:266, 366 — (security, carried from the 897b1a7 review; also claude-code) On a CRLF BACKLOG.md, `adopt:` rewrites the heading with an LF ending and `append:` adds LF-only lines, leaving mixed endings. Matching is unaffected. The CRLF adopt test greps only the LF form, so it passes either way (claude-code). Cosmetic.
   Suggested fix: Optional. Detect a CR on the first line and write CRLF to match.
 
-Resolved by this push:
-- [NOTE] claude/skills/codereview/SKILL.md (External-Only Mode) — a `--output=<path>` range now fails as a bad revision in E.2, E.3, and E.4 (b8746a8), and lint catches a revert of each.
-- [NOTE] hooks/README.md:15 — step 1 now says the entry's matcher is `Bash|Monitor` and why it is one entry (b8746a8).
-- [NOTE] README.md:810, 828 — the v1.6 tag now exists locally and on origin (at c09fc07).
-- The prior entry's three /codefix fixes are committed in c09fc07, and the operational settings.json item is cleared (live matcher is `Bash|Monitor`).
-
 Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" in them means that review. Line numbers may have shifted.
 
 [NOTE] bin/spec-backlog-apply.sh:159, 176-178, 203, 232, 288, 324, claude/skills/spec/SKILL.md:403-405, 571 — (also claude-code, also security; carried and extended) Fence tracking differs from what a markdown renderer shows in these cases:
@@ -117,7 +135,7 @@ Carried forward from the 2026-11-07 review of 897b1a7, verbatim, so "this run" i
 [NOTE] bin/spec-backlog-apply.sh:175, 186 — (also claude-code, carried) `clear` writes through `mktemp` and `mv`, so BACKLOG.md becomes 0600. The delete, adopt, and purge paths already did this; git does not track the read bits.
   Suggested fix: Optional. `cat "$tmp" > "$BACKLOG"` keeps the mode.
 
-Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shifted (claude/skills/codereview/SKILL.md gained 10 lines in External-Only Mode this push). This run's /security re-checked the codereview `.gitattributes`, secret-in-markdown, and SECURITY_META-paste NOTEs, /pr create quoting, and the /spec tool grant; the rest were not re-checked. The review-files WARN moved to Accepted Risks and the global-claude.md:108 WARN heads the findings above.
+Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shifted. Not re-checked this run.
 
 [NOTE] (carried forward) hooks/pre-push-codereview.sh (working tree) 78-130, 233-260 — (also security) Fix-loop limits: trade-offs the fix cycles made, which the cycle limit leaves for a later change. Hook line numbers here are in the working tree.
   (a) A word over 1,024 characters that holds both quote kinds or a backslash still stops the fallback reading for the rest of the command. Spellings only that reading catches (`>/dev/null git push`, `A="x it's y" git push`) are missed after it, as they were at origin/main and 8e8dee7. /security's real run sent a commit this way.
@@ -215,8 +233,6 @@ Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shif
 [NOTE] (carried forward) claude/skills/codereview/SKILL.md:597 — `git stash create` and `codereview-marker surface <PRE_FIX>` ignore untracked files, so a codefix edit to a new untracked file gets no post-fix /security pass (claude-code)
   Suggested fix: Soften the sentence to tracked changes, or list untracked files changed since PRE_FIX as well.
 
-[NOTE] (carried forward) claude/skills/codereview/SKILL.md:339 — /security starts before Step 3, so its verification runs can overlap the project's test suite. Confidence: low.
-  Suggested fix: None now; revisit if a downstream test run collides with a /security reproduction.
 
 [NOTE] (carried forward) claude/skills/codereview/SKILL.md:460 — (security) The secret-in-diff guard depends on a step that reports secrets, and in a full-tier review no step looks in plain markdown, so a key added to a README beside a code change still goes to OpenAI and Google
   Suggested fix: Grep the exact Step 5.5 diff for key patterns before sending.
@@ -326,9 +342,14 @@ Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shif
 [NOTE] (carried forward) zat.env-install.sh:227 — Deny entries accumulate across installs; deliberate, since deny entries only narrow.
   Suggested fix: None needed.
 
+Resolved by this push:
+- [WARN] README.md:582 — "forked skills never wait on background work" now reads "`/security` and `/codefix` never wait on background work" (this run's /codefix, uncommitted).
+- [NOTE] claude/skills/codereview/SKILL.md:339 (carried from 2026-11-03) — /security's verification runs overlapping the project's test suite: 9787b0b stops /security from running the project's suites, which was the overlap that could collide. Short single-fact commands remain and are not expected to collide.
+- [NOTE] b8746a8 bundling two review follow-ups (2026-11-07): the commit is now on origin/main, so there is nothing left to split.
+
 ### Fixes Applied
 
-None.
+- [WARN] README.md:582 — Replaced "forked skills never wait on background work" with "`/security` and `/codefix` never wait on background work", matching CLAUDE.md:60. Uncommitted.
 
 ### Accepted Risks
 
@@ -345,6 +366,6 @@ None.
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-11-07, commit 03aacf2): Refresh review of 03aacf2 (the prior run's four committed fixes and a narrowed /pr merge wording). One /codefix cycle fixed three WARNs (the /pr merge pulled-changes advice, /spec's same-day stale check, and mawk-incompatible awk regexes), committed in c09fc07; it left 0 BLOCK / 3 WARN / 86 NOTE, the WARNs each needing a user decision.*
+*Prior review (2026-11-07, commit 1d1b5da): Refresh review of b8746a8 (External-Only Mode range after `--end-of-options`, hooks/README Monitor matcher) and 1d1b5da (two BACKLOG deferrals moved to Accepted Risks). No /codefix cycle; it left 0 BLOCK / 1 WARN (global-claude.md:108, held for a user decision) / 92 NOTE.*
 
-<!-- REVIEW_META: {"date":"2026-11-07","commit":"1d1b5da","reviewed_up_to":"1d1b5da6d0afa8794b1ca340e5d8e8db522e318d","base":"origin/main","tier":"refresh","block":0,"warn":1,"note":92} -->
+<!-- REVIEW_META: {"date":"2026-11-12","commit":"721b632","reviewed_up_to":"721b63214433918519a515129456221b51294e86","base":"origin/main","tier":"refresh","block":0,"warn":1,"note":98} -->
