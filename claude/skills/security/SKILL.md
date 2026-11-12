@@ -133,16 +133,34 @@ Format each finding:
                   code, traced through code you have read]
   Evidence: [specific code observed — redact any secret values; cite file:line only]
   Remediation: [concrete fix]
+  Status: found YYYY-MM-DD at <short-sha>; last checked YYYY-MM-DD at <short-sha>
 ```
+
+`found` is the scan that first reported the finding. `last checked` is the
+latest scan that read its code, and the finding's line numbers are that scan's.
+Each sha is HEAD at that scan. A new finding takes this scan for both.
+
+**A finding states what is true now.** Its text never records its own history:
+no dated re-check notes, no list of the scans that carried it, no map of how its
+line numbers moved. When a finding is checked again, rewrite it as it stands and
+replace its Status line. SECURITY.md's git history holds the earlier versions.
 
 **Prior findings.** Each BLOCK, WARN, or NOTE in the prior entry's Findings
 that is not listed under Accepted Risks is either re-checked or carried:
-- **File in this run's scope:** re-check it in Step 3. Report it again if it is
-  still present; if it is gone, say it is resolved in the Summary.
+- **File in this run's scope:** re-check it in Step 3. If it is still present,
+  report it as it stands now, keeping its `found` date and setting
+  `last checked` to this scan; if it is gone, say it is resolved in the Summary.
 - **File outside this run's scope:** carry it into the current findings at its
-  original severity, with `(carried from the YYYY-MM-DD scan, not re-checked)`
-  after the description, keeping the date of the scan that found it. Do not
-  re-verify it. Drop it only if the file no longer exists.
+  original severity. Copy its Status line unchanged and end it with
+  `; carried, not re-checked` unless it already ends that way. Do not re-verify
+  it. Drop it only if the file no longer exists. A carried BLOCK or WARN keeps
+  its full text. A carried NOTE is condensed to its first line, with the
+  description cut to one sentence, followed by its Status line.
+
+A prior finding with no Status line gets one built from what its text says (the
+scan that found it, the last scan that re-checked it), using the prior entry's
+date and commit where its text says nothing. The Status line replaces any carry
+or re-check notes in its text.
 
 Carried findings count toward the SECURITY_META totals, so a scan of a few files
 never makes open findings elsewhere disappear from SECURITY.md or from the
@@ -180,8 +198,8 @@ commit SECURITY.md. The next run after a commit condenses normally.
 uncommitted-prior-entry check above: the current entry is this review's own, so
 it is uncommitted by design. Update it in place. Findings in the listed files
 that the fix resolved leave the Findings list and are named as resolved in the
-Summary; findings still present stay; new findings in the listed files are
-added. Leave the rest of the entry, the prior-review summary line, and any
+Summary; findings still present are rewritten as they stand, with
+`last checked` set to this pass; new findings in the listed files are added. Leave the rest of the entry, the prior-review summary line, and any
 carried-forward block as they are. When the entry's scope is `"paths"`, add the
 listed files to `scanned_files` (sorted, no duplicates). Recompute the counts in
 SECURITY_META.

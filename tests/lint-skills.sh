@@ -1109,8 +1109,20 @@ has "${SKILLS}/security/SKILL.md" "Git history checked for secrets" \
 # A path-scoped scan replaces the whole entry, so findings in files outside
 # its scope must be carried, or they vanish from SECURITY.md and from the
 # SECURITY_META counts /codereview and /pr read.
-has "${SKILLS}/security/SKILL.md" "carried from the YYYY-MM-DD scan, not re-checked" \
+has "${SKILLS}/security/SKILL.md" "; carried, not re-checked" \
   "security: carries prior findings outside the run's scope, marked not re-checked"
+# zat-hermes's SECURITY.md reached 953 KB because each scan added a carry
+# sentence or a dated re-check bullet to every finding. A finding holds its
+# current state and one Status line replaced in place; carried NOTEs are two
+# lines, so the file grows with open findings, not with the number of scans.
+has "${SKILLS}/security/SKILL.md" "Status: found YYYY-MM-DD at <short-sha>; last checked YYYY-MM-DD at <short-sha>" \
+  "security: each finding has a found / last-checked Status line"
+has "${SKILLS}/security/SKILL.md" "A finding states what is true now" \
+  "security: findings record current state, not their history"
+has "${SKILLS}/security/SKILL.md" "A carried NOTE is condensed to its first line" \
+  "security: carried NOTEs condense to one line"
+hasnt "${SKILLS}/security/SKILL.md" "carried from the YYYY-MM-DD scan" \
+  "security: no per-scan carry annotation (it chained in zat-hermes)"
 has "${SKILLS}/security/SKILL.md" "Carried findings count toward the SECURITY_META totals" \
   "security: carried findings count toward SECURITY_META totals"
 for skill in codereview security; do
