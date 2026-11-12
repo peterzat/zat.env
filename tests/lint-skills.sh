@@ -1586,13 +1586,22 @@ has "${SKILLS}/codereview/SKILL.md" "Listed in Accepted Risks" \
 echo ""
 echo "==> Skill effort levels"
 
-for pair in security:max codereview:xhigh codefix:high pr:medium; do
+for pair in security:max codereview:high codefix:high pr:medium; do
   IFS=: read -r skill level <<< "${pair}"
   has "${SKILLS}/${skill}/SKILL.md" "^effort: ${level}$" \
     "${skill}: frontmatter effort is ${level}"
   has "${README}" "\`/${skill}\` at \`${level}\`" \
     "README: states /${skill} effort as ${level}"
 done
+# The /codereview and /security sections each restate their level, which
+# drifted once: README kept "effort: xhigh" after a level change.
+for pair in codereview:high security:max; do
+  IFS=: read -r skill level <<< "${pair}"
+  has "${README}" "The skill runs at \`effort: ${level}\` via frontmatter" \
+    "README: /${skill} section states effort ${level}"
+done
+hasnt "${README}" "The skill runs at \`effort: xhigh\` via frontmatter" \
+  "README: no skill section left at a superseded effort"
 for skill in spec architect tester; do
   hasnt "${SKILLS}/${skill}/SKILL.md" "^effort:" \
     "${skill}: no frontmatter effort (inherits session level)"

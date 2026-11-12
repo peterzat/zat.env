@@ -12,7 +12,7 @@ description: >-
   /codefix mutation, useful for span-of-release second opinions.
 argument-hint: "[external [<ref> | <from>..<to>]]"
 context: fork
-effort: xhigh
+effort: high
 allowed-tools: Bash(*), Read, Grep, Glob, Skill(security), Skill(security *), Skill(codefix)
 ---
 
