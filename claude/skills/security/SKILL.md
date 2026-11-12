@@ -158,8 +158,8 @@ replace its Status line. SECURITY.md's git history holds the earlier versions.
 that is not listed under Accepted Risks is either re-checked or carried:
 - **File in this run's scope:** re-check it in Step 3. If it is still present,
   report it as it stands now, keeping its `found` date and setting
-  `last checked` to this scan, without the carried mark; if it is gone, say it
-  is resolved in the Summary.
+  `last checked` to this scan, without `; carried, not re-checked`; if it is
+  gone, say it is resolved in the Summary.
 - **File outside this run's scope:** carry it into the current findings at its
   original severity. Copy its Status line unchanged and end it with
   `; carried, not re-checked` unless it already ends that way. Do not re-verify
@@ -209,7 +209,8 @@ uncommitted-prior-entry check above: the current entry is this review's own, so
 it is uncommitted by design. Update it in place. Findings in the listed files
 that the fix resolved leave the Findings list and are named as resolved in the
 Summary; findings still present are rewritten as they stand, with
-`last checked` set to this pass; new findings in the listed files are added. Leave the rest of the entry, the prior-review summary line, and any
+`last checked` set to this pass and no `; carried, not re-checked`; new
+findings in the listed files are added. Leave the rest of the entry, the prior-review summary line, and any
 carried-forward block as they are. When the entry's scope is `"paths"`, add the
 listed files to `scanned_files` (sorted, no duplicates). Recompute the counts in
 SECURITY_META.
