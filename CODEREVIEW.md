@@ -1,27 +1,64 @@
-## Review — 2026-11-13 (commit: 9afc578)
+## Review — 2026-11-13 (commit: 9702e80)
 
-**Summary:** Refresh review of 38e6c73 (the /security post-fix and in-scope rules name `; carried, not re-checked` literally, with lint pins; README's scan-time sentence names zat-hermes) and 9afc578 (/codereview effort xhigh to high; README states the effort stance at line 305 and in a new "A notch above the guidance" paragraph; lint pins both sections' level sentences). All 5 changed files (CLAUDE.md, README.md, claude/skills/codereview/SKILL.md, claude/skills/security/SKILL.md, tests/lint-skills.sh) were in the focus set; there was no already-reviewed set.
-- **Findings.** No BLOCK. One new WARN fixed by /codefix (README.md:305 counted `/pr` at `medium` as above guidance that starts at `medium`, and restated the 584 paragraph). One new WARN held for a user decision: README.md:305 says the installer's top-level `effortLevel` seed does not reach Opus 5.5, while the installer still seeds only that key and its comment and CLAUDE.md:54 describe it differently. The carried global-claude.md:108 WARN is still held. Four new NOTEs and one updated NOTE. The three NOTEs from the e3b6b5f review that 38e6c73 addressed are resolved.
-- **Mixed concerns.** 38e6c73 is a fix-up of the prior review's NOTEs; 9afc578 changes one level and the docs and lint that state it. Not flagged.
-- **Security.** /security scanned the 4 surface files changed since e3b6b5f: 0 BLOCK, 1 WARN (carried global-claude.md:108), 30 NOTE, one new (`--text` for the history and changes-only diffs), and a concrete impact for the history-command NOTE (a committed `--output=` path can empty zat.env's pre-push hook). No secrets. The /codefix change touched only README.md, so no post-fix re-check ran. SECURITY.md is rewritten and uncommitted.
-- **Tests.** tests/run-all.sh: 1219/1219 across 6 suites before and after the fix cycle.
-- **Commit before pushing.** The README.md fix, SECURITY.md, and CODEREVIEW.md are uncommitted. The gate refuses a push while README.md has uncommitted changes.
+**Summary:** Refresh review of 3bc1f1f (the installer seeds `modelSettings[<model>].effortLevel` for the models in `EFFORT_MODELS` as well as the top-level key; README, CLAUDE.md, and lint follow) and 9702e80 (the 0.0.0.0 bind rule leaves global-claude.md; networking.md binds the Tailscale address; README's machine summary and lint follow). All 6 changed files (CLAUDE.md, README.md, claude/global-claude.md, claude/references/networking.md, tests/lint-skills.sh, zat.env-install.sh) were in the focus set; there was no already-reviewed set.
+- **Findings.** No BLOCK. Two fix cycles fixed three WARNs: the new Tailscale bind guidance failed open to all interfaces when `tailscale ip -4` printed nothing (inline, also claude-code), and the installer's permissions rebuild dropped the user's narrowing keys (`ask`, `disableBypassPermissionsMode`, `disableAutoMode` in cycle 1; `blockReadsOutsideWorkingDirectories` and `blockWritesOutsideWorkingDirectories`, found by the cycle 1 security re-check, in cycle 2). Both WARNs held by the prior review are resolved by this push. Thirteen new NOTEs.
+- **Mixed concerns.** 3bc1f1f and 9702e80 each change one thing with its docs and lint. The permissions fix is in a file this push touches but is a separate concern; commit it separately from the networking fix.
+- **Security.** /security scanned the 4 surface files changed since 9afc578 (0 BLOCK, 1 WARN, 33 NOTE), then re-checked each cycle's installer and lint changes in post-fix mode. Final: 0 BLOCK / 0 WARN / 34 NOTE. No secrets. networking.md is plain markdown, so the surface script left it out of the post-fix re-checks; this review read its fix. SECURITY.md is updated and uncommitted.
+- **Tests.** tests/run-all.sh: 1223/1223 across 6 suites at baseline, 1224/1224 after each cycle (one new lint pin).
+- **Commit before pushing.** The fixes to README.md, claude/references/networking.md, tests/lint-skills.sh, and zat.env-install.sh, plus SECURITY.md and CODEREVIEW.md, are uncommitted. The gate refuses a push while tracked files have uncommitted changes.
 
 **External reviewers:**
 None configured.
 
 **Built-in review:**
-`/code-review high`: 6 findings, 6 kept after Step 6 (two README WARNs, one of them merged with the inline review and fixed, the other held for a user decision; its installer-comment finding merged into that held WARN; two NOTEs; the duplicate-paragraph finding merged into the fixed WARN).
+`/code-review high`: 8 findings, 7 kept after Step 6 (the fail-open bind merged with the inline WARN and fixed; six NOTEs; the redundant `tr -d '\r'` in the status echo dropped as style).
 
 ### Findings
 
-[WARN] README.md:305, zat.env-install.sh:203-213, CLAUDE.md:54 — (also claude-code) Requires a user decision; not for /codefix. The new README sentence says "the installer's top-level `effortLevel` seed reaches only models released before Opus 5.5", while README.md:584 says the daily session runs at `xhigh`, and the installer still seeds only the top-level key (`.effortLevel //= "xhigh"`). By README's own account a fresh install leaves the daily model (Opus 5.5) at its default level, not `xhigh`. The installer comment ("Per-model levels saved under modelSettings take precedence over this top-level value") describes the top-level value as a fallback that still applies, and CLAUDE.md:54 says lint pins the seed "so a re-run never overwrites a level chosen with `/effort`", so the three sources describe the seed differently. The README claim is about Claude Code behavior and cannot be checked from the repo; this machine's settings.json has `modelSettings["claude-opus-5-5"].effortLevel = "xhigh"`, consistent with `/effort` saving per model. Confidence: medium (depends on the unverified Claude Code behavior).
-  Choice: seed `modelSettings["<daily model>"].effortLevel //= "xhigh"` in the installer (a behavior change that names a model id the installer must then track), or keep the installer as is and correct its comment and CLAUDE.md:54 to say the top-level seed does not reach Opus 5.5 and later.
+No open BLOCK or WARN.
 
-[WARN] (carried forward) claude/global-claude.md:108 — (security) Requires a user decision; not for /codefix. The global convention binds every service to 0.0.0.0, which is safe only behind a host firewall; Docker-published ports bypass UFW and hw-bootstrap.sh never enables UFW. The rule also loads on Windows, where windows.md says networking.md (the only place the firewall assumption is written) does not apply (carried, not re-checked).
-  Suggested fix: Bind to the Tailscale address, or add DOCKER-USER rules and enable UFW; scope the rule to the Linux box.
 
 New this run:
+
+[NOTE] zat.env-install.sh:218 — (claude-code) The per-model seed writes `"xhigh"` rather than the user's top-level level. A user whose settings hold `effortLevel: "high"` and no `modelSettings` keeps `high` at top level, but Opus 5.5 (which reads only the per-model key) moves from its `medium` default to `xhigh`. The user never chose a level for Opus 5.5, so this matches README's stated intent; `//= .effortLevel` (evaluated against the root) would carry the top-level choice instead. Confidence: high on the mechanism; whether it is wrong is a design choice.
+  Suggested fix: Optional. Seed per model from the top-level value if a hand-set top-level level should win.
+
+[NOTE] claude/references/networking.md:14 — (also claude-code) A container published on the Tailscale IP with a restart policy cannot bind when dockerd starts before tailscale0 has its address after a reboot ("cannot assign requested address"), and the IP is fixed into the container config, so a node re-registration that changes it breaks the container. Confidence: medium (not reproduced).
+  Suggested fix: Optional. Mention the boot ordering (for example `After=tailscaled.service` or recreating the container) next to the Docker line.
+
+[NOTE] claude/references/networking.md:13 — (claude-code) The guidance binds only IPv4. MagicDNS also answers `dev` with the node's Tailscale IPv6 address, so a client that tries IPv6 first is refused; browsers and curl fall back to IPv4, single-address clients may not. Confidence: medium.
+  Suggested fix: Optional. Note it, or bind `tailscale ip -6` as well where the framework accepts two hosts.
+
+[NOTE] claude/references/networking.md:14 — (claude-code) Only the `docker run` form is given. In a compose file `$(tailscale ip -4)` is not expanded, and the easy workaround (`"8080:8080"`) binds 0.0.0.0. Confidence: low that it is hit.
+  Suggested fix: Optional. Give the compose form (`"${TS_IP:?}:8080:8080"` with `TS_IP` exported).
+
+[NOTE] tests/README.md:45 — (claude-code) The "Skill effort levels" row still says the installer "seeds `effortLevel`", and no row mentions the new bind-address checks. The row is not wrong, only incomplete. Confidence: high on the fact, low on impact.
+  Suggested fix: Optional. Add "per model for `EFFORT_MODELS`" to the row and the global-claude/networking.md bind checks to a suitable row.
+
+[NOTE] CLAUDE.md:76, zat.env-install.sh:217 — (claude-code) The Model baseline names Fable 5.1 as the design model, while `EFFORT_MODELS` seeds `claude-fable-5-2`. The baseline is a dated record of the 2026-10-01 review, and this machine's settings already hold a saved `claude-fable-5-2` level, so 5.2 is in use; a reader updating `EFFORT_MODELS` from the paragraph could still be misled. Lint pins only the Opus id. Confidence: low that it matters.
+  Suggested fix: Optional. Say in the Model baseline which Fable version is current, or leave it for the next re-baseline.
+
+[NOTE] claude/global-claude.md:108 — The new pointer says to read networking.md "on that machine" but gives no way to tell which machine that is short of reading it. Harmless, since the file names its hostname. Confidence: low that it matters.
+  Suggested fix: Optional. Name the hostname (`dev`) in the pointer.
+
+[NOTE] claude/global-claude.md:112 — (security) "`.env` files are globally gitignored" is true only for files named exactly `.env`; `.env.local` and `.env.production` showed as untracked in a scratch repo. Predates this push.
+  Suggested fix: Add `.env.*` (with `!.env.example`) to gitconfig/ignore-global, or narrow the sentence.
+
+[NOTE] zat.env-install.sh:76 — (security) The installer replaces any existing `core.excludesfile` without a message, so a user's own global ignore patterns, including ones for secret files, stop applying. Predates this push.
+  Suggested fix: Warn when replacing a different value, or include the prior file's patterns.
+[NOTE] CLAUDE.md:69, tests/README.md (Security guards row) — The Reviewer credential file mode bullet and the coverage table describe the deny-list union as what keeps hand-added restrictions, and neither names the carried narrowing keys or the new lint pin (tests/lint-skills.sh:2019). The installer comment and README.md:224 do. Confidence: high on the fact, low on impact.
+  Suggested fix: Optional. Add the carried keys to the CLAUDE.md bullet and "narrowing-key carry-over" to the Security guards row.
+
+[NOTE] zat.env-install.sh:275 — (security) The carried key list is fixed, so a narrowing `permissions` key that a later Claude Code adds is dropped until someone adds it to the list and the lint pin; `blockWritesOutsideWorkingDirectories` (Claude Code 2.1.314) was missed this way in cycle 1. The alternative, keeping every key the installer does not own, would also keep widening keys a later version adds. /security found no other narrowing key in 2.1.311 to 2.1.317. Confidence: medium.
+  Suggested fix: Optional. Note the list in CLAUDE.md's Model baseline checklist (re-check on Claude Code upgrades), or choose a delete-what-we-own merge.
+
+[NOTE] zat.env-install.sh:199-201, 218, 362-363 — (security) The installer writes `{}` only when settings.json is missing. An empty or whitespace-only file makes every jq step exit 0 with no output, so the run prints its success lines (including "Added pre-push hook") while installing no gate, deny entries, or `classifyAllShell`, and Claude Code loads the empty file without error. /security reproduced it in a scratch directory. Predates this push. Confidence: high on the mechanism, low on likelihood.
+  Suggested fix: Write `{}` when the file is empty or whitespace only, stop when `jq -e 'type == "object"'` fails, and fail the run on a failed jq step.
+
+[NOTE] claude/references/networking.md:14 — The fix says "Python, uvicorn, and Docker all read it as `0.0.0.0`". Python was confirmed on this box; the uvicorn and Docker behavior was not run (no Docker access for this account). Confidence: medium that the sentence is exact for Docker.
+  Suggested fix: Optional. Confirm with `docker run -p ":8080:80"` once, or soften to "can bind every interface".
+
+Carried forward from the 2026-11-13 review of 9afc578, still present, not re-checked this run:
 
 [NOTE] README.md:584 — "zat.env's effort levels sit slightly above Anthropic's recommendations" lists `/security` at `max`, while README.md:305 justifies that level as following Anthropic's own example ("finding vulnerabilities is Anthropic's own example of a max-effort task"), so `/security` is arguably at the guidance rather than above it. A wording question for the author. Confidence: medium.
   Suggested fix: Optional. Say `/security` at `max` follows Anthropic's example, and keep the "notch above" claim to `/codereview`, `/codefix`, and the daily session.
@@ -369,12 +406,14 @@ Carried forward from the 2026-11-03 review, verbatim. Line numbers may have shif
 
 
 Resolved by this push:
-- [NOTE] claude/skills/security/SKILL.md:152-161 (2026-11-12, claude-code) — the in-scope re-check bullet now says to set `last checked` "without the carried mark" (line 161), pinned in tests/lint-skills.sh. The post-fix path keeps the gap (new NOTE above).
-- [NOTE] README.md:374, 582, CLAUDE.md:60 (2026-11-12) — the three scan-time figures: CLAUDE.md:60 now names zat-hermes's first-pass and post-fix figures beside README's three-project median and points at the effort level rather than a recall trade-off, and README.md:582 says the hour is mostly two scans. The "typical review" wording keeps a smaller residue (new NOTE above).
+- [WARN] README.md:305, zat.env-install.sh:203-213, CLAUDE.md:54 (2026-11-13, held for a user decision) — 3bc1f1f took the first choice: the installer seeds `modelSettings[<model>].effortLevel //= "xhigh"` for `EFFORT_MODELS`, and its comment, README.md:305, and CLAUDE.md's Skill effort levels bullet now agree.
+- [WARN] claude/global-claude.md:108 (carried, security, held for a user decision) — 9702e80 removed the bind rule from global-claude.md (lint keeps 0.0.0.0 out) and networking.md binds the Tailscale address.
 
 ### Fixes Applied
 
-- [WARN] README.md:305 — (also claude-code) Replaced "These levels, and the daily session at `xhigh`, sit a notch above Anthropic's Opus 5.5 guidance by choice rather than measurement: the guidance starts at `medium` and keeps `xhigh` and `max` for work where a gain has been measured." with "`/codereview`, `/codefix`, and the daily session at `xhigh` sit a notch above Anthropic's Opus 5.5 guidance by choice; see \"A notch above the guidance\" below." `/pr` is no longer counted as above the guidance, and the stance is stated once, at README.md:584.
+- [WARN] claude/references/networking.md:13-15 — (also claude-code) Cycle 1. The guidance takes the address once (`TS_IP="$(tailscale ip -4)"`), binds `--host "${TS_IP:?Tailscale is not up}"` and `-p "${TS_IP:?Tailscale is not up}:PORT:PORT"`, and a new bullet says an empty address must stop the command rather than fall back to all interfaces.
+- [WARN] zat.env-install.sh:224-277, README.md:224, tests/lint-skills.sh:2019 — (security) Cycle 1. The permissions rebuild binds `(.permissions // {}) as $old` and adds `($old | {ask, disableBypassPermissionsMode, disableAutoMode} | with_entries(select(.value != null)))`; the comment, the echo, and README say so; a lint pin sits beside the deny-union pin.
+- [WARN] zat.env-install.sh:224-277, README.md:224, tests/lint-skills.sh:2019 — (security post-fix re-check) Cycle 2. `blockReadsOutsideWorkingDirectories` and `blockWritesOutsideWorkingDirectories` join the carried key list, with the comment, echo, README, and lint pin updated to match.
 
 ### Accepted Risks
 
@@ -391,6 +430,6 @@ Resolved by this push:
 - **Venv-activation chains auto-approved outside auto mode** (hooks/allow-venv-source.sh:20-24): in default, acceptEdits, plan, and dontAsk modes the hook still returns `allow` for `. .venv/bin/activate && <anything>`, including pipes, `$(...)`, and further commands. Kept deliberately by the user on 2026-10-01 when the auto-mode fix was approved: the hook exists to avoid the eval-like-builtin prompt, and its reach matches the accepted `Bash(python3 *)` and `Bash(make *)` grants in those modes. Recorded by the 2026-10-01 security scan.
 
 ---
-*Prior review (2026-11-12, commit e3b6b5f): Refresh review of e3b6b5f (the in-scope re-check drops the carried mark; scan-time figures name their source); 0 BLOCK / 1 WARN (global-claude.md:108, held for a user decision) / 101 NOTE, no fix cycle. 38e6c73 then resolved its three new review NOTEs (post-fix carried mark, the mark named only by reference, README "typical review's hour").*
+*Prior review (2026-11-13, commit 9afc578): Refresh review of 38e6c73 (/security names the carried mark literally) and 9afc578 (/codereview effort xhigh to high); 0 BLOCK / 2 WARN (README.md:305 effort seed, and the carried global-claude.md:108 bind rule, both held for a user decision and both resolved by this push) / 102 NOTE; one README WARN fixed by /codefix.*
 
-<!-- REVIEW_META: {"date":"2026-11-13","commit":"9afc578","reviewed_up_to":"9afc5789ccd64d0988e730bc73ff6e826c97bce8","base":"origin/main","tier":"refresh","block":0,"warn":2,"note":102} -->
+<!-- REVIEW_META: {"date":"2026-11-13","commit":"9702e80","reviewed_up_to":"9702e800dcc03e18b01c93428cfce7c3ef86c198","base":"origin/main","tier":"refresh","block":0,"warn":0,"note":115} -->
