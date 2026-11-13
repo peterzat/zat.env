@@ -200,18 +200,23 @@ if [[ ! -f "${SETTINGS_FILE}" ]]; then
   echo '{}' > "${SETTINGS_FILE}"
 fi
 
-# Seed effortLevel to xhigh only when unset, so a level chosen with /effort
-# survives re-runs. Per-model levels saved under modelSettings take precedence
-# over this top-level value. Skills that need a fixed level set it in their own
-# frontmatter; the rest inherit the session level. showThinkingSummaries makes
-# the collapsed thinking readable with Ctrl+O.
+# Seed effort to xhigh only when unset, so a level chosen with /effort survives
+# re-runs. Claude Code applies a top-level effortLevel in user settings only to
+# models released before Opus 5.5; Opus 5.5 and later read the level saved for
+# them under modelSettings, else their own default (medium). So the top-level
+# key covers older models and EFFORT_MODELS names the current daily and design
+# models; update it when either changes (CLAUDE.md, Model baseline). Skills that
+# need a fixed level set it in their own frontmatter; the rest inherit the
+# session level. showThinkingSummaries makes the collapsed thinking readable
+# with Ctrl+O.
 #
 # Seed the stable update channel only when unset, so a choice made in /config
 # survives re-runs. On the default channel Claude Code updates itself as soon as
 # a release ships. Homebrew, apt, dnf, and apk pick the channel by package, so
 # the setting does nothing there.
-jq '.effortLevel //= "xhigh" | .autoUpdatesChannel //= "stable" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), autoUpdatesChannel: $(jq -r '.autoUpdatesChannel' "${SETTINGS_FILE}"), showThinkingSummaries on"
+EFFORT_MODELS='["claude-opus-5-5","claude-fable-5-2"]'
+jq --argjson models "${EFFORT_MODELS}" '.effortLevel //= "xhigh" | reduce $models[] as $m (.; .modelSettings[$m].effortLevel //= "xhigh") | .autoUpdatesChannel //= "stable" | .showThinkingSummaries = true' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
+echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), per model: $(jq -r --argjson models "${EFFORT_MODELS}" '[$models[] as $m | "\($m)=\(.modelSettings[$m].effortLevel)"] | join(" ")' "${SETTINGS_FILE}" | tr -d '\r'), autoUpdatesChannel: $(jq -r '.autoUpdatesChannel' "${SETTINGS_FILE}"), showThinkingSummaries on"
 
 # Allow list is replaced wholesale on each install to prevent
 # session-accumulated cruft: allow entries widen what runs unprompted, so

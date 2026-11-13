@@ -1608,6 +1608,13 @@ for skill in spec architect tester; do
 done
 has "${REPO_DIR}/zat.env-install.sh" '\.effortLevel //= "xhigh"' \
   "install: seeds effortLevel only when unset"
+# Claude Code reads Opus 5.5 and later models' level per model and ignores a
+# top-level effortLevel in user settings for them, so the daily model needs
+# its own seed, also only when unset.
+has "${REPO_DIR}/zat.env-install.sh" '\.modelSettings\[\$m\]\.effortLevel //= "xhigh"' \
+  "install: seeds per-model effortLevel only when unset"
+has "${REPO_DIR}/zat.env-install.sh" "^EFFORT_MODELS='\[.*\"claude-opus-5-5\"" \
+  "install: EFFORT_MODELS includes the daily model"
 has "${REPO_DIR}/zat.env-install.sh" '\.autoUpdatesChannel //= "stable"' \
   "install: seeds the stable update channel only when unset, so a /config choice survives"
 has "${REPO_DIR}/zat.env-install.sh" '\.autoMode\.classifyAllShell = true' \
