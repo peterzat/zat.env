@@ -1623,6 +1623,14 @@ has "${REPO_DIR}/hooks/allow-venv-source.sh" "permission_mode // empty'\)\" == \
   "venv hook: makes no decision in auto mode (an allow would skip the classifier)"
 has "${REPO_DIR}/claude/global-claude.md" '\.venv/bin/pytest' \
   "global conventions: run venv tools directly instead of sourcing activate"
+# global-claude.md loads on every machine, but a bind address depends on one
+# machine's tailnet and firewall. "Bind to 0.0.0.0" lived there and leaned on
+# a UFW that Docker publishes bypass and hw-bootstrap.sh never set up; the
+# rule lives in networking.md, which binds the Tailscale address.
+hasnt "${REPO_DIR}/claude/global-claude.md" '0\.0\.0\.0' \
+  "global conventions: no bind-address rule (machine-specific, in networking.md)"
+has "${REPO_DIR}/claude/references/networking.md" 'tailscale ip -4' \
+  "networking.md: services bind the Tailscale address"
 has "${SKILLS}/codereview/SKILL.md" "Finish the run\.\*\* This review runs unattended in a fork" \
   "codereview: states when the forked review counts as finished"
 has "${SKILLS}/codereview/SKILL.md" "Do not end the turn" \

@@ -105,7 +105,7 @@ When detail in a screenshot, chart, or diagram is hard to read, crop and enlarge
 
 ## Networking
 
-Bind services to `0.0.0.0` so Tailscale clients can reach them. For machine-specific networking (hostname, tailnet, firewall) see `~/src/zat.env/claude/references/networking.md`.
+`~/src/zat.env/claude/references/networking.md` describes the networking of the machine it was written for (hostname, tailnet, bind address, firewall). On that machine, read it before starting a service that other devices must reach.
 
 ## Secrets
 

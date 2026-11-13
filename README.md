@@ -681,10 +681,10 @@ There's no real difference between a hosted dev box like this and a physical mac
 - **Public DNS**: `dev.agent-hypervisor.ai` (A record to Hetzner public IP)
 - **Tailscale**: hostname `dev`, tailnet `emperor-exponential.ts.net`, FQDN `dev.emperor-exponential.ts.net`
 - **Access pattern**: Mac/iPad connects via Tailscale to `dev:PORT` for web UIs (Jupyter, Gradio, FastAPI, etc.)
-- **Bind address**: always `0.0.0.0` (not `127.0.0.1`) so Tailscale clients can reach services
+- **Bind address**: the Tailscale address (`tailscale ip -4`, Docker `-p <tailscale-ip>:PORT:PORT`), so tailnet clients reach services and the public IP does not, with or without the firewall; `0.0.0.0` only for deliberate public exposure
 - **Public exposure**: `dev.agent-hypervisor.ai:PORT` for webhook callbacks or temporary demos only
 - **No reverse proxy**: services bind directly to ports
-- **Firewall (UFW)**: active; deny incoming, allow SSH (22/tcp) and all on tailscale0
+- **Firewall (UFW)**: active; deny incoming, allow SSH (22/tcp) and all on tailscale0. Not set up by `hw-bootstrap.sh`, and it does not filter Docker-published ports
 
 These are per-machine values. See `claude/references/networking.md` for the full conventions.
 

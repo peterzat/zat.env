@@ -10,16 +10,19 @@ Machine-specific values. Update these if the machine, domain, or tailnet changes
 
 **Binding addresses for services:**
 
-- Local dev server (no Docker): bind `0.0.0.0` so Tailscale clients can reach it. `127.0.0.1` is local-only.
-- Docker containers: `-p PORT:PORT` (binds `0.0.0.0`). Never `-p 127.0.0.1:PORT:PORT` unless the service must be unreachable from Tailscale.
+- Bind to the Tailscale address, not `0.0.0.0`: `--host "$(tailscale ip -4)"` or the framework's equivalent. Tailnet clients reach it at `dev:PORT`, and nothing reaches it from the public IP, whether or not the firewall is up.
+- Docker containers: `-p "$(tailscale ip -4):PORT:PORT"`. A bare `-p PORT:PORT` binds `0.0.0.0`, and Docker's own iptables rules are not filtered by UFW, so that port is public.
+- `127.0.0.1` for anything only this machine uses.
+- To check a service from this machine, use `dev.emperor-exponential.ts.net:PORT`. On the box itself, `localhost` does not answer a Tailscale-bound service, and the short name `dev` resolves to the public IPv6 address.
 - Combine with `--gpus all --shm-size=8g` for GPU workloads (see ml-gpu.md).
 
 **Public DNS (`dev.agent-hypervisor.ai`) use cases:**
 
 - Webhook callbacks from external services (GitHub, Stripe, etc.)
 - Temporary demos for external collaborators
+- For deliberate public exposure, bind `0.0.0.0` (Docker: `-p PORT:PORT`) for the duration. A service outside Docker also needs a UFW allow rule, which is an operator action.
 - Keep public exposure brief. Stop or rebind the service when done.
 
-**Firewall (UFW):** active. Default policy: deny incoming, allow outgoing. Allowed inbound: SSH (22/tcp), all traffic on `tailscale0`. Hetzner may apply additional network-level rules (check Robot panel).
+**Firewall (UFW):** active, set up outside zat.env (`hw-bootstrap.sh` does not configure it). Default policy: deny incoming, allow outgoing. Allowed inbound: SSH (22/tcp), all traffic on `tailscale0`. Docker-published ports are not filtered by these rules. Hetzner may apply additional network-level rules (check Robot panel).
 
 **No reverse proxy.** Services bind directly to ports. If Caddy or nginx is added later, update this section.
