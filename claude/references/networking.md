@@ -10,8 +10,9 @@ Machine-specific values. Update these if the machine, domain, or tailnet changes
 
 **Binding addresses for services:**
 
-- Bind to the Tailscale address, not `0.0.0.0`: `--host "$(tailscale ip -4)"` or the framework's equivalent. Tailnet clients reach it at `dev:PORT`, and nothing reaches it from the public IP, whether or not the firewall is up.
-- Docker containers: `-p "$(tailscale ip -4):PORT:PORT"`. A bare `-p PORT:PORT` binds `0.0.0.0`, and Docker's own iptables rules are not filtered by UFW, so that port is public.
+- Bind to the Tailscale address, not `0.0.0.0`. Take the address once and check it: `TS_IP="$(tailscale ip -4)"`, then `--host "${TS_IP:?Tailscale is not up}"` or the framework's equivalent. Tailnet clients reach it at `dev:PORT`, and nothing reaches it from the public IP, whether or not the firewall is up.
+- An empty address must stop the command, never fall back. When Tailscale is stopped, logged out, or still starting, `$(tailscale ip -4)` expands to an empty string, and an empty host binds every interface (Python, uvicorn, and Docker all read it as `0.0.0.0`). The `${TS_IP:?...}` form aborts instead.
+- Docker containers: `-p "${TS_IP:?Tailscale is not up}:PORT:PORT"`. A bare `-p PORT:PORT` binds `0.0.0.0`, and Docker's own iptables rules are not filtered by UFW, so that port is public.
 - `127.0.0.1` for anything only this machine uses.
 - To check a service from this machine, use `dev.emperor-exponential.ts.net:PORT`. On the box itself, `localhost` does not answer a Tailscale-bound service, and the short name `dev` resolves to the public IPv6 address.
 - Combine with `--gpus all --shm-size=8g` for GPU workloads (see ml-gpu.md).
