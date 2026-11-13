@@ -2016,6 +2016,8 @@ has "${REPO_DIR}/zat.env-install.sh" 'chmod 600 "\$\{REVIEWER_ENV\}"' \
   "security: install chmods the reviewer credential file to 600"
 has "${REPO_DIR}/zat.env-install.sh" '\(\.permissions\.deny // \[\]\)' \
   "security: install preserves hand-added deny entries instead of replacing them"
+has "${REPO_DIR}/zat.env-install.sh" '\$old \| \{ask, disableBypassPermissionsMode, disableAutoMode, blockReadsOutsideWorkingDirectories, blockWritesOutsideWorkingDirectories\}' \
+  "security: install preserves permissions.ask, disableBypassPermissionsMode, disableAutoMode, blockReadsOutsideWorkingDirectories, and blockWritesOutsideWorkingDirectories"
 for prov in OPENAI GOOGLE LOCAL; do
   has "${REPO_DIR}/bin/review-external.sh" "> \"\\\$\{${prov}_OUT\}\" 2> \"\\\$\{${prov}_ERR\}\" &" \
     "security: review-external.sh captures ${prov} stdout and stderr separately"

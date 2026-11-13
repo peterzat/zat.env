@@ -221,7 +221,10 @@ echo "    effortLevel: $(jq -r '.effortLevel' "${SETTINGS_FILE}"), per model: $(
 # Allow list is replaced wholesale on each install to prevent
 # session-accumulated cruft: allow entries widen what runs unprompted, so
 # resetting them is the safe direction. Deny entries only narrow, so any
-# hand-added ones are preserved by unioning them with the managed set.
+# hand-added ones are preserved by unioning them with the managed set. The
+# other narrowing keys (ask, disableBypassPermissionsMode, disableAutoMode,
+# blockReadsOutsideWorkingDirectories, blockWritesOutsideWorkingDirectories)
+# are carried over unchanged when set.
 #
 # The deny list is a speed bump, not a security boundary. Entries are prefix
 # matches, so listing `rm -rf` cannot cover every spelling, and the allow list
@@ -237,7 +240,8 @@ jq '
       "Bash(curl * | bash *)",
       "Bash(wget * | bash *)"
    ] | unique) as $deny |
-  .permissions = {
+  (.permissions // {}) as $old |
+  .permissions = ({
     "defaultMode": "auto",
     "allow": [
       "Bash(git *)",
@@ -268,9 +272,9 @@ jq '
       "Skill(security)"
     ],
     "deny": $deny
-  }
+  } + ($old | {ask, disableBypassPermissionsMode, disableAutoMode, blockReadsOutsideWorkingDirectories, blockWritesOutsideWorkingDirectories} | with_entries(select(.value != null))))
 ' "${SETTINGS_FILE}" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "${SETTINGS_FILE}"
-echo "    Set permissions (defaultMode, allow list reset, deny list merged)"
+echo "    Set permissions (defaultMode, allow list reset, deny list merged; ask, disableBypassPermissionsMode, disableAutoMode, blockReadsOutsideWorkingDirectories, blockWritesOutsideWorkingDirectories preserved)"
 
 # In auto mode, send every shell command through the classifier
 # (hooks/allow-venv-source.sh makes no decision in auto mode). Claude Code
